@@ -135,10 +135,16 @@ export function SearchableSelect({
   const getDropdownPosition = () => {
     if (!triggerRef.current) return {};
     const rect = triggerRef.current.getBoundingClientRect();
+    const margin = 12;
+    const vw = window.innerWidth;
+    const desiredMin = Math.max(rect.width, 280);
+    const maxWidthFromLeft = vw - rect.left - margin;
+    const width = Math.min(desiredMin, maxWidthFromLeft);
+    const left = Math.max(margin, Math.min(rect.left, vw - width - margin));
     return {
       top: rect.bottom + 4,
-      left: rect.left,
-      minWidth: Math.max(rect.width, 280),
+      left,
+      width,
     };
   };
 
