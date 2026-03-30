@@ -164,7 +164,6 @@ export async function POST(
         last_name: effectiveLastName,
         full_name: effectiveFullName,
         chapter: chapter.name,
-        chapter_id: chapter.id,
         industry: body.industry?.trim() || 'Not specified',
         graduation_year: effectiveGradYear,
         company: body.company?.trim() || 'Not specified',
