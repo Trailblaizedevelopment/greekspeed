@@ -11,3 +11,8 @@ export function getExistingImageUrlsFromPost(post: Post): string[] {
   }
   return [];
 }
+
+/** Whether the post has at least one image URL (for `has_image` on feed/detail payloads). */
+export function postHasDisplayableImage(post: Pick<Post, 'image_url' | 'metadata'>): boolean {
+  return getExistingImageUrlsFromPost(post as Post).length > 0;
+}
