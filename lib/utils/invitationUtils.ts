@@ -258,3 +258,12 @@ export function generateInvitationUrl(token: string, invitationType?: string, ba
   
   return `${base}/join/${token}`;
 }
+
+/**
+ * Generate a canonical chapter join URL using the chapter's slug.
+ * This link allows invitees to choose their role (alumni vs active) at join time.
+ */
+export function generateChapterJoinUrl(slug: string, baseUrl?: string): string {
+  const base = baseUrl || getBaseUrl();
+  return `${base}/join/chapter/${slug}`;
+}

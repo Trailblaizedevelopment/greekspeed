@@ -71,7 +71,7 @@ export function UsersTab({
   const [searchDebounced, setSearchDebounced] = useState('');
   const [pageSize] = useState(25); // Show 100 users per page
 
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'active_member' | 'alumni'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'active_member' | 'alumni' | 'governance'>('all');
 
   useEffect(() => { setCurrentPage(1); }, [roleFilter]);
   
@@ -225,6 +225,7 @@ export function UsersTab({
             <SelectItem value="active_member">Active Members</SelectItem>
             <SelectItem value="alumni">Alumni</SelectItem>
             <SelectItem value="admin">Admin / Executive</SelectItem>
+            <SelectItem value="governance">Governance</SelectItem>
           </Select>
         </div>
       </div>

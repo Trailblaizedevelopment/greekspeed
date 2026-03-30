@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Copy, Eye, Edit, Trash2, Users, Calendar, Shield, Link, AlertCircle, X, Table, Loader2 } from 'lucide-react';
+import { Plus, Copy, Eye, Edit, Trash2, Users, Calendar, Shield, Link, AlertCircle, X, Table, Loader2, Check, Share2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,7 @@ import { InviteSettings } from './InviteSettings';
 import { InvitationWithUsage } from '@/types/invitations';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'react-toastify';
-import { generateInvitationUrl } from '@/lib/utils/invitationUtils';
+import { generateInvitationUrl, generateChapterJoinUrl } from '@/lib/utils/invitationUtils';
 
 interface InviteManagementProps {
   chapterId: string;
@@ -24,6 +24,42 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
   const [editingInvitation, setEditingInvitation] = useState<InvitationWithUsage | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showUsageModal, setShowUsageModal] = useState<InvitationWithUsage | null>(null);
+  const [chapterSlug, setChapterSlug] = useState<string | null>(null);
+  const [chapterJoinLinkCopied, setChapterJoinLinkCopied] = useState(false);
+
+  useEffect(() => {
+    const fetchChapterSlug = async () => {
+      try {
+        const response = await fetch(`/api/chapters/${chapterId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.slug) {
+            setChapterSlug(data.slug);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching chapter slug:', error);
+      }
+    };
+
+    if (chapterId) {
+      fetchChapterSlug();
+    }
+  }, [chapterId]);
+
+  const handleCopyChapterJoinLink = async () => {
+    if (!chapterSlug) return;
+    const url = generateChapterJoinUrl(chapterSlug);
+    try {
+      await navigator.clipboard.writeText(url);
+      setChapterJoinLinkCopied(true);
+      toast.success('Chapter join link copied to clipboard!');
+      setTimeout(() => setChapterJoinLinkCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('Failed to copy link');
+    }
+  };
 
   const fetchInvitations = async () => {
     try {
@@ -423,6 +459,54 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
     );
   }
 
+  const renderChapterJoinLinkWidget = () => {
+    if (!chapterSlug) return null;
+    const joinUrl = generateChapterJoinUrl(chapterSlug);
+
+    return (
+      <div className="rounded-xl border border-brand-primary/20 bg-gradient-to-r from-blue-50/80 to-purple-50/80 p-4 mb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2 mb-1">
+              <Share2 className="h-4 w-4 text-brand-primary flex-shrink-0" />
+              <h3 className="text-sm font-semibold text-gray-900">Chapter Join Link</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              One link for both active members and alumni. Share this with anyone you want to invite.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-white/80 border border-gray-200 rounded-md px-2 py-1.5 truncate block flex-1 text-gray-700">
+                {joinUrl}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyChapterJoinLink}
+                className={`h-8 rounded-full flex-shrink-0 transition-all duration-200 ${
+                  chapterJoinLinkCopied
+                    ? 'bg-green-50 border-green-300 text-green-700'
+                    : 'border-brand-primary/50 text-brand-primary hover:bg-brand-primary/10'
+                }`}
+              >
+                {chapterJoinLinkCopied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 mr-1" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 mr-1" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={className}>
       {/* Desktop: Use Card wrapper */}
@@ -455,7 +539,8 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-2">
+        <CardContent className="pt-4">
+          {renderChapterJoinLinkWidget()}
           {renderInvitationsContent()}
         </CardContent>
       </Card>
@@ -493,6 +578,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
 
         {/* Mobile Content */}
         <div className="pt-4 px-4">
+          {renderChapterJoinLinkWidget()}
           {renderInvitationsContent()}
         </div>
       </div>

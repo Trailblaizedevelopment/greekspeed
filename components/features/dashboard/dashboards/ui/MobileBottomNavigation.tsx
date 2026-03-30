@@ -534,10 +534,11 @@ function MobileBottomNavigationImpl({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="relative flex items-end gap-3">
+              <div className={`relative flex items-end ${toolsOptions.length === 2 ? 'gap-4' : 'gap-3'}`}>
                 {toolsOptions.map((option, index) => {
                   const Icon = option.icon;
-                  const isCenter = index === Math.floor(toolsOptions.length / 2);
+                  const usePyramid = toolsOptions.length >= 3;
+                  const isCenter = usePyramid && index === Math.floor(toolsOptions.length / 2);
                   
                   return (
                     <motion.button

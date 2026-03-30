@@ -22,6 +22,7 @@ import { createPortal } from 'react-dom';
 import { useLayoutEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { toast } from 'react-toastify';
+import { ExpandableCommentText } from './ExpandableCommentText';
 
 interface CommentModalProps {
   isOpen: boolean;
@@ -628,9 +629,9 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
               </span>
             </div>
 
-            <div className="mb-2">
+            <ExpandableCommentText commentId={comment.id} className="mb-2">
               {renderCommentContent(comment)}
-            </div>
+            </ExpandableCommentText>
 
             {/* Comment Actions - buttons keep existing styles */}
             <div className="flex flex-wrap items-center gap-3">

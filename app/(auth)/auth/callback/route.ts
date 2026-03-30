@@ -26,11 +26,17 @@ export async function GET(request: NextRequest) {
   const invitationToken = requestUrl.searchParams.get('invitation_token');
   let invitationType = requestUrl.searchParams.get('invitation_type'); // 'active_member' or 'alumni'
 
+  // Extract chapter join link params (reusable chapter link flow)
+  const chapterSlug = requestUrl.searchParams.get('chapter_slug');
+  const joinRole = requestUrl.searchParams.get('join_role'); // 'active_member' or 'alumni'
+
   console.log('OAuth callback received:', {
     hasCode: !!code,
     hasError: !!error,
     invitationToken,
     invitationType,
+    chapterSlug,
+    joinRole,
     requestUrl: requestUrl.toString(),
     origin: requestUrl.origin,
     allParams: Object.fromEntries(requestUrl.searchParams.entries())
@@ -49,6 +55,12 @@ export async function GET(request: NextRequest) {
         : `/join/${invitationToken}`;
       console.log('Preserving invitation token in redirect to:', redirectPath);
       return NextResponse.redirect(`${requestUrl.origin}${redirectPath}`);
+    }
+
+    // If we have a chapter slug (reusable chapter join link), preserve it
+    if (chapterSlug) {
+      console.log('Preserving chapter slug in redirect to:', `/join/chapter/${chapterSlug}`);
+      return NextResponse.redirect(`${requestUrl.origin}/join/chapter/${chapterSlug}`);
     }
 
     // Preserve return path (e.g. check-in) if Supabase echoed redirect_to but code is missing/misrouted
@@ -104,6 +116,11 @@ export async function GET(request: NextRequest) {
         `${requestUrl.origin}${redirectPath}?error=${encodeURIComponent(errorDescription || 'Authentication failed')}`
       );
     }
+    if (chapterSlug) {
+      return NextResponse.redirect(
+        `${requestUrl.origin}/join/chapter/${chapterSlug}?error=${encodeURIComponent(errorDescription || 'Authentication failed')}`
+      );
+    }
     return NextResponse.redirect(
       `${requestUrl.origin}/sign-in?error=${encodeURIComponent(errorDescription || 'Authentication failed')}`
     );
@@ -125,6 +142,11 @@ export async function GET(request: NextRequest) {
             `${requestUrl.origin}${redirectPath}?error=${encodeURIComponent('Failed to complete authentication')}`
           );
         }
+        if (chapterSlug) {
+          return NextResponse.redirect(
+            `${requestUrl.origin}/join/chapter/${chapterSlug}?error=${encodeURIComponent('Failed to complete authentication')}`
+          );
+        }
         return NextResponse.redirect(
           `${requestUrl.origin}/sign-in?error=${encodeURIComponent('Failed to complete authentication')}`
         );
@@ -141,6 +163,11 @@ export async function GET(request: NextRequest) {
             : `/join/${invitationToken}`;
           return NextResponse.redirect(
             `${requestUrl.origin}${redirectPath}?error=${encodeURIComponent('User not found after authentication')}`
+          );
+        }
+        if (chapterSlug) {
+          return NextResponse.redirect(
+            `${requestUrl.origin}/join/chapter/${chapterSlug}?error=${encodeURIComponent('User not found after authentication')}`
           );
         }
         return NextResponse.redirect(
@@ -523,6 +550,175 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Handle chapter slug join link flow (reusable join link, no invitation token)
+      if (chapterSlug && !invitationToken) {
+        try {
+          const { data: chapter, error: chapterError } = await serverSupabase
+            .from('chapters')
+            .select('id, name, slug, chapter_status')
+            .eq('slug', chapterSlug)
+            .eq('chapter_status', 'active')
+            .single();
+
+          if (chapterError || !chapter) {
+            console.error('Chapter not found for slug:', chapterSlug);
+          } else {
+            const effectiveJoinRole = joinRole === 'alumni' ? 'alumni' : 'active_member';
+            const role = effectiveJoinRole === 'alumni' ? 'alumni' : 'active_member';
+            const memberStatus = effectiveJoinRole === 'alumni' ? 'alumni' : 'active';
+
+            const chapterJoinProvider = user.app_metadata?.provider || user.user_metadata?.provider || 'unknown';
+            const chapterJoinIsLinkedIn = chapterJoinProvider === 'linkedin_oidc';
+            const firstName = user.user_metadata?.given_name || user.user_metadata?.first_name || '';
+            const lastName = user.user_metadata?.family_name || user.user_metadata?.last_name || '';
+            const fullName = user.user_metadata?.full_name || user.user_metadata?.name || `${firstName} ${lastName}`.trim() || 'OAuth User';
+            const username = await generateUniqueUsername(serverSupabase, firstName, lastName, user.id);
+            const profileSlug = generateProfileSlug(username);
+            const linkedinSub = user.user_metadata?.sub;
+            const linkedinUrl = chapterJoinIsLinkedIn && linkedinSub ? `https://www.linkedin.com/in/${linkedinSub}` : null;
+            const oauthAvatar = resolvedOAuthAvatarUrl;
+
+            console.log('Chapter join link OAuth - setting profile:', {
+              role,
+              memberStatus,
+              chapterId: chapter.id,
+              chapterName: chapter.name,
+              joinRole: effectiveJoinRole,
+            });
+
+            if (!existingProfile) {
+              const { error: profileError } = await serverSupabase
+                .from('profiles')
+                .insert({
+                  id: user.id,
+                  email: user.email,
+                  full_name: fullName,
+                  first_name: firstName,
+                  last_name: lastName,
+                  username,
+                  profile_slug: profileSlug,
+                  linkedin_url: linkedinUrl,
+                  avatar_url: oauthAvatar,
+                  chapter_id: chapter.id,
+                  chapter: chapter.name,
+                  role,
+                  member_status: memberStatus,
+                  welcome_seen: false,
+                  phone: null,
+                  grad_year: null,
+                  major: null,
+                  location: null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                });
+
+              if (profileError) {
+                console.error('Chapter join link: Profile creation error:', profileError);
+              } else {
+                if (role === 'alumni') {
+                  try {
+                    const nowIso = new Date().toISOString();
+                    await serverSupabase.from('alumni').upsert({
+                      user_id: user.id,
+                      first_name: firstName,
+                      last_name: lastName,
+                      full_name: fullName,
+                      email: user.email || '',
+                      chapter: chapter.name,
+                      chapter_id: chapter.id,
+                      industry: 'Not specified',
+                      graduation_year: new Date().getFullYear(),
+                      company: 'Not specified',
+                      job_title: 'Not specified',
+                      phone: null,
+                      location: 'Not specified',
+                      linkedin_url: linkedinUrl,
+                      description: `Alumni from ${chapter.name}`,
+                      avatar_url: oauthAvatar,
+                      verified: false,
+                      is_actively_hiring: false,
+                      last_contact: null,
+                      tags: null,
+                      mutual_connections: [],
+                      created_at: nowIso,
+                      updated_at: nowIso,
+                    }, { onConflict: 'user_id' });
+                  } catch (alumniError) {
+                    console.error('Chapter join link: Alumni record error:', alumniError);
+                  }
+                }
+
+                const redirectUrl = `${requestUrl.origin}/onboarding`;
+                return createHtmlRedirect(redirectUrl, response, cookieStore);
+              }
+            } else {
+              if (!existingProfile.chapter_id && chapter.id) {
+                await serverSupabase
+                  .from('profiles')
+                  .update({
+                    chapter_id: chapter.id,
+                    chapter: chapter.name,
+                    role,
+                    member_status: memberStatus,
+                    linkedin_url: linkedinUrl || existingProfile.linkedin_url,
+                    avatar_url: resolvedOAuthAvatarUrl ?? existingProfile.avatar_url,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', user.id);
+              }
+
+              if (role === 'alumni') {
+                try {
+                  const nowIso = new Date().toISOString();
+                  const { data: existingAlumni } = await serverSupabase
+                    .from('alumni')
+                    .select('description, avatar_url, verified, is_actively_hiring, last_contact, tags, mutual_connections, created_at')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+
+                  await serverSupabase.from('alumni').upsert({
+                    user_id: user.id,
+                    first_name: firstName,
+                    last_name: lastName,
+                    full_name: fullName,
+                    email: user.email || '',
+                    chapter: chapter.name,
+                    chapter_id: chapter.id,
+                    industry: 'Not specified',
+                    graduation_year: new Date().getFullYear(),
+                    company: 'Not specified',
+                    job_title: 'Not specified',
+                    phone: null,
+                    location: 'Not specified',
+                    linkedin_url: linkedinUrl || existingProfile.linkedin_url,
+                    description: existingAlumni?.description ?? `Alumni from ${chapter.name}`,
+                    avatar_url: existingAlumni?.avatar_url ?? (resolvedOAuthAvatarUrl ?? existingProfile.avatar_url ?? null),
+                    verified: existingAlumni?.verified ?? false,
+                    is_actively_hiring: existingAlumni?.is_actively_hiring ?? false,
+                    last_contact: existingAlumni?.last_contact ?? null,
+                    tags: existingAlumni?.tags ?? null,
+                    mutual_connections: existingAlumni?.mutual_connections ?? [],
+                    created_at: existingAlumni?.created_at ?? nowIso,
+                    updated_at: nowIso,
+                  }, { onConflict: 'user_id' });
+                } catch (alumniError) {
+                  console.error('Chapter join link: Alumni record upsert error:', alumniError);
+                }
+              }
+
+              const onboardingComplete = existingProfile.onboarding_completed === true;
+              const redirectUrl = onboardingComplete
+                ? `${requestUrl.origin}/dashboard`
+                : `${requestUrl.origin}/onboarding`;
+              return createHtmlRedirect(redirectUrl, response, cookieStore);
+            }
+          }
+        } catch (chapterJoinError) {
+          console.error('Chapter join link processing error:', chapterJoinError);
+          console.log('Falling back to basic profile creation');
+        }
+      }
+
       // ALWAYS ensure profile exists (fallback for missing invitation token or errors)
       const isPublicAlumniSignup = signupRole === 'alumni';
 
@@ -724,6 +920,11 @@ export async function GET(request: NextRequest) {
           `${requestUrl.origin}${redirectPath}?error=${encodeURIComponent('Authentication processing failed')}`
         );
       }
+      if (chapterSlug) {
+        return NextResponse.redirect(
+          `${requestUrl.origin}/join/chapter/${chapterSlug}?error=${encodeURIComponent('Authentication processing failed')}`
+        );
+      }
       return NextResponse.redirect(
         `${requestUrl.origin}/sign-in?error=${encodeURIComponent('Authentication processing failed')}`
       );
@@ -736,6 +937,9 @@ export async function GET(request: NextRequest) {
       ? `/alumni-join/${invitationToken}`
       : `/join/${invitationToken}`;
     return NextResponse.redirect(`${requestUrl.origin}${redirectPath}`);
+  }
+  if (chapterSlug) {
+    return NextResponse.redirect(`${requestUrl.origin}/join/chapter/${chapterSlug}`);
   }
   // Redirect to sign-in instead of sign-up to avoid marketing page
   return NextResponse.redirect(`${requestUrl.origin}/sign-in`);
