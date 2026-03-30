@@ -46,6 +46,7 @@ export function SendAnnouncementButton() {
     setImageAlt,
     imageUploading,
     handleFileChange,
+    processImageFile,
     removeImage,
     resetAttachment,
     buildMetadata,
@@ -176,6 +177,7 @@ export function SendAnnouncementButton() {
         imageUploading={imageUploading}
         acceptTypes={acceptTypes}
         onFileChange={handleFileChange}
+        processImageFile={processImageFile}
         onRemove={removeImage}
         disabled={isSubmitting || announcementsLoading}
       />

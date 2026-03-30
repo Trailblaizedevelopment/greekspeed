@@ -76,6 +76,7 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
     setImageAlt,
     imageUploading,
     handleFileChange,
+    processImageFile,
     removeImage,
     resetAttachment,
     buildMetadata,
@@ -552,6 +553,7 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
               imageUploading={imageUploading}
               acceptTypes={acceptTypes}
               onFileChange={handleFileChange}
+              processImageFile={processImageFile}
               onRemove={removeImage}
               disabled={isSubmitting || announcementsLoading}
             />

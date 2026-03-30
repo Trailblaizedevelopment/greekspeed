@@ -3,9 +3,14 @@ import { supabase } from '@/lib/supabase/client';
 const BUCKET = 'announcement-images';
 
 /** ~1MB cap for MMS-friendly payloads (tune if product asks) */
-const MAX_FILE_SIZE = 1 * 1024 * 1024;
+export const ANNOUNCEMENT_IMAGE_MAX_BYTES = 1 * 1024 * 1024;
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'] as const;
+
+export type AnnouncementImageMimeType = (typeof ALLOWED_TYPES)[number];
+
+/** Comma-separated list for `<input accept>` */
+export const ANNOUNCEMENT_IMAGE_ACCEPT_ATTR = ALLOWED_TYPES.join(',');
 
 export interface AnnouncementImageUploadResult {
   url: string;
@@ -14,18 +19,25 @@ export interface AnnouncementImageUploadResult {
 }
 
 export class AnnouncementImageService {
+  /** Client-side validation (same rules as upload). Returns error message or null if OK. */
+  static validateFile(file: File): string | null {
+    if (!ALLOWED_TYPES.includes(file.type as AnnouncementImageMimeType)) {
+      return `Invalid file type. Only JPEG, PNG, and WebP are allowed.`;
+    }
+    if (file.size > ANNOUNCEMENT_IMAGE_MAX_BYTES) {
+      return `File exceeds ${ANNOUNCEMENT_IMAGE_MAX_BYTES / 1024 / 1024} MB limit.`;
+    }
+    return null;
+  }
+
   /**
    * Upload a single image for an announcement. Path: {userId}/{unique}.{ext}
    * Requires Storage RLS: first path segment must equal auth.uid().
    */
   static async uploadImage(file: File, userId: string): Promise<AnnouncementImageUploadResult> {
-    if (!ALLOWED_TYPES.includes(file.type as (typeof ALLOWED_TYPES)[number])) {
-      throw new Error(
-        `Invalid file type: ${file.type}. Only JPEG, PNG, and WebP are allowed.`
-      );
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      throw new Error(`File exceeds ${MAX_FILE_SIZE / 1024 / 1024} MB limit.`);
+    const validationError = this.validateFile(file);
+    if (validationError) {
+      throw new Error(validationError);
     }
 
     let fileExt = 'jpg';

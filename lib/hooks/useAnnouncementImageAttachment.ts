@@ -4,10 +4,11 @@ import { useCallback, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { AnnouncementImageService } from '@/lib/services/announcementImageService';
+import {
+  AnnouncementImageService,
+  ANNOUNCEMENT_IMAGE_ACCEPT_ATTR,
+} from '@/lib/services/announcementImageService';
 import type { AnnouncementImageUploadResult } from '@/lib/services/announcementImageService';
-
-const ACCEPT_TYPES = 'image/jpeg,image/jpg,image/png,image/webp';
 
 export function useAnnouncementImageAttachment() {
   const { user } = useAuth();
@@ -15,14 +16,16 @@ export function useAnnouncementImageAttachment() {
   const [imageAlt, setImageAlt] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
 
-  const handleFileChange = useCallback(
-    async (e: ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      if (!file) return;
-
+  const processImageFile = useCallback(
+    async (file: File) => {
       if (!user?.id) {
         toast.error('You must be signed in to attach an image');
+        return;
+      }
+
+      const validation = AnnouncementImageService.validateFile(file);
+      if (validation) {
+        toast.error(validation);
         return;
       }
 
@@ -38,6 +41,16 @@ export function useAnnouncementImageAttachment() {
       }
     },
     [user?.id]
+  );
+
+  const handleFileChange = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      await processImageFile(file);
+    },
+    [processImageFile]
   );
 
   const removeImage = useCallback(() => {
@@ -69,9 +82,10 @@ export function useAnnouncementImageAttachment() {
     setImageAlt,
     imageUploading,
     handleFileChange,
+    processImageFile,
     removeImage,
     resetAttachment,
     buildMetadata,
-    acceptTypes: ACCEPT_TYPES,
+    acceptTypes: ANNOUNCEMENT_IMAGE_ACCEPT_ATTR,
   };
 }
