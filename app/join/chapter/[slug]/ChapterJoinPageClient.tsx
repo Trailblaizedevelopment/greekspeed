@@ -123,7 +123,7 @@ export default function ChapterJoinPageClient() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-6">
             <div className="flex flex-col items-center space-y-4">
@@ -141,7 +141,7 @@ export default function ChapterJoinPageClient() {
 
   if (error || !chapter) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-red-600">
@@ -169,7 +169,7 @@ export default function ChapterJoinPageClient() {
 
   if (signupSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-green-600">
@@ -189,7 +189,7 @@ export default function ChapterJoinPageClient() {
 
   if (showEmailForm && selectedRole && chapter) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full">
           <ChapterJoinForm
             chapter={chapter}
@@ -205,7 +205,7 @@ export default function ChapterJoinPageClient() {
   // Role selection + auth options
   if (selectedRole) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -221,7 +221,7 @@ export default function ChapterJoinPageClient() {
               <div className="bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-sm rounded-lg p-3">
                 <div className="flex items-center space-x-2">
                   {selectedRole === 'alumni' ? (
-                    <GraduationCap className="h-4 w-4 text-brand-accent" />
+                    <GraduationCap className="h-4 w-4 text-gray-600" />
                   ) : (
                     <Users className="h-4 w-4 text-brand-primary" />
                   )}
@@ -231,7 +231,11 @@ export default function ChapterJoinPageClient() {
                     </p>
                     <button
                       onClick={() => setSelectedRole(null)}
-                      className="text-xs text-brand-accent hover:underline"
+                      className={
+                        selectedRole === 'alumni'
+                          ? 'text-xs text-gray-600 hover:underline'
+                          : 'text-xs text-brand-primary hover:underline'
+                      }
                     >
                       Change
                     </button>
@@ -290,7 +294,7 @@ export default function ChapterJoinPageClient() {
 
   // Role selection screen
   return (
-    <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -332,10 +336,10 @@ export default function ChapterJoinPageClient() {
 
               <button
                 onClick={() => setSelectedRole('alumni')}
-                className="flex flex-col items-center p-6 rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50/50 transition-all duration-200 text-center group"
+                className="flex flex-col items-center p-6 rounded-xl border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 text-center group"
               >
-                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors">
-                  <GraduationCap className="h-6 w-6 text-purple-600" />
+                <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center mb-3 group-hover:bg-gray-200 transition-colors">
+                  <GraduationCap className="h-6 w-6 text-gray-600" />
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1">Alumni</h3>
                 <p className="text-xs text-gray-500">
