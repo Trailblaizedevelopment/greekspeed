@@ -26,6 +26,8 @@ import { useEvents } from '@/lib/hooks/useEvents';
 import { CreateEventRequest, UpdateEventRequest } from '@/types/events';
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { isPublishedEventUpcoming } from '@/lib/utils/eventScheduleDisplay';
+import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
+import { AnnouncementImageAttachmentField } from '../AnnouncementImageAttachmentField';
 
 interface OverviewViewProps {
   selectedRole: string;
@@ -67,6 +69,18 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
   const [memberSmsRecipientCount, setMemberSmsRecipientCount] = useState<number | null>(null);
   const [alumniSmsRecipientCount, setAlumniSmsRecipientCount] = useState<number | null>(null);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
+
+  const {
+    pendingImage,
+    imageAlt,
+    setImageAlt,
+    imageUploading,
+    handleFileChange,
+    removeImage,
+    resetAttachment,
+    buildMetadata,
+    acceptTypes,
+  } = useAnnouncementImageAttachment();
 
   // Event form state
   const [showEventForm, setShowEventForm] = useState(false);
@@ -149,7 +163,7 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
         send_sms_to_alumni: sendSmsToAlumni,
         send_email_to_members: sendEmailToMembers,
         send_email_to_alumni: sendEmailToAlumni,
-        metadata: {}
+        metadata: buildMetadata(),
       };
 
       await createAnnouncement(announcementData);
@@ -162,6 +176,7 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
       setSendSmsToAlumni(false);
       setSendEmailToMembers(false);
       setSendEmailToAlumni(false);
+      resetAttachment();
       
       toast.success('Announcement sent successfully!');
     } catch (error) {
@@ -527,6 +542,18 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
               value={announcement}
               onChange={(e) => setAnnouncement(e.target.value)}
               className="min-h-[100px]"
+            />
+
+            <AnnouncementImageAttachmentField
+              idSuffix="overview"
+              pendingImage={pendingImage}
+              imageAlt={imageAlt}
+              onAltChange={setImageAlt}
+              imageUploading={imageUploading}
+              acceptTypes={acceptTypes}
+              onFileChange={handleFileChange}
+              onRemove={removeImage}
+              disabled={isSubmitting || announcementsLoading}
             />
             
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">

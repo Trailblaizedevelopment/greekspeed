@@ -16,6 +16,8 @@ import { CreateAnnouncementData } from '@/types/announcements';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useEffect } from 'react';
+import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
+import { AnnouncementImageAttachmentField } from './AnnouncementImageAttachmentField';
 
 export function SendAnnouncementButton() {
   const { profile } = useProfile();
@@ -37,6 +39,18 @@ export function SendAnnouncementButton() {
   const [alumniSmsRecipientCount, setAlumniSmsRecipientCount] = useState<number | null>(null);
   const [alumniEmailRecipientCount, setAlumniEmailRecipientCount] = useState<number | null>(null);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
+
+  const {
+    pendingImage,
+    imageAlt,
+    setImageAlt,
+    imageUploading,
+    handleFileChange,
+    removeImage,
+    resetAttachment,
+    buildMetadata,
+    acceptTypes,
+  } = useAnnouncementImageAttachment();
 
   // Auto-set SMS for urgent announcements
   useEffect(() => {
@@ -102,7 +116,7 @@ export function SendAnnouncementButton() {
         send_sms_to_alumni: sendSmsToAlumni,
         send_email_to_members: sendEmailToMembers,
         send_email_to_alumni: sendEmailToAlumni,
-        metadata: {}
+        metadata: buildMetadata(),
       };
 
       await createAnnouncement(announcementData);
@@ -114,6 +128,7 @@ export function SendAnnouncementButton() {
       setSendSmsToAlumni(false);
       setSendEmailToMembers(false);
       setSendEmailToAlumni(false);
+      resetAttachment();
       setShowModal(false);
       
       toast.success('Announcement sent successfully!');
@@ -151,6 +166,18 @@ export function SendAnnouncementButton() {
         value={announcement}
         onChange={(e) => setAnnouncement(e.target.value)}
         className="min-h-[120px] w-full border-gray-200 focus:border-brand-primary focus:ring-brand-primary resize-none"
+      />
+
+      <AnnouncementImageAttachmentField
+        idSuffix={idSuffix}
+        pendingImage={pendingImage}
+        imageAlt={imageAlt}
+        onAltChange={setImageAlt}
+        imageUploading={imageUploading}
+        acceptTypes={acceptTypes}
+        onFileChange={handleFileChange}
+        onRemove={removeImage}
+        disabled={isSubmitting || announcementsLoading}
       />
 
       <div className="space-y-1">
