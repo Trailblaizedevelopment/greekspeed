@@ -1,19 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Drawer } from 'vaul';
 import { Clock, DollarSign, FileText, Megaphone, CheckCircle, Calendar, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useProfile } from '@/lib/contexts/ProfileContext';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase/client';
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 interface ActivityItem {
   id: string;
@@ -41,40 +35,11 @@ export function OperationsFeed() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalFetched, setTotalFetched] = useState(0);
-  const { profile } = useProfile();
   const chapterId = useScopedChapterId();
   const { enabled: eventsManagementEnabled } = useFeatureFlag('events_management_enabled');
   const [totalItems, setTotalItems] = useState(0);
 
-  useEffect(() => {
-    if (chapterId) {
-      fetchRecentActivities();
-
-      // Poll for updates every 60 seconds
-      const interval = setInterval(() => {
-        fetchRecentActivities();
-      }, 60000); // 60 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [chapterId]);
-
-  // Fetch responsive number of recent activities for the feed
-  const fetchRecentActivities = async () => {
-    if (!chapterId) return;
-
-    try {
-      setLoading(true);
-      // Fetch 3 on mobile, 5 on desktop
-      const limit = window.innerWidth < 640 ? 3 : 5;
-      const activities = await fetchActivitiesFromDatabase(limit);
-      setActivities(activities);
-    } catch (error) {
-      console.error('Error fetching recent activities:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch activities for the drawer with pagination
   const fetchActivitiesForDrawer = async (page: number = 1) => {
@@ -124,9 +89,7 @@ export function OperationsFeed() {
     }
   };
 
-  // Core function to fetch activities from database
-  // Core function to fetch activities from database
-  const fetchActivitiesFromDatabase = async (limit: number): Promise<ActivityItem[]> => {
+  const fetchActivitiesFromDatabase = useCallback(async (limit: number): Promise<ActivityItem[]> => {
     if (!chapterId) return [];
 
     // Calculate date 2 months ago for filtering
@@ -309,7 +272,96 @@ export function OperationsFeed() {
     return allActivities
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, limit);
-  };
+  }, [chapterId, eventsManagementEnabled]);
+
+  // Initial load (skeleton only on first paint for this chapter / when query shape changes)
+  useEffect(() => {
+    if (!chapterId) return;
+
+    let cancelled = false;
+    setLoading(true);
+
+    (async () => {
+      try {
+        const limit = typeof window !== 'undefined' && window.innerWidth < 640 ? 3 : 5;
+        const next = await fetchActivitiesFromDatabase(limit);
+        if (!cancelled) setActivities(next);
+      } catch (error) {
+        console.error('Error fetching recent activities:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chapterId, fetchActivitiesFromDatabase]);
+
+  // Realtime: debounced quiet refetch (no full-card skeleton)
+  useEffect(() => {
+    if (!chapterId) return;
+
+    const debounceMs = 350;
+
+    const scheduleQuietRefetch = () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(async () => {
+        debounceTimerRef.current = null;
+        try {
+          const limit = typeof window !== 'undefined' && window.innerWidth < 640 ? 3 : 5;
+          const next = await fetchActivitiesFromDatabase(limit);
+          setActivities(next);
+        } catch (error) {
+          console.error('Error refreshing operations feed:', error);
+        }
+      }, debounceMs);
+    };
+
+    const chapterFilter = `chapter_id=eq.${chapterId}`;
+
+    let channel = supabase.channel(`operations-feed-${chapterId}`);
+
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'announcements', filter: chapterFilter },
+      scheduleQuietRefetch
+    );
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'tasks', filter: chapterFilter },
+      scheduleQuietRefetch
+    );
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'documents', filter: chapterFilter },
+      scheduleQuietRefetch
+    );
+
+    if (eventsManagementEnabled) {
+      channel = channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events', filter: chapterFilter },
+        scheduleQuietRefetch
+      );
+    }
+
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'dues_assignments' },
+      scheduleQuietRefetch
+    );
+
+    channel.subscribe();
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [chapterId, eventsManagementEnabled, fetchActivitiesFromDatabase]);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -376,7 +428,7 @@ export function OperationsFeed() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center space-x-2">
             <Clock className="h-5 w-5 text-brand-primary" />
-            <span>Operations Feed</span>
+            <span>Chapter Notifications</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
@@ -397,7 +449,7 @@ export function OperationsFeed() {
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center space-x-2">
           <Clock className="h-5 w-5 text-brand-primary" />
-          <span>Operations Feed</span>
+          <span>Chapter Notifications</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
