@@ -36,8 +36,7 @@ import {
   isRsvpWindowOpen,
 } from '@/lib/utils/eventScheduleDisplay';
 import { copyEventLinkToClipboard } from '@/lib/utils/eventLinkUtils';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { MarketingHeader } from '@/components/marketing/MarketingHeader';
 import { DashboardHeader } from '@/components/features/dashboard/DashboardHeader';
@@ -235,8 +234,6 @@ export function PublicEventClient({ event, attendeeCounts: initialCounts }: Publ
 
   return (
     <>
-      <ToastContainer position="top-right" autoClose={3000} />
-
       {/* ==================== MOBILE LAYOUT ==================== */}
       <div className="min-h-screen bg-white sm:hidden pb-20">
         {/* Header - MarketingHeader for non-auth */}

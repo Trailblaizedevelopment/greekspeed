@@ -95,36 +95,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </AppQueryProvider>
           <Analytics />
           <SpeedInsights />
-          {/* Desktop Toast Container - z-index above modals so toasts stay clickable */}
+          {/* Single container (one react-toastify registry). Responsive classes = mobile vs desktop look. */}
           <ToastContainer
             position="top-right"
-            autoClose={4000}
+            autoClose={3500}
             hideProgressBar={false}
-            newestOnTop={false}
+            newestOnTop
             closeOnClick
             rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="light"
-            className="hidden sm:block"
-            style={{ zIndex: 10004 }}
-            toastClassName="!bg-white !shadow-lg !border !border-gray-200 !rounded-lg !p-4 !min-h-[60px]"
-          />
-          {/* Mobile Toast Container - z-index above modals so toasts stay clickable */}
-          <ToastContainer
-            position="top-right"
-            autoClose={3000}
-            hideProgressBar={false}
-            newestOnTop={true}
-            closeOnClick
             pauseOnFocusLoss
             draggable={false}
             pauseOnHover
             theme="light"
-            className="block sm:hidden"
+            className="!px-2 !pt-2 !pb-2 sm:!px-4 sm:!pt-4 sm:!pb-4 !w-[min(100%,20rem)] sm:!w-auto !left-auto !right-2 sm:!right-4 !top-2 sm:!top-4"
             style={{ zIndex: 10004 }}
-            toastClassName="!bg-white !shadow-lg !border !border-gray-200 !rounded-lg !p-4 !min-h-[60px]"
+            toastClassName="!bg-white !shadow-lg !border !border-gray-200 !rounded-md sm:!rounded-lg !p-3 !min-h-[52px] sm:!p-4 sm:!min-h-[60px] !text-sm sm:!text-base !mb-2 sm:!mb-3"
           />
         </body>
       </html>
