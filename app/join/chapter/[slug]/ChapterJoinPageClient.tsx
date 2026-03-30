@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { AlertCircle, Users, GraduationCap, Loader2, Mail, UserCheck } from 'lucide-react';
+import { AlertCircle, Users, GraduationCap, Loader2, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChapterJoinForm } from '@/components/features/join/ChapterJoinForm';
@@ -30,7 +30,6 @@ export default function ChapterJoinPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<JoinRole | null>(null);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
@@ -114,16 +113,13 @@ export default function ChapterJoinPageClient() {
     }
   };
 
-  const handleJoinSuccess = (userData: { needs_approval?: boolean }) => {
-    setSignupSuccess(true);
-    if (!userData.needs_approval) {
-      window.location.href = '/onboarding';
-    }
+  const handleJoinSuccess = () => {
+    window.location.href = '/onboarding';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-6">
             <div className="flex flex-col items-center space-y-4">
@@ -141,7 +137,7 @@ export default function ChapterJoinPageClient() {
 
   if (error || !chapter) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-red-600">
@@ -167,29 +163,9 @@ export default function ChapterJoinPageClient() {
     );
   }
 
-  if (signupSuccess) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-green-600">
-              <UserCheck className="h-5 w-5" />
-              <span>Welcome to {chapter.name}!</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-gray-600">
-              Your account has been created successfully. Redirecting you to complete your profile...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   if (showEmailForm && selectedRole && chapter) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full">
           <ChapterJoinForm
             chapter={chapter}
@@ -205,7 +181,7 @@ export default function ChapterJoinPageClient() {
   // Role selection + auth options
   if (selectedRole) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -221,7 +197,7 @@ export default function ChapterJoinPageClient() {
               <div className="bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-sm rounded-lg p-3">
                 <div className="flex items-center space-x-2">
                   {selectedRole === 'alumni' ? (
-                    <GraduationCap className="h-4 w-4 text-brand-accent" />
+                    <GraduationCap className="h-4 w-4 text-gray-600" />
                   ) : (
                     <Users className="h-4 w-4 text-brand-primary" />
                   )}
@@ -231,7 +207,11 @@ export default function ChapterJoinPageClient() {
                     </p>
                     <button
                       onClick={() => setSelectedRole(null)}
-                      className="text-xs text-brand-accent hover:underline"
+                      className={
+                        selectedRole === 'alumni'
+                          ? 'text-xs text-gray-600 hover:underline'
+                          : 'text-xs text-brand-primary hover:underline'
+                      }
                     >
                       Change
                     </button>
@@ -290,7 +270,7 @@ export default function ChapterJoinPageClient() {
 
   // Role selection screen
   return (
-    <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -332,10 +312,10 @@ export default function ChapterJoinPageClient() {
 
               <button
                 onClick={() => setSelectedRole('alumni')}
-                className="flex flex-col items-center p-6 rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50/50 transition-all duration-200 text-center group"
+                className="flex flex-col items-center p-6 rounded-xl border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 text-center group"
               >
-                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors">
-                  <GraduationCap className="h-6 w-6 text-purple-600" />
+                <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center mb-3 group-hover:bg-gray-200 transition-colors">
+                  <GraduationCap className="h-6 w-6 text-gray-600" />
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1">Alumni</h3>
                 <p className="text-xs text-gray-500">

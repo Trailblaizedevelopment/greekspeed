@@ -80,7 +80,15 @@ export default function ProfileBasicsPage() {
   const [invitationLoading, setInvitationLoading] = useState(true);
 
   const graduationYears = getGraduationYears();
-  const isAlumni = formData.role === 'alumni';
+
+  /** Chapter + role already set (e.g. join link or step 1) — hide redundant fields */
+  const chapterAndRoleLocked = !!(profile?.chapter && profile?.role);
+  const effectiveRole = (
+    formData.role ||
+    (chapterAndRoleLocked ? profile?.role : '') ||
+    ''
+  ) as '' | 'alumni' | 'active_member';
+  const isAlumni = effectiveRole === 'alumni';
 
   // Check for invitation token and auto-populate
   useEffect(() => {
@@ -283,8 +291,10 @@ export default function ProfileBasicsPage() {
 
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.chapter) newErrors.chapter = 'Chapter is required';
-    if (!formData.role) newErrors.role = 'Role is required';
+    if (!chapterAndRoleLocked) {
+      if (!formData.chapter) newErrors.chapter = 'Chapter is required';
+      if (!formData.role) newErrors.role = 'Role is required';
+    }
     if (!formData.graduationYear) newErrors.graduationYear = 'Graduation year is required';
 
     // Alumni-specific validation
@@ -300,7 +310,7 @@ export default function ProfileBasicsPage() {
     }
 
     // Active member validation
-    if (formData.role === 'active_member') {
+    if (effectiveRole === 'active_member') {
       if (!formData.major?.trim()) newErrors.major = 'Major is required for active members';
     }
 
@@ -322,7 +332,16 @@ export default function ProfileBasicsPage() {
 
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`;
-      const normalizedRole = formData.role.toLowerCase();
+      const chapterName =
+        formData.chapter?.trim() || profile?.chapter?.trim() || '';
+      const chapterIdVal = formData.chapterId || profile?.chapter_id || null;
+      const roleRaw = formData.role || profile?.role || '';
+      const normalizedRole = roleRaw.toLowerCase();
+      if (!normalizedRole) {
+        toast.error('Role is required.');
+        setLoading(false);
+        return;
+      }
 
       // Update profiles table
       const updateData: any = {
@@ -330,8 +349,8 @@ export default function ProfileBasicsPage() {
         last_name: formData.lastName,
         full_name: fullName,
         email: formData.email,
-        chapter: formData.chapter,
-        chapter_id: formData.chapterId || null,
+        chapter: chapterName,
+        chapter_id: chapterIdVal,
         role: normalizedRole,
         grad_year: parseInt(formData.graduationYear),
         major: formData.major || null,
@@ -376,7 +395,7 @@ export default function ProfileBasicsPage() {
             email: formData.email || user.email,
             phone: formData.phone || null,
             location: formData.location || 'Not specified',
-            description: `Alumni from ${formData.chapter}`,
+            description: `Alumni from ${chapterName}`,
             avatar_url: profile?.avatar_url || null,
             verified: false,
             is_actively_hiring: false,
@@ -471,57 +490,61 @@ export default function ProfileBasicsPage() {
               </div>
             </div>
 
-            {/* Chapter Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="chapter" className="flex items-center gap-2">
-                Chapter *
-              </Label>
-              <Select
-                value={formData.chapter}
-                onValueChange={handleChapterChange}
-                disabled={chaptersLoading || !!profile?.chapter}
-              >
-                <SelectTrigger className={cn(errors.chapter && 'border-red-500')}>
-                  <SelectValue placeholder="Select your chapter" />
-                </SelectTrigger>
-                <SelectContent>
-                  {chapters.map((chapter) => (
-                    <SelectItem key={chapter.id} value={chapter.name}>
-                      {chapter.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.chapter && (
-                <p className="text-sm text-red-500">{errors.chapter}</p>
-              )}
-            </div>
+            {!chapterAndRoleLocked && (
+              <>
+                {/* Chapter Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="chapter" className="flex items-center gap-2">
+                    Chapter *
+                  </Label>
+                  <Select
+                    value={formData.chapter}
+                    onValueChange={handleChapterChange}
+                    disabled={chaptersLoading || !!profile?.chapter}
+                  >
+                    <SelectTrigger className={cn(errors.chapter && 'border-red-500')}>
+                      <SelectValue placeholder="Select your chapter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chapters.map((chapter) => (
+                        <SelectItem key={chapter.id} value={chapter.name}>
+                          {chapter.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.chapter && (
+                    <p className="text-sm text-red-500">{errors.chapter}</p>
+                  )}
+                </div>
 
-            {/* Role Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="role" className="flex items-center gap-2">
-                I am a(n) *
-              </Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) => handleChange('role', value)}
-                disabled={hasInvitation && !!formData.role}
-              >
-                <SelectTrigger className={cn(errors.role && 'border-red-500')}>
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(hasInvitation ? USER_ROLES : USER_ROLES.filter(r => r.value === 'alumni')).map((role) => (
-                    <SelectItem key={role.value} value={role.value}>
-                      {role.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.role && (
-                <p className="text-sm text-red-500">{errors.role}</p>
-              )}
-            </div>
+                {/* Role Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="role" className="flex items-center gap-2">
+                    I am a(n) *
+                  </Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value) => handleChange('role', value)}
+                    disabled={hasInvitation && !!formData.role}
+                  >
+                    <SelectTrigger className={cn(errors.role && 'border-red-500')}>
+                      <SelectValue placeholder="Select your role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(hasInvitation ? USER_ROLES : USER_ROLES.filter(r => r.value === 'alumni')).map((role) => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.role && (
+                    <p className="text-sm text-red-500">{errors.role}</p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Graduation Year */}
             <div className="space-y-2">
@@ -551,7 +574,7 @@ export default function ProfileBasicsPage() {
             {/* Major */}
             <div className="space-y-2">
               <Label htmlFor="major" className="flex items-center gap-2">
-                Major {formData.role === 'active_member' ? '*' : '(Optional)'}
+                Major {effectiveRole === 'active_member' ? '*' : '(Optional)'}
               </Label>
               <SearchableSelect
                 value={formData.major}
@@ -567,7 +590,7 @@ export default function ProfileBasicsPage() {
             </div>
 
             {/* Additional Information - shown for all roles */}
-            {(formData.role === 'active_member' || isAlumni) && (
+            {(effectiveRole === 'active_member' || isAlumni) && (
               <>
                 <div className="border-t pt-6 mt-6">
                   <h3 className="text-sm font-medium text-gray-900 mb-4 flex items-center gap-2">

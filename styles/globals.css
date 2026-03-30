@@ -148,6 +148,11 @@ textarea.scrollbar-thin::-webkit-scrollbar {
   font-style: italic;
 }
 
+/* Hide Toastify while any /onboarding route is active (OnboardingLayoutClient sets data-onboarding) */
+html[data-onboarding='true'] .Toastify__toast-container {
+  display: none !important;
+}
+
 /* Custom Toastify styles */
 .Toastify__toast {
   border-radius: 0.5rem !important;

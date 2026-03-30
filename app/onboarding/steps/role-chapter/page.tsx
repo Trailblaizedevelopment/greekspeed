@@ -308,7 +308,7 @@ export default function RoleChapterPage() {
               <div>
                 <h3 className="font-medium text-green-900 text-sm mb-1">Welcome to Trailblaize!</h3>
                 <p className="text-sm text-green-800">
-                  Your account has been set up. Let&apos;s complete your profile.
+                  Let&apos;s complete your profile.
                 </p>
               </div>
             </div>
@@ -338,7 +338,6 @@ export default function RoleChapterPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">{profile?.chapter}</p>
-                    <p className="text-sm text-gray-500">Fraternity Chapter</p>
                   </div>
                 </div>
               </div>
@@ -357,11 +356,6 @@ export default function RoleChapterPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-brand-text">{roleLabel}</p>
-                    <p className="text-sm text-gray-500">
-                      {profile?.role === 'active_member'
-                        ? 'Current chapter member'
-                        : 'Connect with your fraternity network'}
-                    </p>
                   </div>
                 </div>
               </div>

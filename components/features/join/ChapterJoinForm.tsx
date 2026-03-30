@@ -158,7 +158,7 @@ export function ChapterJoinForm({ chapter, joinRole, onSuccess, onCancel }: Chap
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-2 md:p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-2 md:p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -297,10 +297,10 @@ I agree to receive SMS notifications from {['Trail', 'blaize'].join('')}, Inc. M
                 </div>
               </div>
 
-              <div className={`rounded-lg p-3 ${isAlumni ? 'bg-purple-50 border border-purple-200' : 'bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20'}`}>
+              <div className={`rounded-lg p-3 ${isAlumni ? 'bg-gray-50 border border-gray-200' : 'bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20'}`}>
                 <div className="flex items-center space-x-2">
                   {isAlumni ? (
-                    <GraduationCap className="h-4 w-4 text-purple-600" />
+                    <GraduationCap className="h-4 w-4 text-gray-600" />
                   ) : (
                     <Users className="h-4 w-4 text-brand-primary" />
                   )}
