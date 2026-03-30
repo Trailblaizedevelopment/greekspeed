@@ -4,32 +4,10 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import DashboardPageClient from './DashboardPageClient';
 import type { Post, PostsResponse } from '@/types/posts';
+import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 import type { Profile } from '@/types/profile';
 
 const POSTS_PAGE_LIMIT = 10;
-
-/** For slim first page: strip base64 image_url/metadata.image_urls and set has_image. */
-function toSlimPostShape<T extends { image_url?: string | null; metadata?: Record<string, unknown> }>(
-  post: T
-): T & { has_image?: boolean } {
-  const out = { ...post, has_image: false } as T & { has_image: boolean };
-  const hasDataUrl = (url: string) => typeof url === 'string' && url.startsWith('data:');
-  const imageUrl = post.image_url ?? undefined;
-  let meta = post.metadata;
-  if (hasDataUrl(imageUrl as string)) {
-    (out as { image_url: null }).image_url = null;
-    out.has_image = true;
-  } else if (imageUrl && (imageUrl as string).startsWith('http')) {
-    out.has_image = true;
-  }
-  const urls = meta?.image_urls;
-  if (Array.isArray(urls) && urls.some((u: unknown) => hasDataUrl(u as string))) {
-    out.has_image = true;
-    meta = { ...meta, image_urls: [] };
-    (out as { metadata: typeof meta }).metadata = meta;
-  }
-  return out;
-}
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -139,6 +117,7 @@ export default async function DashboardPage() {
 
           const base = {
             ...post,
+            has_image: postHasDisplayableImage(post),
             author,
             is_liked: likedPostIds.has(post.id),
             is_author: post.author_id === authUser.id,
@@ -146,7 +125,7 @@ export default async function DashboardPage() {
             comments_count: post.comments_count ?? 0,
             shares_count: post.shares_count ?? 0,
           };
-          return toSlimPostShape(base) as Post;
+          return base as Post;
         });
 
         initialFeed = {

@@ -3,22 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { fetchLinkPreviewsServer } from '@/lib/services/linkPreviewService';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
 import { LinkPreview } from '@/types/posts';
-
-/** For slim first page: omit image URLs and set has_image so the client can load images on demand. */
-function toSlimPostShape<T extends { image_url?: string | null; metadata?: Record<string, unknown> }>(
-  post: T
-): T & { has_image?: boolean } {
-  const out = { ...post, has_image: false } as T & { has_image: boolean };
-  const hasImage =
-    (post.image_url != null && post.image_url !== '') ||
-    (Array.isArray(post.metadata?.image_urls) && post.metadata.image_urls.length > 0);
-  if (hasImage) {
-    (out as { image_url: null }).image_url = null;
-    out.has_image = true;
-    out.metadata = post.metadata ? { ...post.metadata, image_urls: [] } : { image_urls: [] };
-  }
-  return out;
-}
+import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 
 export async function GET(request: NextRequest) {
   try {
@@ -162,27 +147,24 @@ export async function GET(request: NextRequest) {
     );
 
     // Transform the data to include like/bookmark status and author info
-    let transformedPosts = posts?.map(post => {
-      const author = Array.isArray(post.author)
-        ? post.author[0] || null
-        : post.author || null;
+    const transformedPosts =
+      posts?.map((post) => {
+        const author = Array.isArray(post.author)
+          ? post.author[0] || null
+          : post.author || null;
 
-      return {
-        ...post,
-        author,
-        is_liked: likedPostIds.has(post.id),
-        is_bookmarked: bookmarkedPostIds.has(post.id),
-        is_author: post.author_id === user.id,
-        likes_count: post.likes_count || 0,
-        comments_count: post.comments_count || 0,
-        shares_count: post.shares_count || 0,
-      };
-    }) || [];
-
-    // Slim first page: omit image URLs so initial payload stays small; client loads via /api/posts/[id]/image
-    if (page === 1) {
-      transformedPosts = transformedPosts.map((p) => toSlimPostShape(p));
-    }
+        return {
+          ...post,
+          has_image: postHasDisplayableImage(post),
+          author,
+          is_liked: likedPostIds.has(post.id),
+          is_bookmarked: bookmarkedPostIds.has(post.id),
+          is_author: post.author_id === user.id,
+          likes_count: post.likes_count || 0,
+          comments_count: post.comments_count || 0,
+          shares_count: post.shares_count || 0,
+        };
+      }) || [];
 
     return NextResponse.json(
       {
@@ -314,9 +296,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       post: {
         ...post,
+        has_image: post ? postHasDisplayableImage(post) : false,
         comments_count: post?.comments_count || 0,
-        comments_preview: []
-      }
+        comments_preview: [],
+      },
     });
   } catch (error) {
     console.error('API error:', error);

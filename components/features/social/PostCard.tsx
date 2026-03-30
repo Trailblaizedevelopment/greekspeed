@@ -211,11 +211,19 @@ function PostCardInner({
     const hasContent = post.content?.trim();
     const hasLinkPreviews = (post.metadata?.link_previews?.length ?? 0) > 0;
     return (
-      (post.post_type === 'image' || (post.has_image && resolvedImageUrls.length > 0 && !hasContent && !hasLinkPreviews))
+      post.post_type === 'image' ||
+      (resolvedImageUrls.length > 0 && !hasContent && !hasLinkPreviews)
     );
-  }, [post.post_type, post.has_image, post.content, post.metadata?.link_previews, resolvedImageUrls.length]);
+  }, [post.post_type, post.content, post.metadata?.link_previews, resolvedImageUrls.length]);
 
-  // Fetch image for this post when slim feed omitted it
+  /** Skeleton only while optional /image fallback is in flight; not when URLs are already on the post. */
+  const showImageLoadingSkeleton = useMemo(
+    () =>
+      !!post.has_image && imageUrls.length === 0 && loadedImageUrls === null,
+    [post.has_image, imageUrls.length, loadedImageUrls],
+  );
+
+  // Fallback: load image URLs when payload omitted them (e.g. stale cache)
   useEffect(() => {
     if (!post.has_image || imageUrls.length > 0 || loadedImageUrls !== null) return;
     let cancelled = false;
@@ -223,7 +231,11 @@ function PostCardInner({
       try {
         const headers = getAuthHeaders();
         const res = await fetch(`/api/posts/${post.id}/image`, { headers });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          setLoadedImageUrls([]);
+          return;
+        }
         const data = await res.json();
         if (cancelled) return;
         const urls =
@@ -719,14 +731,14 @@ function PostCardInner({
                   'text-gray-700 text-sm leading-relaxed',
                   'text-xs font-medium text-brand-primary hover:text-brand-primary-hover transition-colors',
                 )}
-                {post.has_image && resolvedImageUrls.length === 0 ? (
+                {showImageLoadingSkeleton ? (
                   <div
                     className="w-full rounded-3xl aspect-[4/3] bg-gray-100 animate-pulse"
                     style={{ maxHeight: '24rem' }}
                     aria-label="Image loading"
                   />
                 ) : (
-                  post.has_image && (
+                  resolvedImageUrls.length > 0 && (
                     <PostImageGrid
                       imageUrls={resolvedImageUrls}
                       onImageClick={handleImageClick}
@@ -1007,14 +1019,14 @@ function PostCardInner({
                   'text-gray-700 text-base sm:text-[0.95rem] leading-relaxed',
                   'text-xs font-medium text-brand-primary hover:text-brand-primary-hover transition-colors',
                 )}
-                {post.has_image && resolvedImageUrls.length === 0 ? (
+                {showImageLoadingSkeleton ? (
                   <div
                     className="w-full rounded-3xl aspect-[4/3] bg-gray-100 animate-pulse"
                     style={{ maxHeight: '24rem' }}
                     aria-label="Image loading"
                   />
                 ) : (
-                  post.has_image && (
+                  resolvedImageUrls.length > 0 && (
                     <PostImageGrid
                       imageUrls={resolvedImageUrls}
                       onImageClick={handleImageClick}
