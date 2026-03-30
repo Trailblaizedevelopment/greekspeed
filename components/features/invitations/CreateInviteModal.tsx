@@ -1,11 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Copy, Calendar, Shield, Users, Mail, Clock, CheckCircle, Loader2 } from 'lucide-react';
+import { X, Copy, Calendar, Users, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectItem } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InvitationWithUsage, CreateInvitationData, UpdateInvitationData } from '@/types/invitations';
 import { generateInvitationUrl } from '@/lib/utils/invitationUtils';
@@ -19,6 +18,10 @@ interface CreateInviteModalProps {
   onSubmit: (data: CreateInvitationData | UpdateInvitationData) => void;
 }
 
+/** Above DashboardHeader (z-[100]); below app toast (zIndex 10004). */
+const MODAL_OVERLAY_Z = 10000;
+const MODAL_LAYER_Z = 10001;
+
 export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInviteModalProps) {
   const [formData, setFormData] = useState({
     email_domain_allowlist: [], // Always empty - no restrictions
@@ -30,6 +33,28 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
   });
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mounted]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   // Mobile detection
   useEffect(() => {
@@ -74,7 +99,7 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
 
   // Content component (shared between mobile and desktop)
   const content = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-0">
       {/* Header - Fixed */}
       <div className="flex items-center justify-between p-4 md:p-6 border-b flex-shrink-0 bg-white">
         <h2 className="text-lg md:text-xl font-semibold">
@@ -90,12 +115,15 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
         </Button>
       </div>
 
-      {/* Scrollable Content */}
-      <form id="invite-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6 space-y-4 md:space-y-6">
+      {/* Scrollable fields — max height only caps overflow; short forms stay compact */}
+      <form
+        id="invite-form"
+        onSubmit={handleSubmit}
+        className="overflow-y-auto overscroll-contain min-h-0 max-h-[calc(92dvh-10rem)] md:max-h-[min(78dvh,85svh)] px-4 py-4 md:p-6 space-y-4 md:space-y-6"
+      >
         {/* Invitation Type */}
         <div className="space-y-2">
           <Label className="flex items-center space-x-2">
-            <Users className="h-4 w-4 text-brand-accent" />
             <span>Invitation Type</span>
           </Label>
           <div className="grid grid-cols-2 gap-4">
@@ -134,36 +162,6 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
               : 'Alumni invitations are for graduates who want to join as alumni members with professional networking features.'
             }
           </p>
-        </div>
-
-        {/* Approval Mode */}
-        <div className="space-y-2">
-          <Label className="flex items-center space-x-2">
-            <Shield className="h-4 w-4 text-green-600" />
-            <span>Auto-Approval Enabled</span>
-          </Label>
-          <p className="text-sm text-gray-600">
-            All new {formData.invitation_type === 'active_member' ? 'members' : 'alumni'} will be automatically approved and gain immediate access to the chapter dashboard.
-          </p>
-        </div>
-
-        {/* Email Domain Info */}
-        <div className="space-y-2">
-          <Label className="flex items-center space-x-2">
-            <Mail className="h-4 w-4" />
-            <span>Email Access</span>
-          </Label>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-start space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-green-900">Open Invitation</h4>
-                <p className="text-sm text-green-800 mt-1">
-                  This invitation accepts any email address from any domain. Anyone with the invitation link can join using their preferred email address.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Usage Limits */}
@@ -255,35 +253,37 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
           </div>
         )}
 
-        {/* Desktop Form Actions */}
-        {!isMobile && (
-          <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={loading}
-              className="rounded-full bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading}
-            >
-              {loading ? (
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Saving...</span>
-                </div>
-              ) : (
-                invitation ? 'Update Invitation' : 'Create Invitation'
-              )}
-            </Button>
-          </div>
-        )}
       </form>
+
+      {/* Desktop actions outside scroll region so the panel can hug content height */}
+      {!isMobile && (
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-0 sm:space-x-3 flex-shrink-0 border-t px-4 py-4 md:px-6 md:pb-6 bg-white">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-full bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="invite-form"
+            className="rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading}
+          >
+            {loading ? (
+              <div className="flex items-center space-x-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Saving...</span>
+              </div>
+            ) : (
+              invitation ? 'Update Invitation' : 'Create Invitation'
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Mobile Footer - Fixed */}
       {isMobile && (
@@ -319,36 +319,54 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
     </div>
   );
 
-  // Mobile: Bottom Drawer
-  if (isMobile && typeof window !== 'undefined') {
-    return createPortal(
-      <div className="fixed inset-0 z-[9999] flex items-end justify-center p-0">
-        {/* Backdrop */}
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-          onClick={onClose}
-        />
-        
-        {/* Bottom Drawer */}
-        <div className="relative bg-white shadow-xl w-full flex flex-col h-[80vh] max-h-[80vh] mt-[50vh] rounded-t-2xl rounded-b-none overflow-hidden">
-          {content}
-        </div>
-      </div>,
-      document.body
-    );
+  if (!mounted || typeof document === 'undefined') {
+    return null;
   }
 
-  // Desktop: Centered Modal (unchanged)
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white rounded-lg max-w-2xl w-full h-[90vh] max-h-[90vh] overflow-hidden flex flex-col"
-      >
-        {content}
-      </motion.div>
-    </div>
+  return createPortal(
+    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: MODAL_OVERLAY_Z }}>
+      <div
+        role="presentation"
+        aria-hidden
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity pointer-events-auto"
+        style={{ zIndex: MODAL_OVERLAY_Z }}
+        onClick={onClose}
+      />
+
+      {isMobile ? (
+        <div
+          className="fixed inset-0 flex items-end justify-center pointer-events-none p-0"
+          style={{ zIndex: MODAL_LAYER_Z }}
+        >
+          <div
+            className={cn(
+              'pointer-events-auto w-full flex flex-col min-h-0 overflow-hidden rounded-t-2xl bg-white shadow-xl',
+              'max-h-[min(92dvh,100svh)] h-auto'
+            )}
+          >
+            {content}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
+          style={{ zIndex: MODAL_LAYER_Z }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className={cn(
+              'pointer-events-auto bg-white rounded-lg max-w-2xl w-full flex flex-col min-h-0 overflow-hidden',
+              'max-h-[min(90dvh,100svh)] h-auto'
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {content}
+          </motion.div>
+        </div>
+      )}
+    </div>,
+    document.body
   );
 }
