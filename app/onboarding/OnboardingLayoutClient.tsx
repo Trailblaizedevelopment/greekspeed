@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { OnboardingProvider } from '@/lib/hooks/useOnboarding';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -159,6 +159,13 @@ interface OnboardingLayoutClientProps {
 export default function OnboardingLayoutClient({ children }: OnboardingLayoutClientProps) {
   const pathname = usePathname();
   const { profile } = useProfile();
+
+  useEffect(() => {
+    document.documentElement.dataset.onboarding = 'true';
+    return () => {
+      delete document.documentElement.dataset.onboarding;
+    };
+  }, []);
 
   // Don't show progress bar on the main onboarding page (redirect page)
   // Also hide for users who have completed onboarding and are using prefill-profile (profile editing flow)
