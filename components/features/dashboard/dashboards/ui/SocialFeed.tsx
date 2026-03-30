@@ -99,6 +99,14 @@ export function SocialFeed({ chapterId, initialData }: SocialFeedProps) {
     newPostsCount,
     applyNewPosts,
   } = usePosts(chapterId, { initialData });
+
+  // Keep ref aligned with React Query so optimistic likes never diverge from mergedPosts
+  useEffect(() => {
+    if (posts.length > 0) {
+      initialPostsRef.current = posts;
+    }
+  }, [posts]);
+
   const { profile } = useProfile();
   const { user, getAuthHeaders } = useAuth();
 

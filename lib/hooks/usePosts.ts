@@ -10,6 +10,8 @@ import {
 import { useAuth } from '@/lib/supabase/auth-context';
 import type { Post, PostsResponse, CreatePostRequest, UpdatePostRequest } from '@/types/posts';
 import { writeFeedCache, readFeedCache } from '@/lib/cache/feedCache';
+import { useTogglePostLikeMutation } from '@/lib/hooks/useTogglePostLikeMutation';
+import { toast } from 'react-toastify';
 
 interface InitialFeedData extends PostsResponse {
   chapterId: string;
@@ -35,6 +37,7 @@ const EMPTY_RESPONSE: PostsResponse = {
 export function usePosts(chapterId: string, options: UsePostsOptions = {}) {
   const { user, session, getAuthHeaders } = useAuth();
   const queryClient = useQueryClient();
+  const { mutateAsync: togglePostLike } = useTogglePostLikeMutation();
 
   const normalizedInitialData = useMemo(() => {
     if (!options.initialData) return undefined;
@@ -207,7 +210,7 @@ export function usePosts(chapterId: string, options: UsePostsOptions = {}) {
       });
     }
     return [];
-  }, [data, normalizedInitialData, cachedFeed, chapterId]);
+  }, [data, normalizedInitialData, cachedFeed, chapterId, isPlaceholderData]);
 
   const updateCachedPages = useCallback(
     (updater: (pages: PostsResponse[]) => PostsResponse[]) => {
@@ -275,55 +278,45 @@ export function usePosts(chapterId: string, options: UsePostsOptions = {}) {
 
   const likePost = useCallback(
     async (postId: string) => {
-      if (!user || !session) return;
+      if (!user || !session) {
+        toast.error('Sign in to like posts');
+        return;
+      }
 
-      const existing = queryClient.getQueryData<InfiniteData<PostsResponse>>(queryKey);
-      const targetPost = existing?.pages?.flatMap((p) => p.posts).find((p) => p.id === postId);
-      const prevLiked = targetPost?.is_liked ?? false;
-      const prevCount = targetPost?.likes_count ?? 0;
-
-      updateCachedPages((pages) =>
-        pages.map((page) => ({
-          ...page,
-          posts: page.posts.map((post) =>
-            post.id === postId
-              ? {
-                  ...post,
-                  is_liked: !prevLiked,
-                  likes_count: prevLiked
-                    ? Math.max(0, prevCount - 1)
-                    : prevCount + 1,
-                }
-              : post,
-          ),
-        })),
-      );
+      const seedFirstPage =
+        normalizedInitialData &&
+        normalizedInitialData.chapterId === chapterId &&
+        normalizedInitialData.posts.length > 0
+          ? {
+              posts: normalizedInitialData.posts,
+              pagination: normalizedInitialData.pagination,
+            }
+          : undefined;
 
       try {
-        const response = await fetch(`/api/posts/${postId}/like`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
+        await togglePostLike({
+          postId,
+          chapterId,
+          pageSize,
+          seedFirstPage,
+          updateDetailCache: true,
         });
-
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error?.error ?? 'Failed to like post');
-        }
       } catch (err) {
-        updateCachedPages((pages) =>
-          pages.map((page) => ({
-            ...page,
-            posts: page.posts.map((post) =>
-              post.id === postId
-                ? { ...post, is_liked: prevLiked, likes_count: prevCount }
-                : post,
-            ),
-          })),
-        );
+        if (err instanceof Error && err.message === 'AUTH_REQUIRED') {
+          toast.error('Sign in to like posts');
+          return;
+        }
         throw err;
       }
     },
-    [getAuthHeaders, queryClient, queryKey, session, updateCachedPages, user],
+    [
+      chapterId,
+      normalizedInitialData,
+      pageSize,
+      session,
+      togglePostLike,
+      user,
+    ],
   );
 
   const deletePost = useCallback(

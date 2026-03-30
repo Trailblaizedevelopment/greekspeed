@@ -18,7 +18,6 @@ interface FilterState {
   industry: string;
   state: string;
   activelyHiring: boolean;
-  showActiveOnly: boolean; 
 }
 
 interface PaginationState {

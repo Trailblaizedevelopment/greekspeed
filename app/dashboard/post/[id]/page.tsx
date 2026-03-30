@@ -13,6 +13,7 @@ import { ReportPostModal } from '@/components/features/social/ReportPostModal';
 import { getExistingImageUrlsFromPost } from '@/lib/utils/postComposer';
 import { NetworkingSpotlightCard } from '@/components/features/dashboard/dashboards/ui/NetworkingSpotlightCard';
 import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
+import { useTogglePostLikeMutation } from '@/lib/hooks/useTogglePostLikeMutation';
 import { toast } from 'react-toastify';
 
 export default function PostDetailPage() {
@@ -20,6 +21,7 @@ export default function PostDetailPage() {
   const router = useRouter();
   const { getAuthHeaders } = useAuth();
   const queryClient = useQueryClient();
+  const { mutateAsync: togglePostLike } = useTogglePostLikeMutation();
   const postId = typeof params.id === 'string' ? params.id : null;
 
   const [deletingPost, setDeletingPost] = useState<Post | null>(null);
@@ -55,36 +57,23 @@ export default function PostDetailPage() {
 
   const handleLike = useCallback(
     async (likedPostId: string) => {
-      if (!postId || likedPostId !== postId) return;
-
-      const queryKey: [string, string | null] = ['post', postId];
-      const previous = queryClient.getQueryData<Post>(queryKey);
-      if (!previous) return;
-
-      const prevLiked = previous.is_liked ?? false;
-      const prevCount = previous.likes_count ?? 0;
-
-      queryClient.setQueryData<Post>(queryKey, {
-        ...previous,
-        is_liked: !prevLiked,
-        likes_count: prevLiked ? Math.max(0, prevCount - 1) : prevCount + 1,
-      });
+      if (!postId || likedPostId !== postId || !post?.chapter_id) return;
 
       try {
-        const res = await fetch(`/api/posts/${likedPostId}/like`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
+        await togglePostLike({
+          postId: likedPostId,
+          chapterId: post.chapter_id,
+          updateDetailCache: true,
         });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error ?? 'Failed to update like');
-        }
       } catch (err) {
-        queryClient.setQueryData<Post>(queryKey, previous);
+        if (err instanceof Error && err.message === 'AUTH_REQUIRED') {
+          toast.error('Sign in to like posts');
+          return;
+        }
         toast.error(err instanceof Error ? err.message : 'Failed to update like');
       }
     },
-    [getAuthHeaders, postId, queryClient],
+    [post?.chapter_id, postId, togglePostLike],
   );
 
   const handleBack = useCallback(() => {

@@ -17,7 +17,6 @@ interface FilterState {
   industry: string;
   state: string;
   activelyHiring: boolean;
-  showActiveOnly: boolean; // 🔥 NEW: Active alumni filter
 }
 
 interface PaginationState {
@@ -74,7 +73,6 @@ export function AlumniPipeline() {
     industry: "",
     state: "",
     activelyHiring: false,
-    showActiveOnly: false, // 🔥 NEW: Active alumni filter
   });
   // Debounced filters for API calls (500ms delay)
   const [debouncedFilters, setDebouncedFilters] = useState<FilterState>(filters);
@@ -187,7 +185,6 @@ export function AlumniPipeline() {
       industry: debouncedFilters.industry,
       state: debouncedFilters.state,
       activelyHiring: debouncedFilters.activelyHiring,
-      showActiveOnly: debouncedFilters.showActiveOnly,
     };
   }, [
     debouncedFilters.searchTerm,
@@ -195,7 +192,6 @@ export function AlumniPipeline() {
     debouncedFilters.industry,
     debouncedFilters.state,
     debouncedFilters.activelyHiring,
-    debouncedFilters.showActiveOnly,
   ]);
 
   const fetchAlumni = useCallback(async (currentFilters?: FilterState, currentPage?: number) => {
@@ -219,7 +215,6 @@ export function AlumniPipeline() {
       if (filterParams.graduationYear) params.append('graduationYear', filterParams.graduationYear);
       if (filterParams.state) params.append('state', filterParams.state);
       if (filterParams.activelyHiring) params.append('activelyHiring', 'true');
-      if (filterParams.showActiveOnly) params.append('showActiveOnly', 'true');
       
       params.append('limit', '24'); // Optimized: Reduced from 100 to 24 for better performance
       params.append('page', pageToFetch.toString());
@@ -312,7 +307,6 @@ export function AlumniPipeline() {
       industry: "",
       state: "",
       activelyHiring: false,
-      showActiveOnly: false, // 🔥 NEW: Active alumni filter
     });
     // Reset to first page when clearing filters
     setPagination(prev => ({ ...prev, page: 1 }));

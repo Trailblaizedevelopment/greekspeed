@@ -287,11 +287,6 @@ export function ProfileSummary({ profile, onClose }: ProfileSummaryProps) {
                 Hiring
               </Badge>
             )}
-            {!isAlumni && userData.member_status && (
-              <Badge variant="outline" className="text-xs">
-                {userData.member_status}
-              </Badge>
-            )}
           </div>
           
           {/* Job Title / Role */}

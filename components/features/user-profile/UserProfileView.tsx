@@ -285,11 +285,6 @@ export function UserProfileView({ profile, onClose, hideCloseButton = false }: U
           <div className="text-center mb-4">
             <div className="flex items-center justify-center gap-2 mb-1">
               <h2 className="text-xl font-semibold text-gray-900">{profile.full_name}</h2>
-              {userData.member_status && (
-                <Badge variant="outline" className="text-xs">
-                  {userData.member_status}
-                </Badge>
-              )}
             </div>
             {userData.chapter_role && (
               <p className="text-base text-gray-600 mb-1">{userData.chapter_role}</p>

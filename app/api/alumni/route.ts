@@ -254,18 +254,6 @@ const locationMatchesState = (location: string | null | undefined, stateCode: st
   );
 };
 
-// Add this helper function BEFORE the sorting logic (around line 568)
-/**
- * Check if alumni is actively online (within 1 minute)
- */
-function isActivelyOnline(lastActiveAt: string | null | undefined): boolean {
-  if (!lastActiveAt) return false;
-  const lastActive = new Date(lastActiveAt);
-  const now = new Date();
-  const oneMinuteAgo = new Date(now.getTime() - 60 * 1000); // 1 minute ago
-  return lastActive >= oneMinuteAgo;
-}
-
 export async function GET(request: NextRequest) {
   try {
     // Check environment variables
@@ -352,8 +340,6 @@ export async function GET(request: NextRequest) {
     const graduationYear = searchParams.get('graduationYear') || ''
     const activelyHiring = searchParams.get('activelyHiring') || ''
     const state = searchParams.get('state') || ''
-    const activityStatus = searchParams.get('activityStatus') || ''
-    const showActiveOnly = searchParams.get('showActiveOnly') || '' // 🔥 NEW
 
     // Chapter filtering parameter
     const userChapterParam = searchParams.get('userChapter') || ''
@@ -593,35 +579,6 @@ export async function GET(request: NextRequest) {
           };
         }) || [];
 
-        // 🔥 ADD: Activity filtering and sorting logic
-        let filteredAlumni = transformedAlumni
-
-        // Apply activity status filter
-        if (activityStatus) {
-          const now = new Date()
-          
-          filteredAlumni = transformedAlumni.filter(alumni => {
-            if (!alumni.lastActiveAt) {
-              return activityStatus === 'cold'
-            }
-
-            const lastActiveDate = new Date(alumni.lastActiveAt)
-            const diffMs = now.getTime() - lastActiveDate.getTime()
-            const diffHours = diffMs / (1000 * 60 * 60)
-
-            switch (activityStatus) {
-              case 'hot':
-                return diffHours < 1
-              case 'warm':
-                return diffHours >= 1 && diffHours < 24
-              case 'cold':
-                return diffHours >= 24
-              default:
-                return true
-            }
-          })
-        }
-
         // 🔥 COMMENTED OUT: Client-side sorting - now handled at database level by completeness_score
         // Sorting logic: Active users stacked on top, then completeness-based sorting for all
         // filteredAlumni.sort((a, b) => {
@@ -665,25 +622,10 @@ export async function GET(request: NextRequest) {
         //   return a.fullName.localeCompare(b.fullName);
         // });
 
-        // 🔥 NEW: Apply showActiveOnly filter
-        if (showActiveOnly) {
-          const now = new Date()
-          const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-          
-          filteredAlumni = filteredAlumni.filter(alumni => {
-            if (!alumni.lastActiveAt) {
-              return false // Exclude alumni with no activity data
-            }
-
-            const lastActiveDate = new Date(alumni.lastActiveAt)
-            return lastActiveDate >= oneDayAgo // Only show alumni active within last 24 hours
-          })
-        }
-
         const totalPages = Math.ceil(totalCount / limit);
 
         return NextResponse.json({
-          alumni: filteredAlumni,
+          alumni: transformedAlumni,
           pagination: {
             page,
             limit,
@@ -692,7 +634,7 @@ export async function GET(request: NextRequest) {
             hasNextPage: page < totalPages,
             hasPrevPage: page > 1
           },
-          message: `Retrieved ${filteredAlumni.length} alumni records (page ${page} of ${totalPages})`
+          message: `Retrieved ${transformedAlumni.length} alumni records (page ${page} of ${totalPages})`
         });
       } else {
         query = query.eq('chapter', userChapter);
@@ -848,34 +790,6 @@ export async function GET(request: NextRequest) {
           };
         }) || [];
 
-        // Apply activity filtering and sorting logic
-        let filteredAlumni = transformedAlumni
-
-        if (activityStatus) {
-          const now = new Date()
-          
-          filteredAlumni = transformedAlumni.filter(alumni => {
-            if (!alumni.lastActiveAt) {
-              return activityStatus === 'cold'
-            }
-
-            const lastActiveDate = new Date(alumni.lastActiveAt)
-            const diffMs = now.getTime() - lastActiveDate.getTime()
-            const diffHours = diffMs / (1000 * 60 * 60)
-
-            switch (activityStatus) {
-              case 'hot':
-                return diffHours < 1
-              case 'warm':
-                return diffHours >= 1 && diffHours < 24
-              case 'cold':
-                return diffHours >= 24
-              default:
-                return true
-            }
-          })
-        }
-
         // 🔥 COMMENTED OUT: Client-side sorting - now handled at database level by completeness_score
         // Sorting logic: Active users stacked on top, then completeness-based sorting for all
         // filteredAlumni.sort((a, b) => {
@@ -919,25 +833,10 @@ export async function GET(request: NextRequest) {
         //   return a.fullName.localeCompare(b.fullName)
         // })
 
-        // 🔥 NEW: Apply showActiveOnly filter
-        if (showActiveOnly) {
-          const now = new Date()
-          const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-          
-          filteredAlumni = filteredAlumni.filter(alumni => {
-            if (!alumni.lastActiveAt) {
-              return false // Exclude alumni with no activity data
-            }
-
-            const lastActiveDate = new Date(alumni.lastActiveAt)
-            return lastActiveDate >= oneDayAgo // Only show alumni active within last 24 hours
-          })
-        }
-
         const totalPages = Math.ceil(totalCount / limit);
 
         return NextResponse.json({
-          alumni: filteredAlumni,
+          alumni: transformedAlumni,
           pagination: {
             page,
             limit,
@@ -946,7 +845,7 @@ export async function GET(request: NextRequest) {
             hasNextPage: page < totalPages,
             hasPrevPage: page > 1
           },
-          message: `Retrieved ${filteredAlumni.length} alumni records (page ${page} of ${totalPages})`
+          message: `Retrieved ${transformedAlumni.length} alumni records (page ${page} of ${totalPages})`
         });
       } else {
         query = query.eq('chapter', chapter);
@@ -1063,35 +962,6 @@ export async function GET(request: NextRequest) {
       };
     }) || []
 
-    //  ADD: Activity filtering and sorting logic
-    let filteredAlumni = transformedAlumni
-
-    // Apply activity status filter
-    if (activityStatus) {
-      const now = new Date()
-      
-      filteredAlumni = transformedAlumni.filter(alumni => {
-        if (!alumni.lastActiveAt) {
-          return activityStatus === 'cold'
-        }
-
-        const lastActiveDate = new Date(alumni.lastActiveAt)
-        const diffMs = now.getTime() - lastActiveDate.getTime()
-        const diffHours = diffMs / (1000 * 60 * 60)
-
-        switch (activityStatus) {
-          case 'hot':
-            return diffHours < 1
-          case 'warm':
-            return diffHours >= 1 && diffHours < 24
-          case 'cold':
-            return diffHours >= 24
-          default:
-            return true
-        }
-      })
-    }
-
     // 🔥 COMMENTED OUT: Client-side sorting - now handled at database level by completeness_score
     // Sorting logic: Active users stacked on top, then completeness-based sorting for all
     // filteredAlumni.sort((a, b) => {
@@ -1135,25 +1005,10 @@ export async function GET(request: NextRequest) {
     //   return a.fullName.localeCompare(b.fullName);
     // });
 
-    // 🔥 NEW: Apply showActiveOnly filter
-    if (showActiveOnly) {
-      const now = new Date()
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      
-      filteredAlumni = filteredAlumni.filter(alumni => {
-        if (!alumni.lastActiveAt) {
-          return false // Exclude alumni with no activity data
-        }
-
-        const lastActiveDate = new Date(alumni.lastActiveAt)
-        return lastActiveDate >= oneDayAgo // Only show alumni active within last 24 hours
-      })
-    }
-
     const totalPages = Math.ceil((count || 0) / limit);
 
     return NextResponse.json({
-      alumni: filteredAlumni,
+      alumni: transformedAlumni,
       pagination: {
         page,
         limit,
@@ -1162,7 +1017,7 @@ export async function GET(request: NextRequest) {
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1
       },
-      message: `Retrieved ${filteredAlumni.length} alumni records (page ${page} of ${totalPages})`
+      message: `Retrieved ${transformedAlumni.length} alumni records (page ${page} of ${totalPages})`
     })
 
   } catch (error) {

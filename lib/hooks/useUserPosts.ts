@@ -4,9 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { supabase } from '@/lib/supabase/client';
 import { Post } from '@/types/posts';
+import { useTogglePostLikeMutation } from '@/lib/hooks/useTogglePostLikeMutation';
+import { nextLikeSnapshot } from '@/lib/social/postLikeState';
+import { toast } from 'react-toastify';
 
 export function useUserPosts(userId: string) {
   const { user } = useAuth();
+  const { mutateAsync: togglePostLike } = useTogglePostLikeMutation();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,55 +86,54 @@ export function useUserPosts(userId: string) {
     }
   }, [user, userId]);
 
-  const likePost = useCallback(async (postId: string) => {
-    if (!user) return;
+  const likePost = useCallback(
+    async (postId: string) => {
+      if (!user) {
+        toast.error('Sign in to like posts');
+        return;
+      }
 
-    setPosts((prevPosts) => {
-      const target = prevPosts.find((p) => p.id === postId);
-      if (!target) return prevPosts;
-      const prevLiked = target.is_liked ?? false;
-      const prevCount = target.likes_count ?? 0;
-      return prevPosts.map((post) =>
-        post.id === postId
-          ? {
-              ...post,
-              is_liked: !prevLiked,
-              likes_count: prevLiked
-                ? Math.max(0, prevCount - 1)
-                : prevCount + 1,
-            }
-          : post,
-      );
-    });
+      const target = posts.find((p) => p.id === postId);
+      if (!target) return;
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Authentication required');
-
-      const response = await fetch(`/api/posts/${postId}/like`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (!response.ok) throw new Error('Failed to like post');
-    } catch (err) {
+      const prevSnapshot = { ...target };
+      const optimistic = nextLikeSnapshot(target);
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                is_liked: !post.is_liked,
-                likes_count: post.is_liked
-                  ? Math.max(0, (post.likes_count ?? 0) - 1)
-                  : (post.likes_count ?? 0) + 1,
-              }
-            : post,
+          post.id === postId ? { ...post, ...optimistic } : post,
         ),
       );
-      setError(err instanceof Error ? err.message : 'Failed to like post');
-      throw err;
-    }
-  }, [user]);
+
+      try {
+        const { liked } = await togglePostLike({
+          postId,
+          chapterId: target.chapter_id,
+          updateDetailCache: true,
+          optimisticBase: {
+            is_liked: target.is_liked,
+            likes_count: target.likes_count,
+          },
+        });
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post.id === postId ? { ...post, is_liked: liked } : post,
+          ),
+        );
+      } catch (err) {
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post.id === postId ? prevSnapshot : post,
+          ),
+        );
+        if (err instanceof Error && err.message === 'AUTH_REQUIRED') {
+          toast.error('Sign in to like posts');
+          return;
+        }
+        setError(err instanceof Error ? err.message : 'Failed to like post');
+      }
+    },
+    [user, posts, togglePostLike],
+  );
 
   const deletePost = useCallback(async (postId: string) => {
     if (!user) return;
