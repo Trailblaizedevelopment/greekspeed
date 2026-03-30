@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { AlertCircle, Users, GraduationCap, Loader2, Mail, UserCheck } from 'lucide-react';
+import { AlertCircle, Users, GraduationCap, Loader2, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChapterJoinForm } from '@/components/features/join/ChapterJoinForm';
@@ -30,7 +30,6 @@ export default function ChapterJoinPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<JoinRole | null>(null);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
@@ -114,11 +113,8 @@ export default function ChapterJoinPageClient() {
     }
   };
 
-  const handleJoinSuccess = (userData: { needs_approval?: boolean }) => {
-    setSignupSuccess(true);
-    if (!userData.needs_approval) {
-      window.location.href = '/onboarding';
-    }
+  const handleJoinSuccess = () => {
+    window.location.href = '/onboarding';
   };
 
   if (loading) {
@@ -161,26 +157,6 @@ export default function ChapterJoinPageClient() {
                 <li>The link has been changed</li>
               </ul>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (signupSuccess) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-gray-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-green-600">
-              <UserCheck className="h-5 w-5" />
-              <span>Welcome to {chapter.name}!</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-gray-600">
-              Your account has been created successfully. Redirecting you to complete your profile...
-            </p>
           </CardContent>
         </Card>
       </div>
