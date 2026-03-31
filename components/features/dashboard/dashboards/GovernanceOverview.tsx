@@ -61,18 +61,19 @@ export function GovernanceOverview() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl px-4 py-6 pb-24 sm:px-6 sm:pb-6">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
-            Governance Dashboard
+        <div className="mb-6 flex flex-row items-center justify-between gap-2 sm:gap-3">
+          <h1 className="min-w-0 flex-1 text-lg font-bold leading-tight tracking-tight text-gray-900 sm:text-2xl">
+            <span className="sm:hidden">Governance</span>
+            <span className="hidden sm:inline">Governance Dashboard</span>
           </h1>
           <button
             type="button"
             onClick={() => router.push('/dashboard/admin')}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 self-end rounded-full bg-brand-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-primary/90 sm:self-auto"
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand-primary px-3 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-brand-primary/90 sm:px-4 sm:text-sm"
           >
-            <Building2 className="h-4 w-4" />
+            <Building2 className="h-4 w-4 shrink-0" />
             Chapter Admin
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-3.5 w-3.5 shrink-0" />
           </button>
         </div>
 
