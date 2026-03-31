@@ -23,6 +23,7 @@ import { Select, SelectItem } from '@/components/ui/select';
 import { UsernameInput } from '@/components/features/profile/UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 
@@ -710,16 +711,14 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
               <CardContent className={`relative ${isMobile ? 'h-32' : 'h-64'} p-0 overflow-hidden`}>
                 {/* Banner Section */}
                 <div 
-                  className="absolute inset-0 bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100 flex items-center justify-center text-white cursor-pointer group rounded-lg"
+                  className="absolute inset-0 flex items-center justify-center text-white cursor-pointer group rounded-lg overflow-hidden"
                   onClick={() => document.getElementById('banner-upload')?.click()}
                 >
-                  {bannerPreview || profile?.banner_url ? (
-                    <img 
-                      src={bannerPreview || profile.banner_url} 
-                      alt="Profile banner" 
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                  ) : null}
+                  <img 
+                    src={bannerPreview || profile?.banner_url || DEFAULT_BANNER_IMAGE} 
+                    alt="Profile banner" 
+                    className="w-full h-full object-cover rounded-lg"
+                  />
                   
                   <div className={`absolute inset-0 flex flex-col items-center justify-start opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg ${isMobile ? 'pt-4' : 'pt-8'}`}>
                     <div className="text-center">

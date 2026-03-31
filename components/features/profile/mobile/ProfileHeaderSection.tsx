@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/features/profile/UserAvatar';
 import { Edit } from 'lucide-react';
 import ImageWithFallback from '@/components/figma/ImageWithFallback';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 
 interface ProfileHeaderSectionProps {
   profile: any;
@@ -35,14 +36,12 @@ export function ProfileHeaderSection({
   return (
     <div className="bg-white border-b border-gray-200">
       {/* Banner Section */}
-      <div className="relative w-full h-32 bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100 overflow-hidden">
-        {profile.banner_url ? (
-          <img
-            src={profile.banner_url}
-            alt="Profile banner"
-            className="w-full h-full object-cover"
-          />
-        ) : null}
+      <div className="relative w-full h-32 overflow-hidden">
+        <img
+          src={profile.banner_url || DEFAULT_BANNER_IMAGE}
+          alt="Profile banner"
+          className="w-full h-full object-cover"
+        />
       </div>
 
       {/* Profile Info Section */}

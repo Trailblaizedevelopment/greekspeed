@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { getGraduationYears, industries, majors, minors } from '@/lib/alumniConstants';
 import { UsernameInput } from './UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ImageCropper, type CropType } from '@/components/features/common/ImageCropper';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
@@ -831,17 +832,14 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
             <div className={`relative ${isMobile ? 'h-32' : 'h-64'} overflow-hidden rounded-lg`}>
               {/* Banner Section - Make it clickable */}
               <div 
-                className="absolute inset-0 bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100 flex items-center justify-center text-white cursor-pointer group rounded-lg"
+                className="absolute inset-0 flex items-center justify-center text-white cursor-pointer group rounded-lg overflow-hidden"
                 onClick={() => document.getElementById('banner-upload')?.click()}
               >
-                  {/* Show actual banner if it exists */}
-                  {bannerPreview || profile?.banner_url ? (
-                    <img 
-                      src={bannerPreview || profile.banner_url} 
-                      alt="Profile banner" 
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                  ) : null}
+                  <img 
+                    src={bannerPreview || profile?.banner_url || DEFAULT_BANNER_IMAGE} 
+                    alt="Profile banner" 
+                    className="w-full h-full object-cover rounded-lg"
+                  />
                   
                   {/* Banner Upload Overlay */}
                   <div className={`absolute inset-0 flex flex-col items-center justify-start opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg ${isMobile ? 'pt-4' : 'pt-8'}`}>

@@ -13,6 +13,7 @@ import { PostsTab } from '@/components/features/user-profile/mobile/PostsTab';
 import { AboutTab } from '@/components/features/user-profile/mobile/AboutTab';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { supabase } from '@/lib/supabase/client';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 
 export default function UserProfilePage() {
   const params = useParams();
@@ -143,7 +144,8 @@ export default function UserProfilePage() {
       <div className="min-h-screen bg-white sm:hidden pb-20">
         {/* Error state with back button */}
         <div className="relative">
-          <div className="h-32 bg-gradient-to-r from-primary-100 via-accent-100 to-accent-50 relative">
+          <div className="h-32 relative overflow-hidden">
+            <img src={DEFAULT_BANNER_IMAGE} alt="Default banner" className="absolute inset-0 w-full h-full object-cover" />
             {/* Back Button - Positioned in top-left of banner */}
             <button
               onClick={handleClose}

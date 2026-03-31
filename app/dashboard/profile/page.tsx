@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { AvatarService } from '@/lib/services/avatarService';
 import { BannerService } from '@/lib/services/bannerService';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { useUserPosts } from '@/lib/hooks/useUserPosts';
 import { formatDistanceToNow } from 'date-fns';
 import { DeletePostModal } from '@/components/features/social/DeletePostModal';
@@ -462,14 +463,20 @@ export default function ProfilePage() {
 
                 {/* Banner Section - Full width within container */}
                 <div className="relative">
-                  <div className="w-full h-48 bg-gradient-to-r from-brand-primary via-brand-accent to-accent-300 overflow-hidden">
+                  <div className="w-full h-48 overflow-hidden">
                     {profile?.banner_url ? (
                       <img
                         src={profile.banner_url}
                         alt="Profile banner"
                         className="w-full h-full object-cover"
                       />
-                    ) : null}
+                    ) : (
+                      <img
+                        src={DEFAULT_BANNER_IMAGE}
+                        alt="Default banner"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                   </div>
 
                   {/* Avatar - Overlapping banner */}
