@@ -53,15 +53,16 @@ export function ContentFeedSection({
     }
 
     return (
-      <div className="px-4 pb-4">
-        {posts.map((post) => (
+      <div>
+        {posts.map((post, index) => (
           <PostCard
             key={post.id}
             post={post}
             onLike={onLikePost}
             onDelete={onDeletePost}
             onCommentAdded={onCommentAdded}
-            variant="profile"
+            variant="feed"
+            showDivider={index < posts.length - 1}
           />
         ))}
       </div>
