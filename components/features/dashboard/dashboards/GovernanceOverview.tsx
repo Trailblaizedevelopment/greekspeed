@@ -13,6 +13,7 @@ import { AlumniIntelligence } from '@/components/features/governance/AlumniIntel
 import { ChapterHealthTable } from '@/components/features/governance/ChapterHealthTable';
 import { GovernanceBroadcastHub } from '@/components/features/governance/GovernanceBroadcastHub';
 import { useNetworkKpis } from '@/lib/hooks/useNetworkKpis';
+import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
 import { cn } from '@/lib/utils';
 
 function formatKpiValue(
@@ -59,7 +60,7 @@ export function GovernanceOverview() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 py-6 pb-24 sm:px-6 sm:pb-6">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
             Governance Dashboard
@@ -118,6 +119,8 @@ export function GovernanceOverview() {
 
         <GovernanceBroadcastHub />
       </div>
+
+      <MobileBottomNavigation />
     </div>
   );
 }

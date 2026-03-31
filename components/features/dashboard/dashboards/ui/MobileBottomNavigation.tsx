@@ -119,6 +119,34 @@ function MobileBottomNavigationImpl({
           route: '/dashboard/profile',
         },
       ];
+    } else if (userRole === 'governance') {
+      // Governance: same destinations as admin, but Home is the command-center route (no tools FAB).
+      return [
+        {
+          id: 'home',
+          label: 'Home',
+          icon: Home,
+          route: '/dashboard/governance',
+        },
+        {
+          id: 'alumni',
+          label: 'Alumni',
+          icon: Users,
+          route: '/dashboard/alumni',
+        },
+        {
+          id: 'messages',
+          label: 'Messages',
+          icon: MessageSquare,
+          route: '/dashboard/messages',
+        },
+        {
+          id: 'profile',
+          label: 'Profile',
+          icon: User,
+          route: '/dashboard/profile',
+        },
+      ];
     } else {
       // Active Member: 4 tabs + FAB (HOME, ALUMNI, MESSAGES, PROFILE)
       return [
@@ -238,7 +266,11 @@ function MobileBottomNavigationImpl({
       // Default to home for dashboard
       return 'home';
     }
-    
+
+    if (userRole === 'governance' && pathname === '/dashboard/governance') {
+      return 'home';
+    }
+
     // Try to match by route (exact pathname match, ignoring query params)
     const currentTab = tabs.find(tab => {
       if (!tab.route) return false;
@@ -258,9 +290,14 @@ function MobileBottomNavigationImpl({
   const roleBasedToolsOptions = getRoleBasedToolsOptions();
   const toolsOptions = customToolsOptions || roleBasedToolsOptions;
 
-  // Calculate whether to show FAB: show for admin/active_member (4 tabs), or if explicitly enabled
-  // Alumni uses 5 tabs grid (no FAB)
-  const shouldShowFAB = (userRole === 'admin' || userRole === 'active_member') ? true : (showToolsMenu && tabs.length <= 4 && !shouldUseToolsAsTab);
+  // Calculate whether to show FAB: admin & active_member only. Governance uses the same 4 tabs but no FAB
+  // (opening /dashboard?tool=… would redirect away and drop query params). Alumni uses 5-tab grid (no FAB).
+  const shouldShowFAB =
+    userRole === 'admin' || userRole === 'active_member'
+      ? true
+      : userRole === 'governance'
+        ? false
+        : showToolsMenu && tabs.length <= 4 && !shouldUseToolsAsTab;
   const hasToolsFAB = shouldShowFAB;
 
   // Determine layout: 5 tabs = grid (alumni), otherwise FAB layout (admin/active_member)
