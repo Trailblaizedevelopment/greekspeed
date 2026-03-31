@@ -199,17 +199,61 @@ export async function GET(request: NextRequest) {
       console.log('Could not determine viewer identity for chapter members');
     }
 
-    // Fetch chapter members from view (don't filter is_developer here yet)
+    // Chapter members: same shape as former chapter_members_view (profiles + chapter metadata)
+    const profileColumns =
+      'id, email, full_name, first_name, last_name, chapter, role, chapter_role, member_status, pledge_class, grad_year, major, minor, gpa, hometown, bio, phone, location, avatar_url, created_at, updated_at, chapter_id';
+
     let query = supabase
-      .from('chapter_members_view')
-      .select('*')
+      .from('profiles')
+      .select(
+        `
+        ${profileColumns},
+        chapters!left (
+          id,
+          name,
+          description,
+          location,
+          university,
+          slug,
+          founded_year
+        )
+      `
+      )
       .eq('chapter_id', chapterId);
 
     if (excludeAlumni) {
       query = query.neq('role', 'alumni');
     }
 
-    const { data: members, error } = await query.order('created_at', { ascending: false });
+    const { data: memberRows, error } = await query.order('created_at', { ascending: false });
+
+    const members =
+      memberRows?.map((row: Record<string, unknown>) => {
+        const ch = row.chapters as
+          | {
+              id: string;
+              name: string | null;
+              description: string | null;
+              location: string | null;
+              university: string | null;
+              slug: string | null;
+              founded_year: number | null;
+            }
+          | null
+          | undefined;
+        const { chapters: _nested, ...profile } = row;
+        const chapterIdResolved = (ch?.id as string | undefined) ?? (profile.chapter_id as string | undefined);
+        return {
+          ...profile,
+          chapter_id: chapterIdResolved,
+          chapter_name: ch?.name ?? null,
+          chapter_description: ch?.description ?? null,
+          chapter_location: ch?.location ?? null,
+          chapter_university: ch?.university ?? null,
+          chapter_slug: ch?.slug ?? null,
+          chapter_founded_year: ch?.founded_year ?? null,
+        };
+      }) ?? null;
 
     if (error) {
       console.error('Error fetching chapter members:', error);
@@ -217,7 +261,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Filter out developers by checking profiles table
-    let filteredMembers = members;
+    let filteredMembers = members ?? [];
     if (members && members.length > 0) {
       const memberIds = members.map((m: any) => m.id).filter(Boolean);
       
