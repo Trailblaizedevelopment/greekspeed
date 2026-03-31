@@ -10,9 +10,12 @@ import {
   DollarSign,
   FileCheck,
   ArrowRight,
+  GraduationCap,
+  Percent,
 } from 'lucide-react';
 import { AlumniIntelligence } from '@/components/features/governance/AlumniIntelligence';
 import { ChapterHealthTable } from '@/components/features/governance/ChapterHealthTable';
+import { useNetworkKpis } from '@/lib/hooks/useNetworkKpis';
 
 interface PlaceholderCardProps {
   title: string;
@@ -44,8 +47,47 @@ function PlaceholderCard({ title, description, icon, comingSoon = true }: Placeh
   );
 }
 
+function formatKpiValue(
+  value: string | number | undefined,
+  isLoading: boolean
+): string {
+  if (isLoading) return '—';
+  if (value === undefined || value === null) return '—';
+  return value.toLocaleString();
+}
+
 export function GovernanceOverview() {
   const router = useRouter();
+  const { data: kpis, isLoading: kpisLoading } = useNetworkKpis();
+
+  const kpiItems = [
+    {
+      label: 'Total Chapters',
+      value: formatKpiValue(kpis?.chapterCount, kpisLoading),
+      icon: <Building2 className="h-5 w-5" />,
+    },
+    {
+      label: 'Active Members',
+      value: formatKpiValue(kpis?.totalActiveMembers, kpisLoading),
+      icon: <Users className="h-5 w-5" />,
+    },
+    {
+      label: 'Alumni in Network',
+      value: formatKpiValue(kpis?.totalAlumni, kpisLoading),
+      icon: <GraduationCap className="h-5 w-5" />,
+    },
+    {
+      label: 'Avg Engagement',
+      value:
+        kpisLoading || kpis === undefined
+          ? '—'
+          : `${kpis.avgEngagementPercent.toLocaleString(undefined, {
+              maximumFractionDigits: 1,
+              minimumFractionDigits: 0,
+            })}%`,
+      icon: <Percent className="h-5 w-5" />,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -74,14 +116,9 @@ export function GovernanceOverview() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {/* KPI Summary Strip — placeholder */}
+        {/* Network KPI strip — GET /api/governance/network-kpis */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: 'Total Chapters', value: '—', icon: <Building2 className="h-5 w-5" /> },
-            { label: 'Active Members', value: '—', icon: <Users className="h-5 w-5" /> },
-            { label: 'Compliance Rate', value: '—', icon: <Shield className="h-5 w-5" /> },
-            { label: 'Outstanding Dues', value: '—', icon: <DollarSign className="h-5 w-5" /> },
-          ].map((kpi) => (
+          {kpiItems.map((kpi) => (
             <div
               key={kpi.label}
               className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
