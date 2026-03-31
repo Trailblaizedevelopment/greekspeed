@@ -617,8 +617,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Tab Content */}
-                <div className="divide-y divide-gray-200">
+                {/* Tab Content — posts use PostCard feed variant dividers; connections use divide-y below */}
+                <div>
                   {/* Posts Tab */}
                   {activeTab === 'posts' && (
                     <>
@@ -627,11 +627,12 @@ export default function ProfilePage() {
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
                         </div>
                       ) : userPosts.length > 0 ? (
-                        userPosts.map((post) => (
+                        userPosts.map((post, index) => (
                           <PostCard
-                            variant="profile"
+                            variant="feed"
                             key={post.id}
                             post={post}
+                            showDivider={index < userPosts.length - 1}
                             onLike={async (postId) => { await likePost(postId); }}
                             onDelete={(postId) => handleDeleteClick(postId)}
                             onCommentAdded={async () => { await refetchPosts(); }}
@@ -657,7 +658,8 @@ export default function ProfilePage() {
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
                         </div>
                       ) : sortedConnections.length > 0 ? (
-                        sortedConnections.map((connection) => {
+                        <div className="divide-y divide-gray-200">
+                        {sortedConnections.map((connection) => {
                           const partner = getConnectionPartner(connection);
                           if (!partner) return null;
 
@@ -700,7 +702,8 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           );
-                        })
+                        })}
+                        </div>
                       ) : (
                         <div className="py-12 text-center">
                           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
