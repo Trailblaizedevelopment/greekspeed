@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, ChevronLeft, ChevronRight, Clock, MapPin, Users, HelpCircle, X, Loader2 } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -29,6 +28,8 @@ export function MobileCalendarPage() {
   const [activeTab, setActiveTab] = useState<'calendar' | 'events'>('calendar');
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [events, setEvents] = useState<Event[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<Event[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rsvpStatuses, setRsvpStatuses] = useState<Record<string, 'attending' | 'maybe' | 'not_attending'>>({});
@@ -40,7 +41,7 @@ export function MobileCalendarPage() {
   const { profile } = useProfile();
   const chapterId = useScopedChapterId();
 
-  // Fetch events for the calendar and events list — now includes user_rsvp_status inline
+  // Fetch upcoming events for the Events tab + all published events for the Calendar tab.
   const fetchEvents = async () => {
     if (!chapterId || !profile?.id) return;
     
@@ -48,20 +49,23 @@ export function MobileCalendarPage() {
       setLoading(true);
       setError(null);
       
-      // Pass user_id so the API returns user_rsvp_status per event (kills N+1)
-      const response = await fetch(
-        `/api/events?chapter_id=${chapterId}&scope=upcoming&user_id=${profile.id}`
-      );
-      if (!response.ok) {
+      const [upcomingResponse, allResponse] = await Promise.all([
+        fetch(`/api/events?chapter_id=${chapterId}&scope=upcoming&user_id=${profile.id}`),
+        fetch(`/api/events?chapter_id=${chapterId}&scope=all&user_id=${profile.id}`),
+      ]);
+      if (!upcomingResponse.ok || !allResponse.ok) {
         throw new Error('Failed to fetch events');
       }
       
-      const data: Event[] = await response.json();
-      setEvents(data);
+      const upcomingData: Event[] = await upcomingResponse.json();
+      const allData: Event[] = await allResponse.json();
+      const publishedCalendarEvents = allData.filter((event) => event.status === 'published');
+      setEvents(upcomingData);
+      setCalendarEvents(publishedCalendarEvents);
 
       // Extract inline RSVP statuses from the response — NO extra requests needed
       const userRsvps: Record<string, 'attending' | 'maybe' | 'not_attending'> = {};
-      data.forEach((event) => {
+      [...upcomingData, ...publishedCalendarEvents].forEach((event) => {
         if (event.user_rsvp_status) {
           userRsvps[event.id] = event.user_rsvp_status;
         }
@@ -93,24 +97,7 @@ export function MobileCalendarPage() {
       if (response.ok) {
         // Update local RSVP status
         setRsvpStatuses(prev => ({ ...prev, [eventId]: status }));
-        
-        // Refresh events to get updated RSVP counts (includes user_rsvp_status)
-        const eventsResponse = await fetch(
-          `/api/events?chapter_id=${chapterId}&scope=upcoming&user_id=${profile?.id}`
-        );
-        if (eventsResponse.ok) {
-          const updatedEvents: Event[] = await eventsResponse.json();
-          setEvents(updatedEvents);
-          
-          // Update RSVP statuses from refreshed data
-          const userRsvps: Record<string, 'attending' | 'maybe' | 'not_attending'> = {};
-          updatedEvents.forEach((event) => {
-            if (event.user_rsvp_status) {
-              userRsvps[event.id] = event.user_rsvp_status;
-            }
-          });
-          setRsvpStatuses(userRsvps);
-        }
+        await fetchEvents();
         
         toast.success(`RSVP updated to ${status === 'attending' ? 'Going' : status === 'maybe' ? 'Maybe' : 'Not Going'}`);
       } else {
@@ -146,7 +133,7 @@ export function MobileCalendarPage() {
   };
 
   const getEventsForDate = (date: Date) => {
-    return events.filter((event) => {
+    return calendarEvents.filter((event) => {
       if (!isValidIsoDateTime(event.start_time)) return false;
       const eventDate = new Date(event.start_time!);
       return (
@@ -154,6 +141,17 @@ export function MobileCalendarPage() {
         eventDate.getMonth() === date.getMonth() &&
         eventDate.getFullYear() === date.getFullYear()
       );
+    });
+  };
+
+  const selectedDateEvents = useMemo(() => getEventsForDate(selectedDate), [calendarEvents, selectedDate]);
+
+  const formatSelectedDateHeading = (date: Date): string => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
     });
   };
 
@@ -230,12 +228,19 @@ export function MobileCalendarPage() {
       const date = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day);
       const dayEvents = getEventsForDate(date);
       const isToday = date.toDateString() === new Date().toDateString();
+      const isSelected = date.toDateString() === selectedDate.toDateString();
 
       days.push(
         <button
           key={day}
+          type="button"
+          onClick={() => setSelectedDate(date)}
           className={`h-12 border border-gray-200 p-1 relative text-left ${
-            isToday ? 'bg-orange-50 border-orange-300' : 'bg-white hover:bg-gray-50'
+            isSelected
+              ? 'bg-brand-primary/10 border-brand-primary'
+              : isToday
+                ? 'bg-orange-50 border-orange-300'
+                : 'bg-white hover:bg-gray-50'
           }`}
         >
           <div className={`text-sm font-medium mb-1 ${
@@ -364,6 +369,32 @@ export function MobileCalendarPage() {
           {/* Calendar Tab */}
           <TabsContent value="calendar" className="space-y-4">
             {renderCalendar()}
+            <Card className="bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
+              <CardContent className="p-4">
+                <h3 className="text-sm font-semibold text-slate-800 mb-3">
+                  {formatSelectedDateHeading(selectedDate)}
+                </h3>
+                {selectedDateEvents.length === 0 ? (
+                  <p className="text-sm text-slate-600">No events on this date.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedDateEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        type="button"
+                        className="w-full text-left p-3 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors"
+                        onClick={() => handleEventClick(event)}
+                      >
+                        <p className="text-sm font-medium text-slate-900">{event.title}</p>
+                        <p className="text-xs text-slate-600 mt-1">
+                          {formatEventCardSchedule(event.start_time, event.end_time)}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Events Tab */}
