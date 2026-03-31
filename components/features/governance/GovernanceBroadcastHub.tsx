@@ -515,7 +515,6 @@ export function GovernanceBroadcastHub() {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
                 <Megaphone className="h-4 w-4 text-white" />
               </div>
-              <span className="text-sm font-medium text-white">Announcement</span>
             </button>
 
             <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
