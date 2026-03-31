@@ -1,9 +1,24 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+/** Walk ancestors so we can re-attach when scrollable parents (e.g. modal body) move the trigger. */
+function getScrollParents(node: HTMLElement | null): HTMLElement[] {
+  const parents: HTMLElement[] = [];
+  let el: HTMLElement | null = node?.parentElement ?? null;
+  while (el) {
+    const style = window.getComputedStyle(el);
+    const overflow = `${style.overflow}${style.overflowY}${style.overflowX}`;
+    if (/(auto|scroll|overlay)/.test(overflow)) {
+      parents.push(el);
+    }
+    el = el.parentElement;
+  }
+  return parents;
+}
 
 interface SearchableSelectProps {
   value?: string;
@@ -35,6 +50,12 @@ export function SearchableSelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const [dropdownRect, setDropdownRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -131,22 +152,102 @@ export function SearchableSelect({
     }
   }, [highlightedIndex]);
 
-  // Position the dropdown below the trigger
-  const getDropdownPosition = () => {
-    if (!triggerRef.current) return {};
-    const rect = triggerRef.current.getBoundingClientRect();
+  const updateDropdownPosition = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
     const margin = 12;
     const vw = window.innerWidth;
     const desiredMin = Math.max(rect.width, 280);
     const maxWidthFromLeft = vw - rect.left - margin;
     const width = Math.min(desiredMin, maxWidthFromLeft);
     const left = Math.max(margin, Math.min(rect.left, vw - width - margin));
-    return {
-      top: rect.bottom + 4,
-      left,
-      width,
+    const top = rect.bottom + 4;
+    setDropdownRect((prev) => {
+      if (
+        prev &&
+        prev.top === top &&
+        prev.left === left &&
+        prev.width === width
+      ) {
+        return prev;
+      }
+      return { top, left, width };
+    });
+  }, []);
+
+  // Keep fixed portal aligned with trigger while open (scrollable modals, resize, etc.)
+  // Also lock the nearest scrollable ancestor (e.g. Edit Profile drawer body) so wheel/touch
+  // intended for the portaled list does not scroll the modal instead.
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setDropdownRect(null);
+      return;
+    }
+
+    updateDropdownPosition();
+
+    const trigger = triggerRef.current;
+    const scrollParents = getScrollParents(trigger);
+    const onMove = () => {
+      updateDropdownPosition();
     };
-  };
+
+    const scrollLockTarget = scrollParents[0];
+    const previousOverflow = scrollLockTarget ? scrollLockTarget.style.overflow : '';
+    if (scrollLockTarget) {
+      scrollLockTarget.style.overflow = 'hidden';
+    }
+
+    scrollParents.forEach((parent) => {
+      parent.addEventListener('scroll', onMove, { passive: true });
+    });
+    window.addEventListener('scroll', onMove, { passive: true });
+    window.addEventListener('resize', onMove);
+
+    let ro: ResizeObserver | undefined;
+    if (trigger) {
+      ro = new ResizeObserver(onMove);
+      ro.observe(trigger);
+    }
+
+    return () => {
+      if (scrollLockTarget) {
+        scrollLockTarget.style.overflow = previousOverflow;
+      }
+      scrollParents.forEach((parent) => {
+        parent.removeEventListener('scroll', onMove);
+      });
+      window.removeEventListener('scroll', onMove);
+      window.removeEventListener('resize', onMove);
+      ro?.disconnect();
+    };
+  }, [isOpen, updateDropdownPosition]);
+
+  // Native wheel often won't scroll the list inside a portaled panel while the drawer uses
+  // overflow locking; manually apply deltaY to the list with a non-passive listener so mouse /
+  // trackpad scrolling works (scrollbar dragging still works via native behavior).
+  useEffect(() => {
+    if (!isOpen || !dropdownRect) return;
+    const panel = dropdownRef.current;
+    const list = listRef.current;
+    if (!panel || !list) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.stopPropagation();
+      const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
+      if (maxScroll <= 0) {
+        e.preventDefault();
+        return;
+      }
+      const next = list.scrollTop + e.deltaY;
+      list.scrollTop = Math.min(maxScroll, Math.max(0, next));
+      e.preventDefault();
+    };
+
+    panel.addEventListener('wheel', onWheel, { passive: false });
+    return () => panel.removeEventListener('wheel', onWheel);
+  }, [isOpen, dropdownRect]);
 
   return (
     <>
@@ -173,14 +274,19 @@ export function SearchableSelect({
 
       {mounted &&
         isOpen &&
+        dropdownRect &&
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[99999] rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden"
-            style={getDropdownPosition()}
+            className="fixed z-[100100] max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto"
+            style={{
+              top: dropdownRect.top,
+              left: dropdownRect.left,
+              width: dropdownRect.width,
+            }}
           >
             {/* Search input */}
-            <div className="p-2 border-b border-gray-100">
+            <div className="shrink-0 p-2 border-b border-gray-100">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <input
@@ -206,7 +312,7 @@ export function SearchableSelect({
             {/* Options list */}
             <div
               ref={listRef}
-              className="overflow-y-auto"
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
               style={{ maxHeight }}
             >
               {filteredOptions.length === 0 ? (
