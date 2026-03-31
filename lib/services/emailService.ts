@@ -42,6 +42,9 @@ export interface ChapterAnnouncementEmail {
   content: string;
   announcementId: string;
   announcementType: 'general' | 'urgent' | 'event' | 'academic';
+  /** Public HTTPS URL for optional announcement image (SendGrid template: conditional block) */
+  imageUrl?: string | null;
+  imageAlt?: string | null;
 }
 
 // NEW: Event notification interface
@@ -132,9 +135,13 @@ export class EmailService {
     summary,
     content,
     announcementId,
-    announcementType
+    announcementType,
+    imageUrl,
+    imageAlt,
   }: ChapterAnnouncementEmail): Promise<boolean> {
     try {
+      const baseUrl = getEmailBaseUrl().replace(/\/$/, '');
+      const hasImage = Boolean(imageUrl && imageUrl.length > 0);
       const msg = {
         to,
         from: {
@@ -147,7 +154,12 @@ export class EmailService {
           payload: {
             title: title,
             summary: summary || content.substring(0, 200) + (content.length > 200 ? '...' : ''), // Use content as summary if no summary provided
-            announcement_id: announcementId
+            announcement_id: announcementId,
+            announcement_type: announcementType,
+            content: content,
+            has_image: hasImage,
+            image_url: hasImage ? imageUrl : '',
+            image_alt: imageAlt && imageAlt.trim() ? imageAlt.trim() : '',
           },
           recipient: {
             first_name: firstName,
@@ -158,7 +170,7 @@ export class EmailService {
           },
           cta: {
             label: 'Read Full Announcement',
-            url: 'https://www.trailblaize.net/' 
+            url: `${baseUrl}/dashboard/announcements`
           },
           unsubscribe: `{{unsubscribe}}`,
           unsubscribe_preferences: `{{unsubscribe_preferences}}`
@@ -201,6 +213,8 @@ export class EmailService {
       content: string;
       announcementId: string;
       announcementType: 'general' | 'urgent' | 'event' | 'academic';
+      imageUrl?: string | null;
+      imageAlt?: string | null;
       // priority: 'low' | 'normal' | 'high' | 'urgent';
     }
   ): Promise<{ successful: number; failed: number }> {
