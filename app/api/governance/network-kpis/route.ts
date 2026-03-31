@@ -10,8 +10,7 @@ import type { NetworkKpis } from '@/types/governance';
  *
  * Where:
  *   MAU  = profiles with `last_active_at` within the past 30 days
- *          whose `member_status` is NOT 'graduated'
- *   registeredMembers = all non-graduated profiles in the managed chapters
+ *   registeredMembers = all profiles in each chapter (per-chapter rate, then mean across chapters)
  *
  * The metric is averaged across chapters (per-chapter engagement, then mean)
  * so that small chapters are not drowned out by large ones.
@@ -93,9 +92,7 @@ export async function GET(request: NextRequest) {
     const cutoffISO = cutoff.toISOString();
 
     const chapterEngagements: number[] = chapterIds.map((cid) => {
-      const chapterMembers = rows.filter(
-        (m) => m.chapter_id === cid && m.member_status !== 'graduated'
-      );
+      const chapterMembers = rows.filter((m) => m.chapter_id === cid);
       if (chapterMembers.length === 0) return 0;
 
       const active = chapterMembers.filter(

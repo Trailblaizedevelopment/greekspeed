@@ -2,11 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChapterHealthRow } from '@/types/governance';
 
 /**
- * Engagement percentage at or above this value → "active"; strictly below → "at_risk".
- * Override via CHAPTER_HEALTH_ENGAGEMENT_THRESHOLD env var.
+ * Chapter status: "at_risk" when more than this many profiles are inactive for the chapter
+ * in the engagement window (no `last_active_at` or last activity before the cutoff).
+ * Override via CHAPTER_HEALTH_AT_RISK_INACTIVE_COUNT (default 5 → 6+ inactive = at risk).
  */
-export const ENGAGEMENT_THRESHOLD =
-  Number(process.env.CHAPTER_HEALTH_ENGAGEMENT_THRESHOLD) || 60;
+export const AT_RISK_IF_INACTIVE_COUNT_EXCEEDS =
+  Number(process.env.CHAPTER_HEALTH_AT_RISK_INACTIVE_COUNT) || 5;
 
 const ENGAGEMENT_WINDOW_DAYS = 30;
 
@@ -45,7 +46,7 @@ export async function getManagedChapterIds(
 
 /**
  * Builds per-chapter health rows for a set of managed chapter IDs.
- * Each row includes member counts, engagement %, last activity, and computed status.
+ * Each row includes member counts, engagement %, last activity, and status (inactive headcount rule).
  */
 export async function getChapterHealthRows(
   supabase: SupabaseClient,
@@ -84,17 +85,14 @@ export async function getChapterHealthRows(
       (m) => m.member_status === 'alumni' || m.member_status === 'graduated'
     ).length;
 
-    const eligibleMembers = chapterMembers.filter(
-      (m) => m.member_status !== 'graduated'
-    );
-
-    const engagedCount = eligibleMembers.filter(
+    // Engagement: share of all chapter profiles active in the window (not gated on member_status).
+    const engagedCount = chapterMembers.filter(
       (m) => m.last_active_at && m.last_active_at >= cutoffISO
     ).length;
 
     const engagementPercent =
-      eligibleMembers.length > 0
-        ? Math.round((engagedCount / eligibleMembers.length) * 1000) / 10
+      chapterMembers.length > 0
+        ? Math.round((engagedCount / chapterMembers.length) * 1000) / 10
         : 0;
 
     const lastActivityAt =
@@ -104,8 +102,12 @@ export async function getChapterHealthRows(
         return m.last_active_at > latest ? m.last_active_at : latest;
       }, null);
 
+    const inactiveCount = chapterMembers.filter(
+      (m) => !m.last_active_at || m.last_active_at < cutoffISO
+    ).length;
+
     const status: ChapterHealthRow['status'] =
-      engagementPercent < ENGAGEMENT_THRESHOLD ? 'at_risk' : 'active';
+      inactiveCount > AT_RISK_IF_INACTIVE_COUNT_EXCEEDS ? 'at_risk' : 'active';
 
     return {
       chapterId: chapter.id,
