@@ -23,6 +23,7 @@ import { useMutualConnections } from '@/lib/hooks/useMutualConnections';
 import { useChapterMembers } from '@/lib/hooks/useChapterMembers';
 import Link from 'next/link';
 import ImageWithFallback from '@/components/figma/ImageWithFallback';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
 
 interface PublicProfileClientProps {
@@ -311,17 +312,13 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
         
         {/* Header with Back and Share buttons */}
         <div className="relative">
-          {profile.banner_url ? (
-            <div className={`bg-gradient-to-r from-primary-100 via-accent-100 to-accent-50 relative ${!isLoggedIn ? 'h-40' : 'h-32'}`}>
-              <img
-                src={profile.banner_url}
-                alt={`${profile.full_name}'s banner`}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className={`bg-gradient-to-r from-primary-100 via-accent-100 to-accent-50 relative ${!isLoggedIn ? 'h-40' : 'h-32'}`} />
-          )}
+          <div className={`relative ${!isLoggedIn ? 'h-40' : 'h-32'}`}>
+            <img
+              src={profile.banner_url || DEFAULT_BANNER_IMAGE}
+              alt={`${profile.full_name}'s banner`}
+              className="w-full h-full object-cover"
+            />
+          </div>
           
           {/* Back Button */}
           {isLoggedIn && (
@@ -478,7 +475,7 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 {/* Banner + Back + Avatar */}
                 <div className="relative">
-                  <div className="relative w-full h-48 bg-gradient-to-r from-brand-primary via-brand-accent to-accent-300 overflow-hidden">
+                  <div className="relative w-full h-48 overflow-hidden">
                     {profile.banner_url ? (
                       <ImageWithFallback
                         src={profile.banner_url}
@@ -489,7 +486,13 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
                         priority
                         className="object-cover"
                       />
-                    ) : null}
+                    ) : (
+                      <img
+                        src={DEFAULT_BANNER_IMAGE}
+                        alt="Default banner"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                   </div>
                   {isLoggedIn && (
                     <button

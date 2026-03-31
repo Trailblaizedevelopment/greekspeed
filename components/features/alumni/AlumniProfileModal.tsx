@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { trackActivity, ActivityTypes } from "@/lib/utils/activityUtils";
 import { createPortal } from 'react-dom';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ShareProfileDrawer } from "@/components/features/messaging/ShareProfileDrawer";
 import { supabase } from "@/lib/supabase/client";
 import { ConnectionRequestDialog } from "@/components/features/connections/ConnectionRequestDialog";
@@ -344,7 +345,9 @@ export function AlumniProfileModal({ alumni, isOpen, onClose }: AlumniProfileMod
         {/* Profile Header with Integrated Close Button */}
         <div className="relative">
           {/* Background Banner */}
-          <div className="h-20 bg-gradient-to-r from-primary-100 to-accent-100 rounded-t-xl" />
+          <div className="h-20 rounded-t-xl overflow-hidden">
+            <img src={DEFAULT_BANNER_IMAGE} alt="Default banner" className="w-full h-full object-cover" />
+          </div>
           
           {/* Close Button - Positioned in top-right corner */}
           <Button
