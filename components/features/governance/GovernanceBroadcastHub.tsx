@@ -333,8 +333,18 @@ export function GovernanceBroadcastHub() {
               Delivery options
             </p>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center space-x-2">
+            <div
+              className={cn(
+                'grid grid-cols-2',
+                isSheet ? 'gap-x-2 gap-y-2' : 'gap-3'
+              )}
+            >
+              <div
+                className={cn(
+                  'flex items-center',
+                  isSheet ? 'gap-1.5' : 'space-x-2'
+                )}
+              >
                 <Checkbox
                   id={id('gov-send-sms-members')}
                   checked={sendSmsToMembers}
@@ -342,19 +352,39 @@ export function GovernanceBroadcastHub() {
                 />
                 <Label
                   htmlFor={id('gov-send-sms-members')}
-                  className="text-sm cursor-pointer flex items-center gap-1.5"
+                  className={cn(
+                    'cursor-pointer flex items-center font-medium',
+                    isSheet
+                      ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                      : 'gap-1.5 text-sm'
+                  )}
                 >
-                  <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+                  <Smartphone
+                    className={cn(
+                      'shrink-0 text-gray-500',
+                      isSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+                    )}
+                  />
                   SMS to Actives
                   {displayCounts.sms !== null && (
-                    <span className="text-xs text-gray-500 font-normal">
+                    <span
+                      className={cn(
+                        'shrink-0 font-normal text-gray-500 tabular-nums',
+                        isSheet ? 'text-[10px]' : 'text-xs'
+                      )}
+                    >
                       ({displayCounts.sms})
                     </span>
                   )}
                 </Label>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div
+                className={cn(
+                  'flex items-center',
+                  isSheet ? 'gap-1.5' : 'space-x-2'
+                )}
+              >
                 <Checkbox
                   id={id('gov-send-sms-alumni')}
                   checked={sendSmsToAlumni}
@@ -362,19 +392,39 @@ export function GovernanceBroadcastHub() {
                 />
                 <Label
                   htmlFor={id('gov-send-sms-alumni')}
-                  className="text-sm cursor-pointer flex items-center gap-1.5"
+                  className={cn(
+                    'cursor-pointer flex items-center font-medium',
+                    isSheet
+                      ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                      : 'gap-1.5 text-sm'
+                  )}
                 >
-                  <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+                  <Smartphone
+                    className={cn(
+                      'shrink-0 text-gray-500',
+                      isSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+                    )}
+                  />
                   SMS to Alumni
                   {displayCounts.alumniSms !== null && (
-                    <span className="text-xs text-gray-500 font-normal">
+                    <span
+                      className={cn(
+                        'shrink-0 font-normal text-gray-500 tabular-nums',
+                        isSheet ? 'text-[10px]' : 'text-xs'
+                      )}
+                    >
                       ({displayCounts.alumniSms})
                     </span>
                   )}
                 </Label>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div
+                className={cn(
+                  'flex items-center',
+                  isSheet ? 'gap-1.5' : 'space-x-2'
+                )}
+              >
                 <Checkbox
                   id={id('gov-send-email-members')}
                   checked={sendEmailToMembers}
@@ -382,19 +432,39 @@ export function GovernanceBroadcastHub() {
                 />
                 <Label
                   htmlFor={id('gov-send-email-members')}
-                  className="text-sm cursor-pointer flex items-center gap-1.5"
+                  className={cn(
+                    'cursor-pointer flex items-center font-medium',
+                    isSheet
+                      ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                      : 'gap-1.5 text-sm'
+                  )}
                 >
-                  <Mail className="h-3.5 w-3.5 text-gray-500" />
+                  <Mail
+                    className={cn(
+                      'shrink-0 text-gray-500',
+                      isSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+                    )}
+                  />
                   Email to Actives
                   {displayCounts.email !== null && (
-                    <span className="text-xs text-gray-500 font-normal">
+                    <span
+                      className={cn(
+                        'shrink-0 font-normal text-gray-500 tabular-nums',
+                        isSheet ? 'text-[10px]' : 'text-xs'
+                      )}
+                    >
                       ({displayCounts.email})
                     </span>
                   )}
                 </Label>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div
+                className={cn(
+                  'flex items-center',
+                  isSheet ? 'gap-1.5' : 'space-x-2'
+                )}
+              >
                 <Checkbox
                   id={id('gov-send-email-alumni')}
                   checked={sendEmailToAlumni}
@@ -402,12 +472,27 @@ export function GovernanceBroadcastHub() {
                 />
                 <Label
                   htmlFor={id('gov-send-email-alumni')}
-                  className="text-sm cursor-pointer flex items-center gap-1.5"
+                  className={cn(
+                    'cursor-pointer flex items-center font-medium',
+                    isSheet
+                      ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                      : 'gap-1.5 text-sm'
+                  )}
                 >
-                  <Mail className="h-3.5 w-3.5 text-gray-500" />
+                  <Mail
+                    className={cn(
+                      'shrink-0 text-gray-500',
+                      isSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+                    )}
+                  />
                   Email to Alumni
                   {displayCounts.alumniEmail !== null && (
-                    <span className="text-xs text-gray-500 font-normal">
+                    <span
+                      className={cn(
+                        'shrink-0 font-normal text-gray-500 tabular-nums',
+                        isSheet ? 'text-[10px]' : 'text-xs'
+                      )}
+                    >
                       ({displayCounts.alumniEmail})
                     </span>
                   )}

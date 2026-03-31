@@ -15,6 +15,7 @@ import type { CreateAnnouncementData } from '@/types/announcements';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
+import { cn } from '@/lib/utils';
 import { AnnouncementImageAttachmentField } from './AnnouncementImageAttachmentField';
 
 export function SendAnnouncementButton() {
@@ -143,8 +144,11 @@ export function SendAnnouncementButton() {
     alumniEmail: alumniEmailRecipientCount,
   };
 
-  const formContent = (idSuffix: string) => (
-    <>
+  const formContent = (idSuffix: string) => {
+    const isMobileSheet = idSuffix === 'mobile';
+
+    return (
+      <>
       <div className="space-y-2">
         <Input
           placeholder="Announcement title..."
@@ -190,7 +194,12 @@ export function SendAnnouncementButton() {
           Delivery Options
         </p>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-sms-members-${idSuffix}`}
             checked={sendSmsToMembers}
@@ -198,17 +207,41 @@ export function SendAnnouncementButton() {
           />
           <Label
             htmlFor={`send-sms-members-${idSuffix}`}
-            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
           >
-            <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+            <Smartphone
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             SMS to Actives
             {displayCounts.sms !== null && displayCounts.sms !== undefined && (
-              <span className="text-xs text-gray-400 font-normal">({displayCounts.sms})</span>
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.sms})
+              </span>
             )}
           </Label>
         </div>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-sms-alumni-${idSuffix}`}
             checked={sendSmsToAlumni}
@@ -216,17 +249,41 @@ export function SendAnnouncementButton() {
           />
           <Label
             htmlFor={`send-sms-alumni-${idSuffix}`}
-            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
           >
-            <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+            <Smartphone
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             SMS to Alumni
             {displayCounts.alumniSms !== null && displayCounts.alumniSms !== undefined && (
-              <span className="text-xs text-gray-400 font-normal">({displayCounts.alumniSms})</span>
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.alumniSms})
+              </span>
             )}
           </Label>
         </div>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-email-members-${idSuffix}`}
             checked={sendEmailToMembers}
@@ -234,17 +291,41 @@ export function SendAnnouncementButton() {
           />
           <Label
             htmlFor={`send-email-members-${idSuffix}`}
-            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
           >
-            <Mail className="h-3.5 w-3.5 text-gray-500" />
+            <Mail
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             Email to Actives
             {displayCounts.email !== null && displayCounts.email !== undefined && (
-              <span className="text-xs text-gray-400 font-normal">({displayCounts.email})</span>
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.email})
+              </span>
             )}
           </Label>
         </div>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-email-alumni-${idSuffix}`}
             checked={sendEmailToAlumni}
@@ -252,12 +333,31 @@ export function SendAnnouncementButton() {
           />
           <Label
             htmlFor={`send-email-alumni-${idSuffix}`}
-            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
           >
-            <Mail className="h-3.5 w-3.5 text-gray-500" />
+            <Mail
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             Email to Alumni
             {displayCounts.alumniEmail !== null && displayCounts.alumniEmail !== undefined && (
-              <span className="text-xs text-gray-400 font-normal">({displayCounts.alumniEmail})</span>
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.alumniEmail})
+              </span>
             )}
           </Label>
         </div>
@@ -266,8 +366,9 @@ export function SendAnnouncementButton() {
           <p className="text-xs text-gray-400 pl-1">Loading recipient counts...</p>
         )}
       </div>
-    </>
-  );
+      </>
+    );
+  };
 
   return (
     <>
