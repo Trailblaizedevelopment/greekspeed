@@ -19,6 +19,24 @@
 
 ---
 
+## Where we are (sandbox — verified Mar 2026)
+
+Summary of what Postman **against `sandbox-api.crowdedfinance.com`** has proven so far (partner Bearer token, correct `{{chapter_id}}` / `{{contact_id}}` path vars):
+
+| Step | Result | Notes |
+|------|--------|--------|
+| `GET /organizations` | **200** | Org `Trailblaize` + org UUID in `data`. |
+| `GET /chapters` | **200** | Chapter UUID for `chapter_id` env; `organizationId` matches org. |
+| `GET /chapters/{{chapter_id}}/contacts` | **200** | At least one contact; use `data[].id` as **`contact_id`**. |
+| `GET /chapters/{{chapter_id}}/contacts/{{contact_id}}` | **200** | Single contact shape (`id`, `chapterId`, `firstName`, `lastName`, `email`, …). |
+| `GET /chapters/{{chapter_id}}/accounts` | **400** | **`NO_CUSTOMER`** — no banking customer for this chapter/org yet; not a path bug. See [Pass 2](#pass-2--accounts-create--list) and [portal Finish setup](#crowded-staging-portal--finish-setup-brief). |
+| `POST /chapters/{{chapter_id}}/collections` | **401** | **`UnauthorizedUser`**: `"To proceed, please accept terms"` — block on legal/onboarding terms in Crowded (portal or account state), not wrong `chapterId`. See [Pass 3](#pass-3--collect--collection-links-dues). |
+| `POST …/collections/…/intents` | Not exercised | Waiting on **Create Collection** success + real `collection_id`. |
+
+**Implication for app work:** Read-only org/chapter/contact flows can be implemented and tested; **balances/accounts** need **NO_CUSTOMER** resolved; **dues collection links** need **terms** accepted (and likely customer setup) per Crowded.
+
+---
+
 ## Crowded base URLs (reference)
 
 | URL | Notes |
@@ -42,7 +60,8 @@
 1. **Environment** `Crowded API - Trailblaize`: set **`base_url`** = `https://sandbox-api.crowdedfinance.com`, **`api_token`** = full JWT (Current value). Save. Select this environment (top-right).
 2. **Collection** `Crowded API Docs V0.9` → **Authorization** → **Bearer Token** → `{{api_token}}` → Save. (Avoid conflicting `base_url` on collection vs environment — prefer one source of truth, usually **environment**.)
 3. **Sanity check:** `GET {{base_url}}/api/v1/organizations` → **200**.
-4. Optional: Postman **Console** to confirm resolved URL and `Authorization: Bearer`.
+4. **Chapter ID (required for almost all chapter-scoped calls):** run **`GET {{base_url}}/api/v1/chapters`** → copy **`data[0].id`** (or the chapter you need) into the environment variable **`chapter_id`**. Save the environment. Without this, path params stay empty or wrong — see [403 and literal chapter_id in path](#403-and-literal-chapter_id-in-path) below.
+5. Optional: Postman **Console** (**View → Show Postman Console**) — after **Send**, confirm the resolved URL contains a **UUID** in the path (e.g. `/chapters/c651e8dd-…/accounts`), not the literal text `chapter_id`, and that `Authorization: Bearer` is present.
 
 ---
 
@@ -85,9 +104,22 @@
 }
 ```
 
-**Postman env tip:** Add variable `chapter_id` = `c651e8dd-a3b0-4756-91a0-30d18e22d714` so `:chapterId` resolves (replace placeholder `chapter_id` string if the collection uses literals).
+**Postman env tip:** Add variable **`chapter_id`** = the UUID from **`GET /chapters`** → `data[].id` (historical sandbox example: `c651e8dd-a3b0-4756-91a0-30d18e22d714`). Re-copy after new sandbox data if IDs change.
+
+**Path variables (critical):** For any request with `:chapterId` in the URL, open the **Params** tab → **Path Variables** → set **`chapterId`** to **`{{chapter_id}}`** (with double curly braces). If the value is the plain text `chapter_id` or an empty cell, the API receives the literal string `chapter_id` and returns **403** — see troubleshooting below.
 
 **Tickets:** TRA-410, TRA-412, TRA-413.
+
+### Contacts (list + get by id) — verified
+
+| Request | Path |
+|---------|------|
+| List | `GET {{base_url}}/api/v1/chapters/{{chapter_id}}/contacts` |
+| One contact | `GET {{base_url}}/api/v1/chapters/{{chapter_id}}/contacts/{{contact_id}}` |
+
+**Env:** `contact_id` = UUID from list response `data[].id` (sandbox example contact id: `aecc6ddb-b3d7-406c-96af-418fb0a2fb42` — re-verify if sandbox is reset).
+
+**404** `Contact with ID contact_id not found…` means the path still sent the literal string `contact_id` — use **`{{contact_id}}`** in Path Variables, not plain text.
 
 ---
 
@@ -101,13 +133,28 @@
 |------|--------|
 | **List endpoint** | `GET {{base_url}}/api/v1/chapters/:chapterId/accounts` |
 | **Path param** | `chapterId` = real Crowded chapter UUID (sandbox: `c651e8dd-a3b0-4756-91a0-30d18e22d714`), **not** the literal string `chapter_id`. |
-| **Response shape** (list; confirm with live 200) | Each item: `id`, `name`, `status`, `accountNumber`, `routingNumber`, `currency`, `balance`, `hold`, `available`, `contactId`, `createdAt`. Doc/example used placeholders `account_id` / `contact_id` — replace with real IDs from sandbox when testing. |
+| **Response shape** (list; live **200** TBD) | Each item: `id`, `name`, `status`, `accountNumber`, `routingNumber`, `currency`, `balance`, `hold`, `available`, `contactId`, `createdAt`. Doc/example used placeholders `account_id` / `contact_id` — replace with real IDs from sandbox when testing. |
+| **Live error (path correct)** | **400** `ResourceInputSafeError`, `details: ["NO_CUSTOMER"]`, message `"No customer was found for operation"` — chapter/org exists but **banking customer** not provisioned (portal **Finish setup** or Crowded support). |
 | **Fields to persist (app)** | `crowded_account_id` ← `id`; link to our `chapter_id`; optional cache: `status`, `currency`, balances; `contactId` if we sync contacts. **Do not** store full account/routing in logs; treat as sensitive in UI. |
 | **Create** | Collection includes **POST Bulk create accounts** — run only when ready; not filled here. |
 
 **Tickets:** TRA-412, TRA-413, TRA-410.
 
 **Troubleshooting:** Path param must be `{{chapter_id}}`, not literal `chapter_id` (else 403 / wrong chapter). **400 `NO_CUSTOMER`:** banking customer not ready — complete **Finish setup** in portal (below) or ask Crowded to provision sandbox.
+
+### 403 and literal chapter_id in path
+
+This message means the server treated the chapter identifier as the **literal string** `chapter_id`, not a UUID. Common causes:
+
+| Cause | Fix |
+|--------|-----|
+| **`chapter_id` env var empty** | Run **`GET /chapters`**, copy `data[].id` into **Environment → `chapter_id` → Current value**, Save. |
+| **Path variable typed as `chapter_id` without `{{ }}`** | In **Params → Path Variables**, set `chapterId` to **`{{chapter_id}}`** so Postman substitutes the UUID. |
+| **Wrong collection / request** | Open **Console** after Send; the resolved URL must show `/chapters/<uuid>/…`, never `/chapters/chapter_id/…`. |
+
+**Contacts — GET by id:** If the request has `:contactId`, you must use a **real contact UUID** from **list/create contacts** for that chapter — same rule: **`{{contact_id}}`** in path params, not the literal `contact_id`.
+
+After the path shows a real UUID, **403** should clear if your token has access to that chapter. If you still get **403** with a valid UUID in the URL, treat it as a **real permission / token scope** issue and ask Crowded.
 
 ---
 
@@ -123,6 +170,7 @@
 | 4 | Complete each following screen (legal name, EIN, address, beneficial owners, etc.) using **sandbox/test** data Crowded allows — if a field blocks you, ask **Kyle** for staging shortcuts or test values. |
 | 5 | Finish until the **“finish bank account”** flow is done: banner gone or **Crowded Checking** clearly active, not just $0 placeholder with setup pending. |
 | 6 | Return to Postman → **GET** `…/chapters/{{chapter_id}}/accounts` — expect **200** with real account rows (not `NO_CUSTOMER`). |
+| 7 | If **`POST …/collections`** returns **401** `"To proceed, please accept terms"`, complete any **terms / agreements** Crowded shows in the portal (or ask Crowded where partner accounts accept them). |
 
 **Then:** **Contacts** → **Collections** in UI or API as planned.
 
@@ -184,9 +232,19 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 |------|--------|
 | Endpoint(s) | See table above. |
 | Required IDs | `chapterId` → sandbox chapter UUID; `collectionId` → from **Create Collection** response after send; `contactId` → from Contacts. |
-| **Member-facing URL field** | **TBD — send requests with real IDs** and record which response field holds the pay/checkout URL (e.g. `url`, `checkoutUrl`, `hostedUrl` — confirm from 200 JSON). Collection may also have **Get** on collection — check for link fields there. |
+| **Create Collection — live (Mar 2026)** | **401** `UnauthorizedUser`, message **`"To proceed, please accept terms"`** — user/org must accept Crowded **terms of use** (or equivalent) in **staging portal** or via Crowded’s process; not fixed by changing Postman body. Confirm with **Kyle / Crowded** where partner accounts accept terms for API/collections. |
+| **Member-facing URL field** | **Still TBD** — blocked until **POST collections** returns **200**; then record pay/checkout field from response (and optional **GET collection**). |
 
 **Tickets:** TRA-414, TRA-415.
+
+### Should we use Create Collection / Create Intent if Accounts or Contacts 403?
+
+- **If 403 shows `No access to chapter chapter_id`:** That is almost always **misconfigured Postman path variables** (see [403 and literal chapter_id](#403-and-literal-chapter_id-in-path) above). **Fix `{{chapter_id}}` and the env value first** — Accounts, Contacts, and Collect all use the same `:chapterId` scope.
+- **After paths resolve to a real UUID:** Run **`GET …/chapters/{{chapter_id}}/accounts`** — expect **200** (or **400 `NO_CUSTOMER`** if banking setup incomplete; that is different from 403).
+- **Collect (Create Collection → Create Intent):** Same **`{{chapter_id}}`** requirement. **Create Collection** may still return **401** until **terms** are accepted (observed Mar 2026) — independent of **`NO_CUSTOMER`** on accounts. Resolve with Crowded/portal; then retry **POST collections** → **POST intents**.
+- **Create Intent** needs a real **`contactId`** from Contacts APIs — complete **list/create contact** before intent, or the request will fail for missing/invalid contact.
+
+**Recommended order after orgs + chapters work:** set `chapter_id` → **GET accounts** (or note `NO_CUSTOMER`) → **Contacts list** (set `contact_id` if needed) → **POST collection** → **POST intent**.
 
 ---
 
@@ -227,33 +285,39 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 | Mar 2026 | **Accounts / Collect** (docs + Postman UI) | Documented `GET …/chapters/:id/accounts`; Collect: `POST …/collections` + `POST …/intents` + bodies; pay URL pending live 200. |
 | Mar 2026 | Accounts **403** | Fixed: path variable `{{chapter_id}}` not literal `chapter_id`. |
 | Mar 2026 | Accounts **400 NO_CUSTOMER** | Matches portal: bank/customer setup incomplete — user running **Finish setup** on staging portal. |
+| Mar 2026 | Postman Desktop + env | **`chapter_id` left empty** and/or path param literal `chapter_id` → **403** `No access to chapter chapter_id`. Fix: `GET /chapters` → copy `id` into env; use **`{{chapter_id}}`** in Path Variables. Same pattern for **`{{contact_id}}`** on contact-by-id routes. |
+| Mar 2026 | **Contacts** list + get by id | **200** with `{{chapter_id}}` + `{{contact_id}}`; literal `contact_id` in path → **404**. |
+| Mar 2026 | **GET accounts** (correct UUID in path) | **400** `NO_CUSTOMER` — confirmed not a Postman placeholder bug; needs banking customer / portal setup. |
+| Mar 2026 | **POST Create Collection** | **401** `"To proceed, please accept terms"` — block on Crowded terms / account state; ask Crowded where to accept for partner API. |
 
 ---
 
 ## What to do manually next (in order)
 
-1. **Postman env:** Set **`chapter_id`** = `c651e8dd-a3b0-4756-91a0-30d18e22d714` (Current value). Re-send **Accounts → Get All** so path is `/chapters/c651e8dd-…/accounts` — **not** the literal `chapter_id`. Screenshot or paste **live** `data[]` (redact account numbers if you prefer).
+1. **Crowded / portal — unblock accounts (`NO_CUSTOMER`):** Complete **Finish setup** on [staging portal](https://staging.portal.crowdedme.xyz) (or get sandbox provisioning from Crowded) until **`GET …/accounts`** returns **200** with rows. See [portal section](#crowded-staging-portal--finish-setup-brief).
 
-2. **Contacts (prerequisite for intents):** In the collection, open **Contacts** — list or create a contact for the sandbox chapter so you have a real **`contactId`**. Without it, **Create Intent** cannot be exercised meaningfully.
+2. **Crowded / portal — unblock Collect (`401` accept terms):** Find where the **sandbox** user or partner org must **accept terms** so **`POST …/collections`** succeeds. Ask **Kyle / Crowded** if not visible in UI. Retry **Create Collection** → **Create Intent** after **200** on collections.
 
-3. **Collect — run for real:**  
-   - **POST Create Collection** with `chapterId` = sandbox chapter UUID and body `title` + `requestedAmount` (cents). **Send** → copy **`collection` `id`** from response into env as `collection_id`.  
-   - **POST Create Intent** with `collectionId` + real `contactId` in body. **Send** → find the field that is the **member payment / checkout URL** and paste a redacted JSON snippet into chat or add one line to **Findings — Pass 3** in this file.
+3. **Postman env:** Keep **`chapter_id`**, **`contact_id`** (from list), **`base_url`**, **`api_token`** saved; path vars **`{{chapter_id}}`**, **`{{contact_id}}`** everywhere.
 
-4. **Optional:** If the collection has **GET** on a single collection, open it and note any `url` / `link` fields without paying.
+4. **Collect — when 401 is cleared:**  
+   - **POST Create Collection** → copy **`collection_id`** from response.  
+   - **POST Create Intent** with real **`contactId`** → document **member payment / checkout URL** field in **Findings — Pass 3**.
 
-5. **Pass 4 — Webhooks**  
+5. **Optional:** If the collection has **GET** on a single collection, open it and note any `url` / `link` fields without paying.
+
+6. **Pass 4 — Webhooks**  
    If the collection has example webhooks, save a redacted sample.  
    - Otherwise email **Kyle** or **support@bankingcrowded.com** for: signature header name + verification steps + sample `payment.completed` (or equivalent) JSON.
 
-6. **Local env (no commit)**  
+7. **Local env (no commit)**  
    Add to **`.env.local`** (values stay private):  
    - `CROWDED_API_BASE_URL=https://sandbox-api.crowdedfinance.com`  
    - `CROWDED_API_TOKEN=<your sandbox JWT>`  
    When you want the CLI test to match Postman, ask Cursor (Agent) to update `scripts/test-crowded-api.ts` to use **Bearer** + this base URL.
 
-7. **Linear**  
-   Continue **TRA-409** (client + env) using this doc as the source of truth for base URL and auth style.
+8. **Linear**  
+   Continue **TRA-409** (client + env) using this doc as the source of truth for base URL and auth style. **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
 
 ---
 
@@ -268,6 +332,8 @@ Share these in chat **with tokens blurred** or crop so secrets are not visible:
 | 3 | **Collect** — request body + 200 response (redact PII) | Pass 3 + dues integration. |
 | 4 | Environment editor showing **variable names only** (`base_url`, `api_token`) — values hidden | Confirms naming for code/env docs. |
 | 5 | Any **401/403** with wrong base or auth | Debugging if regression. |
+| 6 | **400** `NO_CUSTOMER` on accounts (correct chapter UUID in URL) | Documents banking-customer gap vs path bugs. |
+| 7 | **401** `accept terms` on **POST collections** | Documents Collect gate before intents. |
 
 ---
 
