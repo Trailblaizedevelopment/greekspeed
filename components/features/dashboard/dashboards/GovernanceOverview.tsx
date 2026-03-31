@@ -111,13 +111,7 @@ export function GovernanceOverview() {
           </div>
         </div>
 
-        {/* Alumni Intelligence */}
-        <div className="mb-6">
-          <AlumniIntelligence />
-        </div>
-
-        {/* Main Grid */}
-        {/* Chapter Health Table */}
+        {/* Chapter Health Table — spec order: Zone 2 directly under KPIs */}
         <div className="mb-6">
           <div className="mb-3 flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
@@ -128,6 +122,11 @@ export function GovernanceOverview() {
             </h2>
           </div>
           <ChapterHealthTable />
+        </div>
+
+        {/* Alumni Intelligence */}
+        <div className="mb-6">
+          <AlumniIntelligence />
         </div>
 
         <GovernanceBroadcastHub />
