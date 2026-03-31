@@ -4,6 +4,10 @@ import { SMSService } from '@/lib/services/sms/smsServiceTelnyx';
 import { SMSMessageFormatter } from '@/lib/services/sms/smsMessageFormatter';
 import { SMSNotificationService } from '@/lib/services/sms/smsNotificationService';
 import { canSendEmailNotification } from '@/lib/utils/checkEmailPreferences';
+import {
+  getFirstAnnouncementImageFromMetadata,
+  sanitizeAnnouncementMetadataForCreate,
+} from '@/lib/validation/announcementMetadata';
 
 // Configure function timeout for Vercel (60 seconds for Pro plan)
 export const maxDuration = 60;
@@ -167,6 +171,17 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
+    const metadataResult = sanitizeAnnouncementMetadataForCreate(metadata, supabaseUrl);
+    if (!metadataResult.ok) {
+      return NextResponse.json(
+        {
+          error: metadataResult.error,
+          ...(metadataResult.details ? { details: metadataResult.details } : {}),
+        },
+        { status: 400 }
+      );
+    }
+
     // Create announcement
     const { data: announcement, error: createError } = await supabase
       .from('announcements')
@@ -178,7 +193,7 @@ export async function POST(request: NextRequest) {
         announcement_type,
         is_scheduled: is_scheduled || false,
         scheduled_at: scheduled_at || null,
-        metadata: metadata || {},
+        metadata: metadataResult.metadata,
         is_sent: !is_scheduled, // If not scheduled, mark as sent
         sent_at: !is_scheduled ? new Date().toISOString() : null
       })
@@ -198,6 +213,11 @@ export async function POST(request: NextRequest) {
       console.error('Announcement creation error:', createError);
       return NextResponse.json({ error: 'Failed to create announcement' }, { status: 500 });
     }
+
+    const announcementImage = getFirstAnnouncementImageFromMetadata(announcement.metadata);
+    const emailImageUrl = announcementImage?.url ?? null;
+    const emailImageAlt = announcementImage?.alt ?? null;
+    const smsMediaUrl = announcementImage?.url ?? null;
 
     // If announcement is not scheduled, create recipient records and send notifications
     if (!is_scheduled) {
@@ -261,7 +281,9 @@ export async function POST(request: NextRequest) {
                   summary: '',
                   content: announcement.content,
                   announcementId: announcement.id,
-                  announcementType: announcement.announcement_type
+                  announcementType: announcement.announcement_type,
+                  imageUrl: emailImageUrl,
+                  imageAlt: emailImageAlt,
                 }
               );
               console.log('Email sent to members:', recipients.length, 'recipients');
@@ -340,7 +362,9 @@ export async function POST(request: NextRequest) {
                   summary: '',
                   content: announcement.content,
                   announcementId: announcement.id,
-                  announcementType: announcement.announcement_type
+                  announcementType: announcement.announcement_type,
+                  imageUrl: emailImageUrl,
+                  imageAlt: emailImageAlt,
                 }
               );
               console.log('Email sent to alumni:', alumniRecipients.length, 'recipients');
@@ -418,7 +442,15 @@ export async function POST(request: NextRequest) {
                   if (firstTime.length > 0) {
                     const resultFull = await SMSService.sendBulkSMS(
                       firstTime.map(m => m.formattedPhone),
-                      messagePartsFull.fullMessage
+                      messagePartsFull.fullMessage,
+                      {
+                        mediaUrl: smsMediaUrl,
+                        logContext: {
+                          announcementId: announcement.id,
+                          channel: 'members',
+                          segment: 'first_time',
+                        },
+                      }
                     );
                     totalSuccess += resultFull.success;
                     totalFailed += resultFull.failed;
@@ -426,7 +458,15 @@ export async function POST(request: NextRequest) {
                   if (returning.length > 0) {
                     const resultNone = await SMSService.sendBulkSMS(
                       returning.map(m => m.formattedPhone),
-                      messagePartsNone.fullMessage
+                      messagePartsNone.fullMessage,
+                      {
+                        mediaUrl: smsMediaUrl,
+                        logContext: {
+                          announcementId: announcement.id,
+                          channel: 'members',
+                          segment: 'returning',
+                        },
+                      }
                     );
                     totalSuccess += resultNone.success;
                     totalFailed += resultNone.failed;
@@ -448,6 +488,7 @@ export async function POST(request: NextRequest) {
                     success: totalSuccess,
                     failed: totalFailed,
                     announcementId: announcement.id,
+                    mediaAttempted: Boolean(smsMediaUrl),
                   });
 
                   try {
@@ -544,7 +585,15 @@ export async function POST(request: NextRequest) {
                   if (firstTimeAlumni.length > 0) {
                     const resultFull = await SMSService.sendBulkSMS(
                       firstTimeAlumni.map(a => a.formattedPhone),
-                      messagePartsFullAlumni.fullMessage
+                      messagePartsFullAlumni.fullMessage,
+                      {
+                        mediaUrl: smsMediaUrl,
+                        logContext: {
+                          announcementId: announcement.id,
+                          channel: 'alumni',
+                          segment: 'first_time',
+                        },
+                      }
                     );
                     totalSuccessAlumni += resultFull.success;
                     totalFailedAlumni += resultFull.failed;
@@ -552,7 +601,15 @@ export async function POST(request: NextRequest) {
                   if (returningAlumni.length > 0) {
                     const resultNone = await SMSService.sendBulkSMS(
                       returningAlumni.map(a => a.formattedPhone),
-                      messagePartsNoneAlumni.fullMessage
+                      messagePartsNoneAlumni.fullMessage,
+                      {
+                        mediaUrl: smsMediaUrl,
+                        logContext: {
+                          announcementId: announcement.id,
+                          channel: 'alumni',
+                          segment: 'returning',
+                        },
+                      }
                     );
                     totalSuccessAlumni += resultNone.success;
                     totalFailedAlumni += resultNone.failed;
@@ -574,6 +631,7 @@ export async function POST(request: NextRequest) {
                     success: totalSuccessAlumni,
                     failed: totalFailedAlumni,
                     announcementId: announcement.id,
+                    mediaAttempted: Boolean(smsMediaUrl),
                   });
 
                   try {

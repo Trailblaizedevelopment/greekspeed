@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import ImageWithFallback from '@/components/figma/ImageWithFallback';
 import { useRouter } from 'next/navigation';
 import { Calendar, MapPin } from 'lucide-react';
+import { MessageBubble } from './MessageBubble';
 interface MessageListProps {
   messages: Message[];
   loading: boolean;
@@ -424,7 +425,7 @@ export function MessageList({
             return (
               <div
                 key={message.id}
-                className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} mb-3`}
+                className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} mb-2`}
               >
                 {/* Left side - Avatar and content for received messages */}
                 {!isOwnMessage && (
@@ -514,11 +515,7 @@ export function MessageList({
                                     {/* Show text bubble if there's text content */}
                                     {showText && textContent && (
                                       <div className="relative group min-w-0 max-w-full">
-                                        <div className="bg-white border border-gray-200 text-gray-900 px-4 py-2 rounded-lg shadow-sm max-w-full overflow-hidden">
-                                          <p className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere">
-                                            {textContent}
-                                          </p>
-                                        </div>
+                                        <MessageBubble variant="incoming">{textContent}</MessageBubble>
                                       </div>
                                     )}
                                     {/* Event card below text */}
@@ -644,11 +641,7 @@ export function MessageList({
                                     {/* Show text bubble if there's text content - SINGLE RENDER POINT */}
                                     {showText && textContent && (
                                       <div className="relative group min-w-0 max-w-full">
-                                        <div className="bg-brand-primary text-white px-4 py-2 rounded-lg shadow-sm max-w-full overflow-hidden">
-                                          <p className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere">
-                                            {textContent}
-                                          </p>
-                                        </div>
+                                        <MessageBubble variant="outgoing">{textContent}</MessageBubble>
                                         {/* Message actions menu */}
                                         <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <DropdownMenu>

@@ -646,9 +646,134 @@ export class SMSService {
     }
   }
 
+  /**
+   * Attempt Telnyx MMS (media_urls), then fall back to plain SMS on failure or sandbox.
+   */
+  static async sendSMSWithMmsFallback(
+    to: string,
+    body: string,
+    mediaUrl: string | null | undefined,
+    logExtras?: Record<string, unknown>
+  ): Promise<SMSResult> {
+    if (mediaUrl && !this.isInSandboxMode()) {
+      const mmsResult = await this.sendMmsViaRestApi(to, body, [mediaUrl], {
+        ...logExtras,
+        to,
+      });
+      if (mmsResult.success) {
+        console.log(
+          JSON.stringify({
+            event: 'announcement_mms_sent',
+            ...logExtras,
+            to,
+          })
+        );
+        return mmsResult;
+      }
+      console.warn(
+        JSON.stringify({
+          event: 'announcement_mms_fallback_sms',
+          ...logExtras,
+          to,
+          error: mmsResult.error,
+        })
+      );
+    } else if (mediaUrl && this.isInSandboxMode()) {
+      console.log(
+        JSON.stringify({
+          event: 'announcement_mms_skipped_sandbox',
+          ...logExtras,
+          to,
+        })
+      );
+    }
+    return this.sendSMS({ to, body });
+  }
+
+  private static async sendMmsViaRestApi(
+    to: string,
+    text: string,
+    mediaUrls: string[],
+    logContext: Record<string, unknown>
+  ): Promise<SMSResult> {
+    const fromNumber = process.env.TELNYX_PHONE_NUMBER;
+    const apiKey = process.env.TELNYX_API_KEY;
+    if (!fromNumber || !apiKey) {
+      return { success: false, error: 'Telnyx not configured for MMS' };
+    }
+
+    const telnyxApiUrl = 'https://api.telnyx.com/v2/messages';
+    const requestBody = {
+      from: fromNumber,
+      to,
+      text,
+      media_urls: mediaUrls,
+      encoding: 'auto' as const,
+    };
+
+    try {
+      console.log('📤 MMS Send Request:', {
+        ...logContext,
+        mediaCount: mediaUrls.length,
+        textLength: text.length,
+      });
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.FETCH_TIMEOUT_MS);
+      const response = await fetch(telnyxApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'User-Agent': 'Trailblaize-SMS-MMS/1.0',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const responseText = await response.text();
+      let parsed: { errors?: Array<{ detail?: string; title?: string }>; data?: { id?: string } };
+      try {
+        parsed = JSON.parse(responseText) as typeof parsed;
+      } catch {
+        return {
+          success: false,
+          error: `MMS response not JSON: ${responseText.slice(0, 200)}`,
+        };
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `MMS HTTP ${response.status}: ${responseText.slice(0, 400)}`,
+        };
+      }
+
+      if (parsed.errors && parsed.errors.length > 0) {
+        const detail = parsed.errors.map((e) => e.detail || e.title || 'error').join('; ');
+        return { success: false, error: `MMS API: ${detail}` };
+      }
+
+      const messageId = parsed.data?.id;
+      if (!messageId) {
+        return { success: false, error: 'MMS: no message id in response' };
+      }
+
+      return { success: true, messageId };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { success: false, error: `MMS request failed: ${msg}` };
+    }
+  }
+
   static async sendBulkSMS(
     recipients: string[],
-    message: string
+    message: string,
+    options?: {
+      mediaUrl?: string | null;
+      logContext?: Record<string, unknown>;
+    }
   ): Promise<{ success: number; failed: number; results: SMSResult[] }> {
     const startTime = Date.now();
     const logContext = {
@@ -656,6 +781,7 @@ export class SMSService {
       environment: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
       totalRecipients: recipients.length,
       messageLength: message.length,
+      hasMedia: Boolean(options?.mediaUrl),
     };
 
     console.log('📤 Bulk SMS Send Request:', logContext);
@@ -685,10 +811,17 @@ export class SMSService {
       });
       
       const batchPromises = batch.map(async (phoneNumber) => {
-        const result = await this.sendSMS({
-          to: phoneNumber,
-          body: message,
-        });
+        const result = options?.mediaUrl
+          ? await this.sendSMSWithMmsFallback(
+              phoneNumber,
+              message,
+              options.mediaUrl,
+              options.logContext
+            )
+          : await this.sendSMS({
+              to: phoneNumber,
+              body: message,
+            });
         
         if (result.success) {
           successCount++;

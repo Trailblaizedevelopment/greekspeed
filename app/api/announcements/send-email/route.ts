@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { EmailService } from '@/lib/services/emailService';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
+import { getFirstAnnouncementImageFromMetadata } from '@/lib/validation/announcementMetadata';
 import { buildPushPayload } from '@/lib/services/notificationPushPayload';
 import { sendPushToUser } from '@/lib/services/oneSignalPushService';
 
@@ -81,6 +82,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const announcementImage = getFirstAnnouncementImageFromMetadata(announcement.metadata);
+
     // For testing: send to specified email
     if (testEmail) {
       const testResult = await EmailService.sendChapterAnnouncement({
@@ -92,6 +95,8 @@ export async function POST(request: NextRequest) {
         content: announcement.content,
         announcementId: announcement.id,
         announcementType: announcement.announcement_type,
+        imageUrl: announcementImage?.url ?? null,
+        imageAlt: announcementImage?.alt ?? null,
       });
 
       if (testResult) {
@@ -176,7 +181,9 @@ export async function POST(request: NextRequest) {
         summary: '', // You can add summary logic here if needed
         content: announcement.content,
         announcementId: announcement.id,
-        announcementType: announcement.announcement_type
+        announcementType: announcement.announcement_type,
+        imageUrl: announcementImage?.url ?? null,
+        imageAlt: announcementImage?.alt ?? null,
       }
     );
 
