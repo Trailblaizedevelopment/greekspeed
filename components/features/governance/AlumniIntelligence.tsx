@@ -66,35 +66,33 @@ export function AlumniIntelligence() {
       {/* Mobile: single card + header toggle */}
       <div className="md:hidden">
         <div className="rounded-xl border border-gray-200 bg-white shadow">
-          <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 sm:gap-3 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 border-b border-gray-100 px-3 py-3">
             <div
               className={cn(
-                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
                 mobileInsightTab === 'industry'
                   ? 'bg-brand-primary/10 text-brand-primary'
-                  : 'bg-indigo-50 text-indigo-600'
+                  : 'bg-slate-50 text-slate-600'
               )}
             >
               {mobileInsightTab === 'industry' ? (
-                <Briefcase className="h-4.5 w-4.5" />
+                <Briefcase className="h-4 w-4" />
               ) : (
-                <MapPin className="h-4.5 w-4.5" />
+                <MapPin className="h-4 w-4" />
               )}
             </div>
-            <div className="min-w-0 flex-1 pr-1">
-              <h3 className="text-sm font-semibold text-gray-900">
-                {mobileInsightTab === 'industry'
-                  ? 'Industry Breakdown'
-                  : 'Geographic Distribution'}
+            <div className="min-w-0 flex-1 pr-0.5">
+              <h3 className="whitespace-nowrap text-xs font-semibold leading-tight text-gray-900">
+                {mobileInsightTab === 'industry' ? 'Industries' : 'Locations'}
               </h3>
-              <p className="text-xs text-gray-500">
+              <p className="text-[11px] leading-tight text-gray-500">
                 {totalAlumni > 0
                   ? `${totalAlumni.toLocaleString()} alumni`
                   : 'No alumni data'}
               </p>
             </div>
             <div
-              className="flex shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-0.5"
+              className="flex shrink-0 rounded-md border border-gray-200 bg-gray-50 p-px"
               role="tablist"
               aria-label="Alumni insight view"
             >
@@ -104,7 +102,7 @@ export function AlumniIntelligence() {
                 aria-selected={mobileInsightTab === 'industry'}
                 onClick={() => setMobileInsightTab('industry')}
                 className={cn(
-                  'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                  'rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors',
                   mobileInsightTab === 'industry'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
@@ -118,7 +116,7 @@ export function AlumniIntelligence() {
                 aria-selected={mobileInsightTab === 'geography'}
                 onClick={() => setMobileInsightTab('geography')}
                 className={cn(
-                  'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                  'rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors',
                   mobileInsightTab === 'geography'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
@@ -441,7 +439,7 @@ function LocationCard(props: LocationCardProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow">
       <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-slate-600">
           <MapPin className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0 flex-1">
