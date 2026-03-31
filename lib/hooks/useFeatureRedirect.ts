@@ -56,7 +56,8 @@ export function useFeatureRedirect(options: UseFeatureRedirectOptions) {
     // This prevents redirects if flag check fails
     if (error) {
       console.warn(`Feature flag check failed for ${flagName}:`, error);
-      return; // Don't redirect on error
+      router.replace(redirectTo);
+      return;
     }
 
     // Redirect if feature is disabled

@@ -29,7 +29,7 @@ export function isFeatureEnabled(
   flags: ChapterFeatureFlags | null | undefined,
   flagName: FeatureFlagName
 ): boolean {
-  if (!flags) return true; // Default: enabled
-  if (!(flagName in flags)) return true; // Missing flag = enabled by default
+  if (!flags) return false;
+  if (!(flagName in flags)) return false;
   return flags[flagName] === true;
 }

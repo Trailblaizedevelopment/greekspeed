@@ -66,8 +66,7 @@ export function FeatureGuard({
   // This prevents features from breaking if flag check fails
   if (error) {
     console.warn(`Feature flag check failed for ${flagName}:`, error);
-    // Default to enabled on error (fail open)
-    return <>{children}</>;
+    return <>{fallback}</>;
   }
 
   // Render children if enabled, fallback if disabled
