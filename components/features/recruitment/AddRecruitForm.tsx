@@ -380,7 +380,6 @@ export function AddRecruitForm({ onSuccess, onCancel, variant = 'inline' }: AddR
                 )}
                 <Button
                   type="submit"
-                  form="recruit-form"
                   disabled={loading}
                   className="flex-1 rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover shadow-lg shadow-navy-100/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
