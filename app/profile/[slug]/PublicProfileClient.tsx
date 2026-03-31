@@ -400,7 +400,7 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
         />
 
       {/* Scrollable Content Area */}
-      <div className="bg-gray-50 min-h-[400px]">
+      <div className="bg-white sm:bg-gray-50 min-h-[400px]">
         {activeTab === 'posts' && (
           <PostsTab 
             userId={profile.id} 

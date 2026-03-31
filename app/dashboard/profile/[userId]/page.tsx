@@ -225,7 +225,7 @@ export default function UserProfilePage() {
       />
 
       {/* Scrollable Content Area */}
-      <div className="bg-gray-50 min-h-[400px]">
+      <div className="bg-white sm:bg-gray-50 min-h-[400px]">
         {activeTab === 'posts' && (
           <PostsTab userId={userId} isOwnProfile={isOwnProfile} />
         )}
