@@ -11,6 +11,7 @@ import {
   FileCheck,
   ArrowRight,
 } from 'lucide-react';
+import { AlumniIntelligence } from '@/components/features/governance/AlumniIntelligence';
 
 interface PlaceholderCardProps {
   title: string;
@@ -93,6 +94,11 @@ export function GovernanceOverview() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Alumni Intelligence */}
+        <div className="mb-6">
+          <AlumniIntelligence />
         </div>
 
         {/* Main Grid */}
