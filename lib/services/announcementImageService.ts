@@ -1,9 +1,9 @@
+import { ANNOUNCEMENT_IMAGE_MAX_BYTES } from '@/lib/constants/announcementMedia';
 import { supabase } from '@/lib/supabase/client';
 
 const BUCKET = 'announcement-images';
 
-/** ~1MB cap for MMS-friendly payloads (tune if product asks) */
-export const ANNOUNCEMENT_IMAGE_MAX_BYTES = 1 * 1024 * 1024;
+export { ANNOUNCEMENT_IMAGE_MAX_BYTES };
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'] as const;
 

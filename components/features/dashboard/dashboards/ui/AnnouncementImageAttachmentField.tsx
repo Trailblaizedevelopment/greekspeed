@@ -11,8 +11,11 @@ import { ImagePlus, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ANNOUNCEMENT_IMAGE_MAX_BYTES } from '@/lib/constants/announcementMedia';
 import { cn } from '@/lib/utils';
 import type { AnnouncementImageUploadResult } from '@/lib/services/announcementImageService';
+
+const ANNOUNCEMENT_IMAGE_MAX_MB = ANNOUNCEMENT_IMAGE_MAX_BYTES / (1024 * 1024);
 
 export interface AnnouncementImageAttachmentFieldProps {
   idSuffix: string;
@@ -102,7 +105,7 @@ export function AnnouncementImageAttachmentField({
         Optional image
       </p>
       <p className="text-xs text-gray-500">
-        JPEG, PNG, or WebP · max 1 MB · shown in email / MMS when enabled
+        JPEG, PNG, or WebP · max {ANNOUNCEMENT_IMAGE_MAX_MB} MB · shown in email / MMS when enabled
       </p>
 
       {!pendingImage ? (

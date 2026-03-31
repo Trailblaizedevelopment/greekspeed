@@ -3,6 +3,7 @@
  * Validates sanitizeAnnouncementMetadataForCreate behavior without a test runner dependency.
  */
 import assert from 'node:assert/strict';
+import { ANNOUNCEMENT_IMAGE_MAX_BYTES } from '../lib/constants/announcementMedia';
 import {
   sanitizeAnnouncementMetadataForCreate,
 } from '../lib/validation/announcementMetadata';
@@ -76,6 +77,34 @@ function run() {
     SUPABASE
   );
   assert.equal(f.ok, false);
+
+  const atMax = sanitizeAnnouncementMetadataForCreate(
+    {
+      images: [
+        {
+          url: GOOD_URL,
+          mimeType: 'image/jpeg',
+          sizeBytes: ANNOUNCEMENT_IMAGE_MAX_BYTES,
+        },
+      ],
+    },
+    SUPABASE
+  );
+  assert.equal(atMax.ok, true);
+
+  const overMax = sanitizeAnnouncementMetadataForCreate(
+    {
+      images: [
+        {
+          url: GOOD_URL,
+          mimeType: 'image/jpeg',
+          sizeBytes: ANNOUNCEMENT_IMAGE_MAX_BYTES + 1,
+        },
+      ],
+    },
+    SUPABASE
+  );
+  assert.equal(overMax.ok, false);
 
   console.log('announcement metadata tests: OK');
 }

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
-/** Aligned with `AnnouncementImageService` / MMS-friendly cap */
-export const ANNOUNCEMENT_IMAGE_MAX_BYTES = 1 * 1024 * 1024;
+import { ANNOUNCEMENT_IMAGE_MAX_BYTES } from '@/lib/constants/announcementMedia';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'] as const;
 
