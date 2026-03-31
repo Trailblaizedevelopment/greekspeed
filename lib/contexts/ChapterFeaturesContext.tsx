@@ -61,9 +61,16 @@ export function ChapterFeaturesProvider({ children }: { children: ReactNode }) {
         headers,
       });
 
+      let errorMessage = 'Failed to fetch feature flags';
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch feature flags');
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } else {
+          errorMessage = `Feature flags request failed (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

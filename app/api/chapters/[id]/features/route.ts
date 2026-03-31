@@ -95,7 +95,8 @@ export async function GET(
       profile.is_developer || 
       canManageChapterForContext(profile, id, managedChapterIds);
 
-    if (!canManage && !canManage) {
+    // Allow read if member of chapter OR manager/admin/developer
+    if (!isChapterMember && !canManage) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
     

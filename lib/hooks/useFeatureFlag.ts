@@ -1,8 +1,7 @@
 import { useChapterFeaturesContext } from '@/lib/contexts/ChapterFeaturesContext';
 import { isFeatureEnabled } from '@/types/featureFlags';
 import type { FeatureFlagName } from '@/types/featureFlags';
-import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
-import { useChapterFeatures } from './useChapterFeatures';
+
 
 interface UseFeatureFlagResult {
   enabled: boolean;
@@ -25,8 +24,7 @@ interface UseFeatureFlagResult {
  * if (!enabled) return <FeatureDisabled />;
  */
 export function useFeatureFlag(flagName: FeatureFlagName): UseFeatureFlagResult {
-  const chapterId = useScopedChapterId();
-  const { flags, loading, error } = useChapterFeatures(chapterId);
+  const { flags, loading, error } = useChapterFeaturesContext();
 
   // Use isFeatureEnabled helper which defaults to true if flags are null/undefined
   const enabled = isFeatureEnabled(flags, flagName);
