@@ -13,6 +13,7 @@ import { AlumniIntelligence } from '@/components/features/governance/AlumniIntel
 import { ChapterHealthTable } from '@/components/features/governance/ChapterHealthTable';
 import { GovernanceBroadcastHub } from '@/components/features/governance/GovernanceBroadcastHub';
 import { useNetworkKpis } from '@/lib/hooks/useNetworkKpis';
+import { cn } from '@/lib/utils';
 
 function formatKpiValue(
   value: string | number | undefined,
@@ -74,22 +75,26 @@ export function GovernanceOverview() {
           </button>
         </div>
 
-        {/* Network KPI strip — GET /api/governance/network-kpis */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {kpiItems.map((kpi) => (
-            <div
-              key={kpi.label}
-              className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-                {kpi.icon}
+        {/* Network KPI strip (Zone 1) — beige bar, dividers, top-rounded only */}
+        <div className="mb-6 overflow-hidden rounded-t-xl border border-stone-300/80 bg-slate-100/20 shadow-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-4">
+            {kpiItems.map((kpi, index) => (
+              <div
+                key={kpi.label}
+                className={cn(
+                  'px-4 py-3 text-left sm:px-5 sm:py-3.5',
+                  index % 2 === 0 && 'border-r border-stone-300/80 sm:border-r-0',
+                  index < 2 && 'border-b border-stone-300/80 sm:border-b-0',
+                  index > 0 && 'sm:border-l sm:border-stone-300/80'
+                )}
+              >
+                <p className="text-xs font-bold text-gray-900">{kpi.label}</p>
+                <p className="mt-0.5 text-xl font-normal tabular-nums leading-snug text-gray-900 sm:text-2xl sm:font-medium">
+                  {kpi.value}
+                </p>
               </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500">{kpi.label}</p>
-                <p className="text-lg font-semibold text-gray-900">{kpi.value}</p>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Alumni Intelligence */}
