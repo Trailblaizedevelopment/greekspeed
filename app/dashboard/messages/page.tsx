@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useConnections } from '@/lib/contexts/ConnectionsContext';
+import { useMessagingInbox } from '@/lib/hooks/useMessagingInbox';
 import { MessagesSidebar } from '@/components/features/messaging/MessagesSidebar';
 import { MessagesMainChat } from '@/components/features/messaging/MessagesMainChat';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ function MessagesPageContent() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const { connections, loading } = useConnections();
+  const { connections, previews: inboxPreviews, loading } = useMessagingInbox();
   const searchParams = useSearchParams();
   const connectionId = searchParams.get('connection');
   const router = useRouter();
@@ -152,6 +152,8 @@ function MessagesPageContent() {
                   sidebarCollapsed={sidebarCollapsed && !isMobile}
                   onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
                   onClose={() => !isMobile && setSidebarOpen(false)}
+                  inboxHydrated
+                  inboxPreviews={inboxPreviews}
                 />
               </motion.div>
             )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Connection } from '@/lib/contexts/ConnectionsContext';
 import { useAuth } from '@/lib/supabase/auth-context';
@@ -11,6 +11,7 @@ import { Search, MessageSquare, Menu, X, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ClickableAvatar } from '@/components/features/user-profile/ClickableAvatar';
 import { ClickableUserName } from '@/components/features/user-profile/ClickableUserName';
+import type { MessagingInboxPreview } from '@/types/messagingInbox';
 
 interface MessagesSidebarProps {
   connections: Connection[];
@@ -23,6 +24,9 @@ interface MessagesSidebarProps {
   sidebarCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onClose?: () => void;
+  /** When true, last message previews come from /api/messaging/inbox only (no N+1 refetch / reorder). */
+  inboxHydrated?: boolean;
+  inboxPreviews?: Record<string, MessagingInboxPreview>;
 }
 
 interface LastMessage {
@@ -43,14 +47,32 @@ export function MessagesSidebar({
   isMainView = false,
   sidebarCollapsed = false,
   onToggleCollapse,
-  onClose
+  onClose,
+  inboxHydrated = false,
+  inboxPreviews = {},
 }: MessagesSidebarProps) {
   const { user, session } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [lastMessages, setLastMessages] = useState<Map<string, LastMessage>>(new Map());
 
+  useLayoutEffect(() => {
+    if (!inboxHydrated) return;
+    const map = new Map<string, LastMessage>();
+    for (const [id, p] of Object.entries(inboxPreviews)) {
+      map.set(id, {
+        connectionId: id,
+        content: p.content,
+        createdAt: p.createdAt,
+        senderId: p.senderId,
+        unreadCount: p.unreadCount,
+      });
+    }
+    setLastMessages(map);
+  }, [inboxHydrated, inboxPreviews]);
+
   // Fetch last message and unread count for each connection
   useEffect(() => {
+    if (inboxHydrated) return;
     if (!user || !session || connections.length === 0) return;
 
     const fetchLastMessages = async () => {
@@ -106,7 +128,7 @@ export function MessagesSidebar({
     };
 
     fetchLastMessages();
-  }, [connections, user, session]);
+  }, [connections, user, session, inboxHydrated]);
 
   // Refresh unread count for selected connection when it changes
   useEffect(() => {

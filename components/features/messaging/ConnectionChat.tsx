@@ -14,11 +14,19 @@ interface ConnectionChatProps {
   connectionId: string;
   onBack?: () => void;
   className?: string;
+  /** Prefer inbox-loaded connections so the header renders without waiting on ConnectionsContext. */
+  connectionsOverride?: Connection[];
 }
 
-export function ConnectionChat({ connectionId, onBack, className = '' }: ConnectionChatProps) {
+export function ConnectionChat({
+  connectionId,
+  onBack,
+  className = '',
+  connectionsOverride,
+}: ConnectionChatProps) {
   const { user } = useAuth();
-  const { connections } = useConnections();
+  const { connections: contextConnections } = useConnections();
+  const connections = connectionsOverride ?? contextConnections;
   const searchParams = useSearchParams();
   const router = useRouter();
   const [hasSharedProfile, setHasSharedProfile] = useState(false);
