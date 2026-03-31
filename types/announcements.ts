@@ -84,3 +84,11 @@ export interface CreateAnnouncementData {
 
   metadata?: Record<string, any>;
 }
+
+/** One image in announcements.metadata.images (v1: max one in API validation later) */
+export interface AnnouncementImageMetadataEntry {
+  url: string;
+  alt?: string;
+  mimeType: string;
+  sizeBytes: number;
+}
