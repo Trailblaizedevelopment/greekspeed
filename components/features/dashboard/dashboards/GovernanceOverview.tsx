@@ -11,6 +11,7 @@ import {
   FileCheck,
   ArrowRight,
 } from 'lucide-react';
+import { AlumniIntelligence } from '@/components/features/governance/AlumniIntelligence';
 import { ChapterHealthTable } from '@/components/features/governance/ChapterHealthTable';
 
 interface PlaceholderCardProps {
@@ -96,6 +97,12 @@ export function GovernanceOverview() {
           ))}
         </div>
 
+        {/* Alumni Intelligence */}
+        <div className="mb-6">
+          <AlumniIntelligence />
+        </div>
+
+        {/* Main Grid */}
         {/* Chapter Health Table */}
         <div className="mb-6">
           <div className="mb-3 flex items-center gap-2">
