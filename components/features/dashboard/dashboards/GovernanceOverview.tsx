@@ -14,6 +14,8 @@ import { ChapterHealthTable } from '@/components/features/governance/ChapterHeal
 import { GovernanceBroadcastHub } from '@/components/features/governance/GovernanceBroadcastHub';
 import { useNetworkKpis } from '@/lib/hooks/useNetworkKpis';
 import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
+import { useProfile } from '@/lib/contexts/ProfileContext';
+import type { Profile } from '@/types/profile';
 import { cn } from '@/lib/utils';
 
 function formatKpiValue(
@@ -25,9 +27,20 @@ function formatKpiValue(
   return value.toLocaleString();
 }
 
+function greetingFromProfile(profile: Profile | null): string {
+  if (!profile) return 'Welcome back';
+  const first = profile.first_name?.trim();
+  if (first) return `Welcome back, ${first}`;
+  const fromFull = profile.full_name?.trim().split(/\s+/)[0];
+  if (fromFull) return `Welcome back, ${fromFull}`;
+  return 'Welcome back';
+}
+
 export function GovernanceOverview() {
   const router = useRouter();
+  const { profile } = useProfile();
   const { data: kpis, isLoading: kpisLoading } = useNetworkKpis();
+  const headerGreeting = greetingFromProfile(profile);
 
   const kpiItems = [
     {
@@ -63,8 +76,7 @@ export function GovernanceOverview() {
       <div className="mx-auto max-w-7xl px-4 py-6 pb-24 sm:px-6 sm:pb-6">
         <div className="mb-6 flex flex-row items-center justify-between gap-2 sm:gap-3">
           <h1 className="min-w-0 flex-1 text-lg font-bold leading-tight tracking-tight text-gray-900 sm:text-2xl">
-            <span className="sm:hidden">Governance</span>
-            <span className="hidden sm:inline">Governance Dashboard</span>
+            {headerGreeting}
           </h1>
           <button
             type="button"
