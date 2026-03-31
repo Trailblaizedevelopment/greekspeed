@@ -11,6 +11,7 @@ import {
   FileCheck,
   ArrowRight,
 } from 'lucide-react';
+import { ChapterHealthTable } from '@/components/features/governance/ChapterHealthTable';
 
 interface PlaceholderCardProps {
   title: string;
@@ -95,13 +96,21 @@ export function GovernanceOverview() {
           ))}
         </div>
 
-        {/* Main Grid */}
+        {/* Chapter Health Table */}
+        <div className="mb-6">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
+              <BarChart3 className="h-4 w-4" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-900">
+              Chapter Health
+            </h2>
+          </div>
+          <ChapterHealthTable />
+        </div>
+
+        {/* Placeholder Cards Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <PlaceholderCard
-            title="Chapter Health Table"
-            description="View health scores, member counts, and risk indicators across all managed chapters. Click a row to drill into that chapter's Exec Admin dashboard."
-            icon={<BarChart3 className="h-5 w-5" />}
-          />
           <PlaceholderCard
             title="Compliance Overview"
             description="Track document submissions, insurance certificates, and policy acknowledgements for each chapter."
