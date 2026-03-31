@@ -17,8 +17,12 @@ import type { IndustryAggregate, LocationAggregate } from '@/types/governance';
 const MAX_VISIBLE_ROWS = 10;
 const COMPLETENESS_THRESHOLD = 50;
 
+type MobileAlumniInsightTab = 'industry' | 'geography';
+
 export function AlumniIntelligence() {
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
+  const [mobileInsightTab, setMobileInsightTab] =
+    useState<MobileAlumniInsightTab>('industry');
 
   const { data: chaptersData, isLoading: chaptersLoading } =
     useGovernanceChapters();
@@ -29,6 +33,23 @@ export function AlumniIntelligence() {
   });
 
   const chapters = chaptersData?.chapters ?? [];
+  const totalAlumni = data?.totalAlumni ?? 0;
+
+  const industryCardProps = {
+    industries: data?.industries ?? [],
+    loading: isLoading,
+    error: isError,
+    completeness: data?.industryCompleteness ?? null,
+    totalAlumni,
+  } as const;
+
+  const locationCardProps = {
+    locations: data?.locations ?? [],
+    loading: isLoading,
+    error: isError,
+    completeness: data?.locationCompleteness ?? null,
+    totalAlumni,
+  } as const;
 
   return (
     <div className="space-y-4">
@@ -42,21 +63,96 @@ export function AlumniIntelligence() {
         />
       )}
 
-      {/* Two side-by-side cards */}
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* Mobile: single card + header toggle */}
+      <div className="md:hidden">
+        <div className="rounded-xl border border-gray-200 bg-white shadow">
+          <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 sm:gap-3 sm:px-5 sm:py-4">
+            <div
+              className={cn(
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                mobileInsightTab === 'industry'
+                  ? 'bg-brand-primary/10 text-brand-primary'
+                  : 'bg-indigo-50 text-indigo-600'
+              )}
+            >
+              {mobileInsightTab === 'industry' ? (
+                <Briefcase className="h-4.5 w-4.5" />
+              ) : (
+                <MapPin className="h-4.5 w-4.5" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1 pr-1">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {mobileInsightTab === 'industry'
+                  ? 'Industry Breakdown'
+                  : 'Geographic Distribution'}
+              </h3>
+              <p className="text-xs text-gray-500">
+                {totalAlumni > 0
+                  ? `${totalAlumni.toLocaleString()} alumni`
+                  : 'No alumni data'}
+              </p>
+            </div>
+            <div
+              className="flex shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-0.5"
+              role="tablist"
+              aria-label="Alumni insight view"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileInsightTab === 'industry'}
+                onClick={() => setMobileInsightTab('industry')}
+                className={cn(
+                  'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                  mobileInsightTab === 'industry'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                Industry
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileInsightTab === 'geography'}
+                onClick={() => setMobileInsightTab('geography')}
+                className={cn(
+                  'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+                  mobileInsightTab === 'geography'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                Map
+              </button>
+            </div>
+          </div>
+          <div className="px-5 py-4">
+            {mobileInsightTab === 'industry' ? (
+              <IndustryCardBody {...industryCardProps} />
+            ) : (
+              <LocationCardBody {...locationCardProps} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop: two side-by-side cards */}
+      <div className="hidden gap-4 md:grid md:grid-cols-2">
         <IndustryCard
-          industries={data?.industries ?? []}
-          loading={isLoading}
-          error={isError}
-          completeness={data?.industryCompleteness ?? null}
-          totalAlumni={data?.totalAlumni ?? 0}
+          industries={industryCardProps.industries}
+          loading={industryCardProps.loading}
+          error={industryCardProps.error}
+          completeness={industryCardProps.completeness}
+          totalAlumni={industryCardProps.totalAlumni}
         />
         <LocationCard
-          locations={data?.locations ?? []}
-          loading={isLoading}
-          error={isError}
-          completeness={data?.locationCompleteness ?? null}
-          totalAlumni={data?.totalAlumni ?? 0}
+          locations={locationCardProps.locations}
+          loading={locationCardProps.loading}
+          error={locationCardProps.error}
+          completeness={locationCardProps.completeness}
+          totalAlumni={locationCardProps.totalAlumni}
         />
       </div>
     </div>
@@ -194,7 +290,7 @@ interface IndustryCardProps {
   totalAlumni: number;
 }
 
-function IndustryCard({
+function IndustryCardBody({
   industries,
   loading,
   error,
@@ -206,6 +302,48 @@ function IndustryCard({
   const visible = expanded ? industries : industries.slice(0, MAX_VISIBLE_ROWS);
   const hasMore = industries.length > MAX_VISIBLE_ROWS;
 
+  if (loading) {
+    return <BarSkeleton rows={5} />;
+  }
+  if (error) {
+    return <ErrorState />;
+  }
+  if (industries.length === 0) {
+    return <EmptyState label="No industry data available" />;
+  }
+
+  return (
+    <>
+      {completeness !== null && completeness < COMPLETENESS_THRESHOLD && (
+        <CompletenessNudge percent={completeness} field="industry" />
+      )}
+      <ul className="space-y-2.5">
+        {visible.map((item) => (
+          <HorizontalBar
+            key={item.industry}
+            label={item.industry}
+            value={item.count}
+            maxValue={maxCount}
+            suffix=""
+          />
+        ))}
+      </ul>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-3 text-xs font-medium text-brand-primary hover:underline"
+        >
+          {expanded
+            ? 'Show less'
+            : `Show all ${industries.length} industries`}
+        </button>
+      )}
+    </>
+  );
+}
+
+function IndustryCard(props: IndustryCardProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow">
       <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
@@ -217,52 +355,15 @@ function IndustryCard({
             Industry Breakdown
           </h3>
           <p className="text-xs text-gray-500">
-            {totalAlumni > 0
-              ? `${totalAlumni.toLocaleString()} alumni`
+            {props.totalAlumni > 0
+              ? `${props.totalAlumni.toLocaleString()} alumni`
               : 'No alumni data'}
           </p>
         </div>
       </div>
 
       <div className="px-5 py-4">
-        {loading ? (
-          <BarSkeleton rows={5} />
-        ) : error ? (
-          <ErrorState />
-        ) : industries.length === 0 ? (
-          <EmptyState label="No industry data available" />
-        ) : (
-          <>
-            {completeness !== null &&
-              completeness < COMPLETENESS_THRESHOLD && (
-                <CompletenessNudge
-                  percent={completeness}
-                  field="industry"
-                />
-              )}
-            <ul className="space-y-2.5">
-              {visible.map((item) => (
-                <HorizontalBar
-                  key={item.industry}
-                  label={item.industry}
-                  value={item.count}
-                  maxValue={maxCount}
-                  suffix=""
-                />
-              ))}
-            </ul>
-            {hasMore && (
-              <button
-                onClick={() => setExpanded((e) => !e)}
-                className="mt-3 text-xs font-medium text-brand-primary hover:underline"
-              >
-                {expanded
-                  ? 'Show less'
-                  : `Show all ${industries.length} industries`}
-              </button>
-            )}
-          </>
-        )}
+        <IndustryCardBody {...props} />
       </div>
     </div>
   );
@@ -278,17 +379,65 @@ interface LocationCardProps {
   totalAlumni: number;
 }
 
-function LocationCard({
+function LocationCardBody({
   locations,
   loading,
   error,
   completeness,
-  totalAlumni,
 }: LocationCardProps) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? locations : locations.slice(0, MAX_VISIBLE_ROWS);
   const hasMore = locations.length > MAX_VISIBLE_ROWS;
 
+  if (loading) {
+    return <BarSkeleton rows={5} />;
+  }
+  if (error) {
+    return <ErrorState />;
+  }
+  if (locations.length === 0) {
+    return <EmptyState label="No location data available" />;
+  }
+
+  return (
+    <>
+      {completeness !== null && completeness < COMPLETENESS_THRESHOLD && (
+        <CompletenessNudge percent={completeness} field="location" />
+      )}
+      <ul className="space-y-2">
+        {visible.map((loc) => (
+          <li key={loc.stateCode} className="flex items-center gap-3">
+            <span className="w-24 shrink-0 truncate text-sm text-gray-700">
+              {loc.state}
+            </span>
+            <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-slate-800/80 transition-all"
+                style={{
+                  width: `${Math.max(loc.percent, 2)}%`,
+                }}
+              />
+            </div>
+            <span className="w-20 shrink-0 text-right text-xs tabular-nums text-gray-500">
+              {loc.percent}% ({loc.count})
+            </span>
+          </li>
+        ))}
+      </ul>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-3 text-xs font-medium text-brand-primary hover:underline"
+        >
+          {expanded ? 'Show less' : `Show all ${locations.length} locations`}
+        </button>
+      )}
+    </>
+  );
+}
+
+function LocationCard(props: LocationCardProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow">
       <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
@@ -300,61 +449,15 @@ function LocationCard({
             Geographic Distribution
           </h3>
           <p className="text-xs text-gray-500">
-            {totalAlumni > 0
-              ? `${totalAlumni.toLocaleString()} alumni`
+            {props.totalAlumni > 0
+              ? `${props.totalAlumni.toLocaleString()} alumni`
               : 'No alumni data'}
           </p>
         </div>
       </div>
 
       <div className="px-5 py-4">
-        {loading ? (
-          <BarSkeleton rows={5} />
-        ) : error ? (
-          <ErrorState />
-        ) : locations.length === 0 ? (
-          <EmptyState label="No location data available" />
-        ) : (
-          <>
-            {completeness !== null &&
-              completeness < COMPLETENESS_THRESHOLD && (
-                <CompletenessNudge
-                  percent={completeness}
-                  field="location"
-                />
-              )}
-            <ul className="space-y-2">
-              {visible.map((loc) => (
-                <li key={loc.stateCode} className="flex items-center gap-3">
-                  <span className="w-24 shrink-0 truncate text-sm text-gray-700">
-                    {loc.state}
-                  </span>
-                  <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="absolute inset-y-0 left-0 rounded-full bg-slate-800/80 transition-all"
-                      style={{
-                        width: `${Math.max(loc.percent, 2)}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-20 shrink-0 text-right text-xs tabular-nums text-gray-500">
-                    {loc.percent}% ({loc.count})
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {hasMore && (
-              <button
-                onClick={() => setExpanded((e) => !e)}
-                className="mt-3 text-xs font-medium text-brand-primary hover:underline"
-              >
-                {expanded
-                  ? 'Show less'
-                  : `Show all ${locations.length} locations`}
-              </button>
-            )}
-          </>
-        )}
+        <LocationCardBody {...props} />
       </div>
     </div>
   );
