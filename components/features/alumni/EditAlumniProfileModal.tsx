@@ -24,6 +24,7 @@ import { UsernameInput } from '@/components/features/profile/UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { cn } from '@/lib/utils';
+import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 
 interface EditAlumniProfileModalProps {
   isOpen: boolean;
@@ -73,6 +74,15 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
   const [alumniData, setAlumniData] = useState<any>(null);
   const [loadingAlumni, setLoadingAlumni] = useState(false);
   const [isModalReady, setIsModalReady] = useState(false);
+
+  // Visual viewport tracking for mobile keyboard handling
+  const { height: visualHeight, offsetTop: vvOffsetTop } = useVisualViewportHeight();
+  const [fullInnerHeight, setFullInnerHeight] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 768
+  );
+  useEffect(() => {
+    setFullInnerHeight(window.innerHeight);
+  }, []);
 
   const { updateProfile, refreshProfile } = useProfile();
 
@@ -641,6 +651,15 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
 
   const graduationYears = getGraduationYears();
 
+  const keyboardOpen = isMobile && visualHeight < fullInnerHeight - 50;
+  const mobileDrawerStyle: React.CSSProperties | undefined = keyboardOpen
+    ? {
+        maxHeight: visualHeight,
+        bottom: fullInnerHeight - (vvOffsetTop + visualHeight),
+        transition: 'max-height 0.15s ease-out, bottom 0.15s ease-out',
+      }
+    : undefined;
+
   return (
     <Drawer.Root
       open={isOpen}
@@ -664,6 +683,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
             outline-none p-0
             ${isMobile ? 'pb-[env(safe-area-inset-bottom)]' : ''}
           `}
+          style={mobileDrawerStyle}
         >
           {/* Drag handle - mobile only */}
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-2 sm:hidden" aria-hidden />
