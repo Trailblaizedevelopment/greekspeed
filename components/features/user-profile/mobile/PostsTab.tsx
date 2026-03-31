@@ -117,20 +117,21 @@ export function PostsTab({
   }
 
   return (
-    <div className="divide-y divide-gray-100 sm:divide-y-0">
-      {posts.map((post) => (
-        <div key={post.id} className="sm:pb-3 sm:mb-3">
-          <PostCard
-            post={post}
-            onLike={handleLike}
-            onDelete={isOwnProfile ? handleDelete : undefined}
-            onCommentAdded={handleCommentAdded}
-            isExpanded={expandedPostId === post.id}
-            onToggleExpand={() => {
-              setExpandedPostId((prev) => (prev === post.id ? null : post.id));
-            }}
-          />
-        </div>
+    <div>
+      {posts.map((post, index) => (
+        <PostCard
+          key={post.id}
+          post={post}
+          onLike={handleLike}
+          onDelete={isOwnProfile ? handleDelete : undefined}
+          onCommentAdded={handleCommentAdded}
+          isExpanded={expandedPostId === post.id}
+          onToggleExpand={() => {
+            setExpandedPostId((prev) => (prev === post.id ? null : post.id));
+          }}
+          variant="feed"
+          showDivider={index < posts.length - 1}
+        />
       ))}
     </div>
   );
