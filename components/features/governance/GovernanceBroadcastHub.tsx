@@ -216,13 +216,6 @@ export function GovernanceBroadcastHub() {
 
   return (
     <div className="mb-6">
-      <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
-          <Megaphone className="h-4 w-4" />
-        </div>
-        <h2 className="text-base font-semibold text-gray-900">Broadcast announcements</h2>
-      </div>
-
       <Card className="w-full flex flex-col max-h-[min(640px,85vh)] bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
         <CardHeader className="pb-3 flex-shrink-0 border-b border-primary-100/30">
           <CardTitle className="flex items-center space-x-2">
