@@ -4,48 +4,15 @@ import { useRouter } from 'next/navigation';
 import {
   Building2,
   BarChart3,
-  Shield,
-  AlertTriangle,
   Users,
-  DollarSign,
-  FileCheck,
   ArrowRight,
   GraduationCap,
   Percent,
 } from 'lucide-react';
 import { AlumniIntelligence } from '@/components/features/governance/AlumniIntelligence';
 import { ChapterHealthTable } from '@/components/features/governance/ChapterHealthTable';
+import { GovernanceBroadcastHub } from '@/components/features/governance/GovernanceBroadcastHub';
 import { useNetworkKpis } from '@/lib/hooks/useNetworkKpis';
-
-interface PlaceholderCardProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  comingSoon?: boolean;
-}
-
-function PlaceholderCard({ title, description, icon, comingSoon = true }: PlaceholderCardProps) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow p-5">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-            {comingSoon && (
-              <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
-                Coming soon
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-gray-500">{description}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function formatKpiValue(
   value: string | number | undefined,
@@ -153,34 +120,7 @@ export function GovernanceOverview() {
           <ChapterHealthTable />
         </div>
 
-        {/* Placeholder Cards Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <PlaceholderCard
-            title="Compliance Overview"
-            description="Track document submissions, insurance certificates, and policy acknowledgements for each chapter."
-            icon={<FileCheck className="h-5 w-5" />}
-          />
-          <PlaceholderCard
-            title="Risk & Alerts"
-            description="Surface chapters with overdue dues, low engagement, or pending compliance items that need attention."
-            icon={<AlertTriangle className="h-5 w-5" />}
-          />
-          <PlaceholderCard
-            title="Financial Summary"
-            description="Aggregate dues collection rates, outstanding balances, and payment trends across chapters."
-            icon={<DollarSign className="h-5 w-5" />}
-          />
-          <PlaceholderCard
-            title="Member Analytics"
-            description="Organization-wide membership statistics, retention rates, and growth trends."
-            icon={<Users className="h-5 w-5" />}
-          />
-          <PlaceholderCard
-            title="Governance Settings"
-            description="Manage your governance preferences, notification settings, and chapter assignments."
-            icon={<Shield className="h-5 w-5" />}
-          />
-        </div>
+        <GovernanceBroadcastHub />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -8,32 +8,23 @@ import { Select, SelectItem } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { Megaphone, Send, Mail, Smartphone, X, Building2 } from 'lucide-react';
-import { useProfile } from '@/lib/contexts/ProfileContext';
+import { Megaphone, Send, Mail, Smartphone, X } from 'lucide-react';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { useAnnouncements } from '@/lib/hooks/useAnnouncements';
-import { useGovernanceChapters } from '@/lib/hooks/useGovernanceChapters';
-import type { CreateAnnouncementData, RecipientPreviewResponse } from '@/types/announcements';
+import type { CreateAnnouncementData } from '@/types/announcements';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
 import { AnnouncementImageAttachmentField } from './AnnouncementImageAttachmentField';
 
 export function SendAnnouncementButton() {
-  const { profile } = useProfile();
   const { session } = useAuth();
   const chapterId = useScopedChapterId();
   const { createAnnouncement, loading: announcementsLoading } = useAnnouncements(chapterId || null);
 
-  const isGovernance = profile?.role === 'governance';
-  const isAdmin = profile?.role === 'admin';
-  const isMultiChapterCapable = isGovernance || isAdmin;
-
-  const { data: governanceChapters } = useGovernanceChapters();
-
   const [showModal, setShowModal] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
-  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcement, setAnnouncement] = useState('');
+  const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementType, setAnnouncementType] = useState<'general' | 'urgent' | 'event' | 'academic'>('general');
   const [sendSmsToMembers, setSendSmsToMembers] = useState(false);
   const [sendSmsToAlumni, setSendSmsToAlumni] = useState(false);
@@ -41,17 +32,11 @@ export function SendAnnouncementButton() {
   const [sendEmailToAlumni, setSendEmailToAlumni] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Single-chapter counts (used for non-governance users)
   const [emailRecipientCount, setEmailRecipientCount] = useState<number | null>(null);
   const [memberSmsRecipientCount, setMemberSmsRecipientCount] = useState<number | null>(null);
   const [alumniSmsRecipientCount, setAlumniSmsRecipientCount] = useState<number | null>(null);
   const [alumniEmailRecipientCount, setAlumniEmailRecipientCount] = useState<number | null>(null);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
-
-  // Multi-chapter state (governance / admin)
-  const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
-  const [previewData, setPreviewData] = useState<RecipientPreviewResponse | null>(null);
-  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const {
     pendingImage,
@@ -66,29 +51,26 @@ export function SendAnnouncementButton() {
     acceptTypes,
   } = useAnnouncementImageAttachment();
 
-  // Auto-set SMS for urgent announcements
   useEffect(() => {
     setSendSmsToMembers(announcementType === 'urgent');
     setSendSmsToAlumni(false);
   }, [announcementType]);
 
-  // Fetch single-chapter recipient counts when modal opens (non-governance path)
   useEffect(() => {
     const fetchRecipientCounts = async () => {
-      if (isMultiChapterCapable) return;
       if (!chapterId || !session?.access_token || !showModal) return;
-      
+
       setLoadingRecipients(true);
       try {
         const response = await fetch(
           `/api/announcements/recipient-counts?chapter_id=${chapterId}`,
           {
             headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            }
+              Authorization: `Bearer ${session.access_token}`,
+            },
           }
         );
-        
+
         if (response.ok) {
           const data = await response.json();
           setEmailRecipientCount(data.email_recipients);
@@ -108,59 +90,7 @@ export function SendAnnouncementButton() {
     };
 
     fetchRecipientCounts();
-  }, [chapterId, session?.access_token, showModal, isMultiChapterCapable]);
-
-  // Fetch multi-chapter preview when chapter selection changes (governance path)
-  const fetchMultiChapterPreview = useCallback(async (chapterIds: string[]) => {
-    if (!session?.access_token || chapterIds.length === 0) {
-      setPreviewData(null);
-      return;
-    }
-
-    setLoadingPreview(true);
-    try {
-      const response = await fetch('/api/announcements/preview', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ chapter_ids: chapterIds }),
-      });
-
-      if (response.ok) {
-        const data: RecipientPreviewResponse = await response.json();
-        setPreviewData(data);
-      } else {
-        setPreviewData(null);
-      }
-    } catch (error) {
-      console.error('Error fetching multi-chapter preview:', error);
-      setPreviewData(null);
-    } finally {
-      setLoadingPreview(false);
-    }
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    if (!isMultiChapterCapable || !showModal) return;
-    fetchMultiChapterPreview(selectedChapterIds);
-  }, [selectedChapterIds, showModal, isMultiChapterCapable, fetchMultiChapterPreview]);
-
-  const toggleChapter = (id: string) => {
-    setSelectedChapterIds((prev) =>
-      prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id]
-    );
-  };
-
-  const selectAllChapters = () => {
-    if (!governanceChapters?.chapters) return;
-    setSelectedChapterIds(governanceChapters.chapters.map((c) => c.id));
-  };
-
-  const deselectAllChapters = () => {
-    setSelectedChapterIds([]);
-  };
+  }, [chapterId, session?.access_token, showModal]);
 
   const handleSendAnnouncement = async () => {
     if (!announcementTitle.trim() || !announcement.trim()) {
@@ -173,72 +103,29 @@ export function SendAnnouncementButton() {
       return;
     }
 
-    if (isMultiChapterCapable && selectedChapterIds.length === 0) {
-      toast.error('Please select at least one chapter');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      if (isMultiChapterCapable && selectedChapterIds.length > 0) {
-        const response = await fetch('/api/announcements', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({
-            title: announcementTitle.trim(),
-            content: announcement.trim(),
-            announcement_type: announcementType,
-            send_sms: sendSmsToMembers,
-            send_sms_to_alumni: sendSmsToAlumni,
-            send_email_to_members: sendEmailToMembers,
-            send_email_to_alumni: sendEmailToAlumni,
-            metadata: buildMetadata(),
-            chapter_ids: selectedChapterIds,
-          }),
-        });
+      const announcementData: CreateAnnouncementData = {
+        title: announcementTitle.trim(),
+        content: announcement.trim(),
+        announcement_type: announcementType,
+        send_sms: sendSmsToMembers,
+        send_sms_to_alumni: sendSmsToAlumni,
+        send_email_to_members: sendEmailToMembers,
+        send_email_to_alumni: sendEmailToAlumni,
+        metadata: buildMetadata(),
+      };
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create announcements');
-        }
+      await createAnnouncement(announcementData);
+      toast.success('Announcement sent successfully!');
 
-        const { announcements } = await response.json();
-        const succeeded = announcements.filter((a: { announcement: unknown }) => a.announcement !== null).length;
-        const failed = announcements.length - succeeded;
-
-        if (failed > 0) {
-          toast.warning(`Sent to ${succeeded} chapter(s), ${failed} failed`);
-        } else {
-          toast.success(`Announcement sent to ${succeeded} chapter(s)!`);
-        }
-      } else {
-        const announcementData: CreateAnnouncementData = {
-          title: announcementTitle.trim(),
-          content: announcement.trim(),
-          announcement_type: announcementType,
-          send_sms: sendSmsToMembers,
-          send_sms_to_alumni: sendSmsToAlumni,
-          send_email_to_members: sendEmailToMembers,
-          send_email_to_alumni: sendEmailToAlumni,
-          metadata: buildMetadata(),
-        };
-
-        await createAnnouncement(announcementData);
-        toast.success('Announcement sent successfully!');
-      }
-
-      setAnnouncement("");
-      setAnnouncementTitle("");
+      setAnnouncement('');
+      setAnnouncementTitle('');
       setAnnouncementType('general');
       setSendSmsToMembers(false);
       setSendSmsToAlumni(false);
       setSendEmailToMembers(false);
       setSendEmailToAlumni(false);
-      setSelectedChapterIds([]);
-      setPreviewData(null);
       resetAttachment();
       setShowModal(false);
     } catch (error) {
@@ -249,73 +136,15 @@ export function SendAnnouncementButton() {
     }
   };
 
-  // Compute display counts: use preview totals for governance, single-chapter counts otherwise
-  const displayCounts = isMultiChapterCapable && previewData
-    ? {
-        sms: previewData.totals.sms_recipients,
-        alumniSms: previewData.totals.alumni_sms_recipients,
-        email: previewData.totals.email_recipients,
-        alumniEmail: previewData.totals.alumni_email_recipients,
-      }
-    : {
-        sms: memberSmsRecipientCount,
-        alumniSms: alumniSmsRecipientCount,
-        email: emailRecipientCount,
-        alumniEmail: alumniEmailRecipientCount,
-      };
+  const displayCounts = {
+    sms: memberSmsRecipientCount,
+    alumniSms: alumniSmsRecipientCount,
+    email: emailRecipientCount,
+    alumniEmail: alumniEmailRecipientCount,
+  };
 
-  const isLoadingCounts = isMultiChapterCapable ? loadingPreview : loadingRecipients;
-
-  // Shared form content used in both mobile and desktop
   const formContent = (idSuffix: string) => (
     <>
-      {/* Multi-chapter selector for governance users */}
-      {isMultiChapterCapable && governanceChapters?.chapters && governanceChapters.chapters.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              <Building2 className="h-3.5 w-3.5 inline mr-1" />
-              Target Chapters
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={selectAllChapters}
-                className="text-xs text-brand-primary hover:underline"
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={deselectAllChapters}
-                className="text-xs text-gray-400 hover:underline"
-              >
-                None
-              </button>
-            </div>
-          </div>
-          <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
-            {governanceChapters.chapters.map((chapter) => (
-              <label
-                key={chapter.id}
-                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
-              >
-                <Checkbox
-                  checked={selectedChapterIds.includes(chapter.id)}
-                  onCheckedChange={() => toggleChapter(chapter.id)}
-                />
-                <span className="text-sm text-gray-700">{chapter.name}</span>
-              </label>
-            ))}
-          </div>
-          {selectedChapterIds.length > 0 && (
-            <p className="text-xs text-gray-500 px-1">
-              {selectedChapterIds.length} chapter{selectedChapterIds.length !== 1 ? 's' : ''} selected
-            </p>
-          )}
-        </div>
-      )}
-
       <div className="space-y-2">
         <Input
           placeholder="Announcement title..."
@@ -325,7 +154,9 @@ export function SendAnnouncementButton() {
         />
         <Select
           value={announcementType}
-          onValueChange={(value: string) => setAnnouncementType(value as 'general' | 'urgent' | 'event' | 'academic')}
+          onValueChange={(value: string) =>
+            setAnnouncementType(value as 'general' | 'urgent' | 'event' | 'academic')
+          }
         >
           <SelectItem value="general">General</SelectItem>
           <SelectItem value="urgent">Urgent</SelectItem>
@@ -365,7 +196,10 @@ export function SendAnnouncementButton() {
             checked={sendSmsToMembers}
             onCheckedChange={(checked) => setSendSmsToMembers(checked as boolean)}
           />
-          <Label htmlFor={`send-sms-members-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
+          <Label
+            htmlFor={`send-sms-members-${idSuffix}`}
+            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+          >
             <Smartphone className="h-3.5 w-3.5 text-gray-500" />
             SMS to Actives
             {displayCounts.sms !== null && displayCounts.sms !== undefined && (
@@ -380,7 +214,10 @@ export function SendAnnouncementButton() {
             checked={sendSmsToAlumni}
             onCheckedChange={(checked) => setSendSmsToAlumni(checked as boolean)}
           />
-          <Label htmlFor={`send-sms-alumni-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
+          <Label
+            htmlFor={`send-sms-alumni-${idSuffix}`}
+            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+          >
             <Smartphone className="h-3.5 w-3.5 text-gray-500" />
             SMS to Alumni
             {displayCounts.alumniSms !== null && displayCounts.alumniSms !== undefined && (
@@ -395,7 +232,10 @@ export function SendAnnouncementButton() {
             checked={sendEmailToMembers}
             onCheckedChange={(checked) => setSendEmailToMembers(checked as boolean)}
           />
-          <Label htmlFor={`send-email-members-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
+          <Label
+            htmlFor={`send-email-members-${idSuffix}`}
+            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+          >
             <Mail className="h-3.5 w-3.5 text-gray-500" />
             Email to Actives
             {displayCounts.email !== null && displayCounts.email !== undefined && (
@@ -410,7 +250,10 @@ export function SendAnnouncementButton() {
             checked={sendEmailToAlumni}
             onCheckedChange={(checked) => setSendEmailToAlumni(checked as boolean)}
           />
-          <Label htmlFor={`send-email-alumni-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
+          <Label
+            htmlFor={`send-email-alumni-${idSuffix}`}
+            className="text-sm cursor-pointer font-medium flex items-center gap-1.5"
+          >
             <Mail className="h-3.5 w-3.5 text-gray-500" />
             Email to Alumni
             {displayCounts.alumniEmail !== null && displayCounts.alumniEmail !== undefined && (
@@ -419,27 +262,8 @@ export function SendAnnouncementButton() {
           </Label>
         </div>
 
-        {isLoadingCounts && (
+        {loadingRecipients && (
           <p className="text-xs text-gray-400 pl-1">Loading recipient counts...</p>
-        )}
-
-        {/* Per-chapter breakdown for multi-chapter preview */}
-        {isMultiChapterCapable && previewData && previewData.chapters.length > 1 && (
-          <details className="mt-2">
-            <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 px-1">
-              Per-chapter breakdown
-            </summary>
-            <div className="mt-1 space-y-1 pl-1">
-              {previewData.chapters.map((ch) => (
-                <div key={ch.chapter_id} className="text-xs text-gray-500 flex items-center gap-2">
-                  <span className="font-medium truncate max-w-[120px]">{ch.chapter_name}</span>
-                  <span className="text-gray-400">
-                    SMS {ch.sms_recipients + ch.alumni_sms_recipients} · Email {ch.email_recipients + ch.alumni_email_recipients}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </details>
         )}
       </div>
     </>
@@ -447,7 +271,6 @@ export function SendAnnouncementButton() {
 
   return (
     <>
-      {/* Mobile trigger */}
       <button
         onClick={() => setShowModal(true)}
         className="w-full sm:hidden flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-brand-primary hover:bg-brand-primary-hover transition-colors duration-200 shadow-md"
@@ -458,7 +281,6 @@ export function SendAnnouncementButton() {
         <span className="text-white font-medium text-sm">Send Announcement</span>
       </button>
 
-      {/* Desktop trigger */}
       <button
         onClick={() => setShowModal(true)}
         className="hidden sm:flex w-full items-center justify-center gap-2 px-4 py-3 rounded-full bg-brand-primary hover:bg-brand-primary-hover transition-colors duration-200 shadow-md"
@@ -469,14 +291,12 @@ export function SendAnnouncementButton() {
         <span className="text-white font-medium text-sm">Send Announcement</span>
       </button>
 
-      {/* Mobile: Sheet (bottom drawer) */}
       <Sheet open={showModal} onOpenChange={setShowModal}>
         <SheetContent
           side="bottom"
           backdropClassName="sm:hidden"
           className="sm:hidden rounded-t-2xl flex flex-col p-0 max-h-[85dvh] border-0"
         >
-          {/* Header */}
           <div className="bg-brand-primary px-4 py-4 flex-shrink-0 rounded-t-2xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -486,6 +306,7 @@ export function SendAnnouncementButton() {
                 <h3 className="text-base font-semibold text-white">Send Announcement</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
                 className="text-white/80 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
               >
@@ -494,12 +315,8 @@ export function SendAnnouncementButton() {
             </div>
           </div>
 
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {formContent('mobile')}
-          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">{formContent('mobile')}</div>
 
-          {/* Footer */}
           <div className="flex flex-row gap-3 flex-shrink-0 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
             <Button
               variant="outline"
@@ -520,18 +337,16 @@ export function SendAnnouncementButton() {
         </SheetContent>
       </Sheet>
 
-      {/* Desktop: Centered modal */}
       {showModal && (
         <>
-          {/* Backdrop */}
           <div
             className="hidden sm:block fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm"
             onClick={() => setShowModal(false)}
+            aria-hidden
           />
 
           <div className="hidden sm:flex fixed inset-0 z-[9999] items-center justify-center p-4">
             <div className="relative bg-white shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden">
-              {/* Header */}
               <div className="bg-brand-primary p-6 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -541,6 +356,7 @@ export function SendAnnouncementButton() {
                     <h3 className="text-xl font-semibold text-white">Send Announcement</h3>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setShowModal(false)}
                     className="text-white/80 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
                   >
@@ -549,12 +365,8 @@ export function SendAnnouncementButton() {
                 </div>
               </div>
 
-              {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {formContent('desktop')}
-              </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">{formContent('desktop')}</div>
 
-              {/* Footer */}
               <div className="flex flex-row gap-3 flex-shrink-0 border-t border-gray-200 p-6">
                 <Button
                   variant="outline"
@@ -569,7 +381,7 @@ export function SendAnnouncementButton() {
                   disabled={isSubmitting || announcementsLoading}
                 >
                   <Send className="h-4 w-4 mr-2" />
-                  {isSubmitting ? 'Sending...' : isMultiChapterCapable && selectedChapterIds.length > 1 ? `Send to ${selectedChapterIds.length} Chapters` : 'Send Announcement'}
+                  {isSubmitting ? 'Sending...' : 'Send Announcement'}
                 </Button>
               </div>
             </div>
