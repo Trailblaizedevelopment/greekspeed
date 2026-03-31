@@ -35,3 +35,14 @@ export interface ChapterHealthRow {
   lastActivityAt: string | null;
   status: 'active' | 'at_risk';
 }
+
+export interface ChapterHealthRow {
+  chapterId: string;
+  chapterName: string;
+  school: string;
+  activeMembers: number;
+  alumniCount: number;
+  engagementPercent: number;
+  lastActivityAt: string | null;
+  status: 'active' | 'at_risk';
+}
