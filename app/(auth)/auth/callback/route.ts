@@ -4,6 +4,7 @@ import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernam
 import { validateInvitationToken, recordInvitationUsage } from '@/lib/utils/invitationUtils';
 import { cookies } from 'next/headers';
 import { getSafeRedirect } from '@/lib/utils/safeRedirect';
+import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import {
   OAUTH_POST_LOGIN_REDIRECT_COOKIE,
   OAUTH_SIGNUP_ROLE_COOKIE,
@@ -196,6 +197,23 @@ export async function GET(request: NextRequest) {
 
       if (profileCheckError && profileCheckError.code !== 'PGRST116') { // PGRST116 = no rows returned
         console.error('Error checking for existing profile:', profileCheckError);
+      }
+
+      // Block .edu emails for new signups (existing users can still log in)
+      if (!existingProfile && isEduEmail(user.email || '')) {
+        console.warn('Blocked .edu signup via OAuth:', user.email);
+        await supabase.auth.signOut();
+        const eduError = encodeURIComponent(EDU_SIGNUP_ERROR);
+        if (invitationToken) {
+          const redirectPath = invitationType === 'alumni'
+            ? `/alumni-join/${invitationToken}`
+            : `/join/${invitationToken}`;
+          return NextResponse.redirect(`${requestUrl.origin}${redirectPath}?error=${eduError}`);
+        }
+        if (chapterSlug) {
+          return NextResponse.redirect(`${requestUrl.origin}/join/chapter/${chapterSlug}?error=${eduError}`);
+        }
+        return NextResponse.redirect(`${requestUrl.origin}/sign-up?error=${eduError}`);
       }
 
       // Resolve OAuth avatar: copy LinkedIn/Google URLs to our storage so we control the asset (OAuth URLs can expire)

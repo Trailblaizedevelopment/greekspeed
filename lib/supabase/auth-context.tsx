@@ -6,6 +6,7 @@ import type { Session, User } from '@supabase/supabase-js';
 
 import { ActivityTypes, trackActivity } from '@/lib/utils/activityUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
+import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { supabase } from './client';
 import { clearFeedCache } from '@/lib/cache/feedCache';
 interface ProfileData {
@@ -197,6 +198,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
+      if (isEduEmail(email)) {
+        setError(EDU_SIGNUP_ERROR);
+        throw new Error(EDU_SIGNUP_ERROR);
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,

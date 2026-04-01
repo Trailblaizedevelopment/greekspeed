@@ -18,6 +18,7 @@ import {
   OAUTH_SIGNUP_ROLE_COOKIE,
   OAUTH_POST_LOGIN_REDIRECT_MAX_AGE_SEC,
 } from '@/lib/utils/oauthPostLoginRedirect';
+import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 
 const MOBILE_OVERLAY_MIN_MS = 6000;
 
@@ -94,6 +95,12 @@ export default function SignUpPage() {
     const isValidPhone = phoneNumber && phoneNumber.replace(/\D/g, '').length === 10;
     if (!email || !password || !firstName || !lastName || !chapter || !phoneNumber || !isValidPhone) {
       setError(phoneNumber && !isValidPhone ? 'Please enter a complete 10-digit phone number' : 'All fields are required');
+      setLoading(false);
+      return;
+    }
+
+    if (isEduEmail(email)) {
+      setError(EDU_SIGNUP_ERROR);
       setLoading(false);
       return;
     }
