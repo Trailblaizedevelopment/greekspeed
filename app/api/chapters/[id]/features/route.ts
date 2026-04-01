@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
-import { VALID_FEATURE_FLAGS } from '@/types/featureFlags';
+import {
+  DEFAULT_FEATURE_FLAGS,
+  VALID_FEATURE_FLAGS,
+} from '@/types/featureFlags';
 import type { ChapterFeatureFlags } from '@/types/featureFlags';
 import { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies';
 import { canManageChapterForContext } from '@/lib/permissions';
@@ -112,11 +115,7 @@ export async function GET(
     
     // Return flags (should already have defaults from database, but ensure it's never null)
     return NextResponse.json({
-      feature_flags: chapter.feature_flags || {
-        financial_tools_enabled: true,
-        recruitment_crm_enabled: true,
-        events_management_enabled: true,
-      }
+      feature_flags: chapter.feature_flags || DEFAULT_FEATURE_FLAGS,
     });
     
   } catch (error) {
@@ -218,11 +217,7 @@ export async function PATCH(
     
     return NextResponse.json({
       success: true,
-      feature_flags: updatedChapter.feature_flags || {
-        financial_tools_enabled: true,
-        recruitment_crm_enabled: true,
-        events_management_enabled: true,
-      }
+      feature_flags: updatedChapter.feature_flags || DEFAULT_FEATURE_FLAGS,
     });
     
   } catch (error) {

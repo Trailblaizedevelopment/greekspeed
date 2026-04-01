@@ -23,12 +23,13 @@ interface UseFeatureFlagResult {
  * const { enabled, loading } = useFeatureFlag('financial_tools_enabled');
  * if (loading) return <Spinner />;
  * if (!enabled) return <FeatureDisabled />;
+ *
+ * Opt-in flags (e.g. `crowded_integration_enabled`) resolve to off until flags load.
  */
 export function useFeatureFlag(flagName: FeatureFlagName): UseFeatureFlagResult {
   const chapterId = useScopedChapterId();
   const { flags, loading, error } = useChapterFeatures(chapterId);
 
-  // Use isFeatureEnabled helper which defaults to true if flags are null/undefined
   const enabled = isFeatureEnabled(flags, flagName);
 
   return {
