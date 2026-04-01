@@ -14,7 +14,10 @@
  *
  * Optional DB → Crowded mapping smoke (TRA-561):
  *   CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID=<Trailblaize chapters.id> — requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
- *   Loads `crowded_chapter_id` from `public.chapters` and calls `listContacts` to prove DB mapping + API wiring.
+ *   Loads `crowded_chapter_id` from `public.chapters` and calls `listContacts` + `listAccounts` to prove DB mapping + API wiring.
+ *
+ * Accounts (TRA-412):
+ *   GET …/accounts may return 400 `NO_CUSTOMER` until banking setup in Crowded portal — script logs a warning and continues.
  */
 
 import path from 'path';
@@ -26,6 +29,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   createCrowdedClientFromEnv,
   CrowdedApiError,
+  isCrowdedNoCustomerError,
 } from '../lib/services/crowded/crowded-client';
 import { getCrowdedIdsForTrailblaizeChapter } from '../lib/services/crowded/chapterCrowdedMapping';
 
@@ -71,6 +75,19 @@ async function runMappingSmokeTest(): Promise<void> {
   const client = createCrowdedClientFromEnv();
   const contacts = await client.listContacts(mapping.crowdedChapterId);
   console.log(`[crowded] listContacts via DB mapping OK — ${contacts.data.length} contact(s)`);
+
+  try {
+    const accounts = await client.listAccounts(mapping.crowdedChapterId);
+    console.log(`[crowded] listAccounts via DB mapping OK — ${accounts.data.length} account(s)`);
+  } catch (e) {
+    if (e instanceof CrowdedApiError && isCrowdedNoCustomerError(e)) {
+      console.warn(
+        '[crowded] listAccounts — NO_CUSTOMER (banking customer not provisioned; complete Crowded portal Finish setup).'
+      );
+    } else {
+      throw e;
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -106,6 +123,26 @@ async function main(): Promise<void> {
         const one = await client.getContact(chapterId, contactId);
         console.log('[crowded] GET /chapters/…/contacts/… OK');
         console.log(`  contact: ${one.data.firstName} ${one.data.lastName} (${one.data.id})`);
+      }
+
+      try {
+        const accounts = await client.listAccounts(chapterId);
+        console.log(`[crowded] GET /chapters/…/accounts OK — ${accounts.data.length} account(s)`);
+        const accountId =
+          process.env.CROWDED_TEST_ACCOUNT_ID?.trim() || accounts.data[0]?.id;
+        if (accountId) {
+          const acc = await client.getAccount(chapterId, accountId);
+          console.log('[crowded] GET /chapters/…/accounts/… OK');
+          console.log(`  account: ${acc.data.name} (${acc.data.id})`);
+        }
+      } catch (accErr) {
+        if (accErr instanceof CrowdedApiError && isCrowdedNoCustomerError(accErr)) {
+          console.warn(
+            '[crowded] GET /chapters/…/accounts — NO_CUSTOMER (expected until banking setup in Crowded portal).'
+          );
+        } else {
+          throw accErr;
+        }
       }
     } else {
       console.log('[crowded] Skipping contacts (no chapter in response). Set CROWDED_TEST_CHAPTER_ID to force.');

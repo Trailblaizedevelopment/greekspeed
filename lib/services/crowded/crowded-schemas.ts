@@ -63,3 +63,26 @@ export const crowdedContactListResponseSchema = z.object({
 export const crowdedContactSingleResponseSchema = z.object({
   data: crowdedContactSchema,
 });
+
+export const crowdedAccountSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  status: z.string(),
+  accountNumber: z.string().optional(),
+  routingNumber: z.string().optional(),
+  currency: z.string(),
+  balance: z.number().optional(),
+  hold: z.number().optional(),
+  available: z.number().optional(),
+  contactId: z.string().optional(),
+  createdAt: z.string(),
+});
+
+export const crowdedAccountListResponseSchema = z.object({
+  data: z.array(crowdedAccountSchema),
+  meta: crowdedListMetaSchema,
+});
+
+export const crowdedAccountSingleResponseSchema = z.object({
+  data: crowdedAccountSchema,
+});

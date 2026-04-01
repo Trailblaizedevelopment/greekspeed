@@ -62,6 +62,23 @@ export interface CrowdedContact {
   archivedAt?: string | null;
 }
 
+/** Chapter-scoped banking account (GET …/chapters/:chapterId/accounts). @see docs/development/features/crowded_cursor_postman_session.md */
+export interface CrowdedAccount {
+  id: string;
+  name: string;
+  status: string;
+  /** Masked or last-four style; treat as sensitive in logs/UI */
+  accountNumber?: string;
+  routingNumber?: string;
+  currency: string;
+  /** Amounts as returned by Crowded (typically minor units); map to `crowded_accounts.*_minor` */
+  balance?: number;
+  hold?: number;
+  available?: number;
+  contactId?: string;
+  createdAt: string;
+}
+
 /** Crowded error JSON body (non-2xx) */
 export interface CrowdedErrorBody {
   type?: string;

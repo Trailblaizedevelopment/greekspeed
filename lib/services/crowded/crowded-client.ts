@@ -3,6 +3,7 @@
  * @see docs/development/features/crowded_cursor_postman_session.md
  */
 import type {
+  CrowdedAccount,
   CrowdedChapter,
   CrowdedContact,
   CrowdedErrorBody,
@@ -11,6 +12,8 @@ import type {
   CrowdedSingleResponse,
 } from '@/types/crowded';
 import {
+  crowdedAccountListResponseSchema,
+  crowdedAccountSingleResponseSchema,
   crowdedChapterListResponseSchema,
   crowdedContactListResponseSchema,
   crowdedContactSingleResponseSchema,
@@ -51,6 +54,15 @@ export class CrowdedApiError extends Error {
   }
 }
 
+/** `details` code when no banking customer exists for the chapter/org yet (finish portal setup). */
+export const CROWDED_ERROR_DETAIL_NO_CUSTOMER = 'NO_CUSTOMER' as const;
+
+export function isCrowdedNoCustomerError(error: unknown): error is CrowdedApiError {
+  return (
+    error instanceof CrowdedApiError && error.hasDetail(CROWDED_ERROR_DETAIL_NO_CUSTOMER)
+  );
+}
+
 export interface CrowdedClientConfig {
   baseUrl: string;
   token: string;
@@ -85,22 +97,35 @@ function maybeParse<T>(schema: { parse: (data: unknown) => T }, data: unknown): 
   return schema.parse(data);
 }
 
+function appendSearchParams(
+  path: string,
+  query?: Record<string, string | number | boolean | undefined>
+): string {
+  if (!query) return path;
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) {
+    if (v === undefined) continue;
+    params.set(k, String(v));
+  }
+  const q = params.toString();
+  return q ? `${path}?${q}` : path;
+}
+
 export class CrowdedClient {
   constructor(private readonly config: CrowdedClientConfig) {}
 
   /**
-   * Low-level GET. Path is relative to `/api/v1` (e.g. `/organizations` or `chapters`).
+   * Low-level JSON request. Path is relative to `/api/v1`.
    * On non-OK, throws {@link CrowdedApiError} with parsed JSON body when available.
    */
-  async getJson<T>(path: string, init?: RequestInit): Promise<T> {
+  private async requestJson<T>(path: string, init: RequestInit): Promise<T> {
     const url = buildCrowdedUrl(this.config.baseUrl, path);
     const res = await fetch(url, {
       ...init,
-      method: 'GET',
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${this.config.token}`,
-        ...init?.headers,
+        ...init.headers,
       },
     });
 
@@ -131,6 +156,29 @@ export class CrowdedClient {
     return json as T;
   }
 
+  /**
+   * Low-level GET. Path is relative to `/api/v1` (e.g. `/organizations` or `chapters`).
+   * On non-OK, throws {@link CrowdedApiError} with parsed JSON body when available.
+   */
+  async getJson<T>(path: string, init?: RequestInit): Promise<T> {
+    return this.requestJson<T>(path, { ...init, method: 'GET' });
+  }
+
+  /**
+   * Low-level POST with JSON body. Use for Crowded endpoints not yet wrapped (e.g. bulk account create — confirm path with Postman).
+   */
+  async postJson<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+    return this.requestJson<T>(path, {
+      ...init,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...init?.headers,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
   /** GET /api/v1/organizations */
   async listOrganizations(): Promise<CrowdedListResponse<CrowdedOrganization>> {
     const raw = await this.getJson<unknown>('/organizations');
@@ -155,6 +203,30 @@ export class CrowdedClient {
       `/chapters/${encodeURIComponent(chapterId)}/contacts/${encodeURIComponent(contactId)}`
     );
     return maybeParse(crowdedContactSingleResponseSchema, raw) as CrowdedSingleResponse<CrowdedContact>;
+  }
+
+  /**
+   * GET /api/v1/chapters/:chapterId/accounts
+   * List chapter accounts. Sandbox may return **400** with `details: ["NO_CUSTOMER"]` until banking setup is complete — use {@link isCrowdedNoCustomerError}.
+   */
+  async listAccounts(
+    chapterId: string,
+    query?: Record<string, string | number | boolean | undefined>
+  ): Promise<CrowdedListResponse<CrowdedAccount>> {
+    const path = appendSearchParams(
+      `/chapters/${encodeURIComponent(chapterId)}/accounts`,
+      query
+    );
+    const raw = await this.getJson<unknown>(path);
+    return maybeParse(crowdedAccountListResponseSchema, raw) as CrowdedListResponse<CrowdedAccount>;
+  }
+
+  /** GET /api/v1/chapters/:chapterId/accounts/:accountId */
+  async getAccount(chapterId: string, accountId: string): Promise<CrowdedSingleResponse<CrowdedAccount>> {
+    const raw = await this.getJson<unknown>(
+      `/chapters/${encodeURIComponent(chapterId)}/accounts/${encodeURIComponent(accountId)}`
+    );
+    return maybeParse(crowdedAccountSingleResponseSchema, raw) as CrowdedSingleResponse<CrowdedAccount>;
   }
 }
 
