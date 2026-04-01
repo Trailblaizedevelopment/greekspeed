@@ -270,7 +270,10 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 |------|--------|
 | Env | `CROWDED_API_BASE_URL=https://sandbox-api.crowdedfinance.com` (sandbox); Bearer token in env (e.g. `CROWDED_API_TOKEN`); webhook secret when known |
 | Client | `lib/services/crowded/crowded-client.ts` — `Authorization: Bearer`, base URL from env |
-| Test | `npm run test:crowded` — update to match Postman (Bearer + sandbox base) when implementing TRA-409 |
+| Chapter ↔ Crowded IDs | `public.chapters.crowded_chapter_id`, `crowded_organization_id` (nullable UUIDs). Set per chapter per environment (e.g. Supabase SQL `UPDATE`). Maps Trailblaize `chapters.id` → Crowded path segment for `/api/v1/chapters/:chapterId/...`. |
+| Resolver | `lib/services/crowded/chapterCrowdedMapping.ts` — `getCrowdedIdsForTrailblaizeChapter(supabase, trailblaizeChapterId)` returns `{ crowdedChapterId, crowdedOrganizationId }` or `null`. Use server-side with service role or RLS-safe client. |
+| Types | `types/chapter.ts` — `Chapter` includes optional `crowded_chapter_id` / `crowded_organization_id`. |
+| Test | `npm run test:crowded` — optional `CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID` + `SUPABASE_SERVICE_ROLE_KEY` loads mapping from DB then calls Crowded `listContacts` (TRA-561 smoke). |
 
 ---
 
@@ -289,6 +292,7 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 | Mar 2026 | **Contacts** list + get by id | **200** with `{{chapter_id}}` + `{{contact_id}}`; literal `contact_id` in path → **404**. |
 | Mar 2026 | **GET accounts** (correct UUID in path) | **400** `NO_CUSTOMER` — confirmed not a Postman placeholder bug; needs banking customer / portal setup. |
 | Mar 2026 | **POST Create Collection** | **401** `"To proceed, please accept terms"` — block on Crowded terms / account state; ask Crowded where to accept for partner API. |
+| Apr 2026 | **TRA-561 repo** | `chapters.crowded_*` columns + migration; `getCrowdedIdsForTrailblaizeChapter`; optional `CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID` in `npm run test:crowded`. |
 
 ---
 

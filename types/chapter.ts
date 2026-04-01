@@ -22,6 +22,10 @@ export interface Chapter {
   llm_data?: Record<string, any>;
   starting_budget?: number;
   feature_flags?: ChapterFeatureFlags;
+  /** Crowded API chapter UUID — set per environment; see docs/DATABASE_SCHEMA.md */
+  crowded_chapter_id?: string | null;
+  /** Optional Crowded org UUID for org-level API calls */
+  crowded_organization_id?: string | null;
   created_at: string;
   updated_at: string;
 }

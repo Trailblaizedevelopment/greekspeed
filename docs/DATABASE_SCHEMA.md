@@ -62,6 +62,8 @@ Greek life chapters (fraternities/sororities).
 - `type` (TEXT) - "fraternity" or "sorority"
 - `university` (TEXT, nullable)
 - `founded_year` (INTEGER, nullable)
+- `crowded_chapter_id` (UUID, nullable) — Crowded API chapter identifier for this row (sandbox vs production per environment); used for chapter-scoped Crowded calls (e.g. contacts, accounts)
+- `crowded_organization_id` (UUID, nullable) — optional Crowded organization UUID for org-level API calls
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
 

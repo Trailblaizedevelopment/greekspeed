@@ -9,18 +9,69 @@
  *   CROWDED_VALIDATE_RESPONSES=true npm run test:crowded
  *
  * Optional:
- *   CROWDED_TEST_CHAPTER_ID=<uuid> — if set, also lists contacts and optionally fetches one contact
+ *   CROWDED_TEST_CHAPTER_ID=<uuid> — Crowded chapter UUID for contact calls (direct API; not Trailblaize DB id)
  *   CROWDED_TEST_CONTACT_ID=<uuid> — if set with chapter id, calls GET single contact
+ *
+ * Optional DB → Crowded mapping smoke (TRA-561):
+ *   CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID=<Trailblaize chapters.id> — requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+ *   Loads `crowded_chapter_id` from `public.chapters` and calls `listContacts` to prove DB mapping + API wiring.
  */
 
 import path from 'path';
 import dotenv from 'dotenv';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   createCrowdedClientFromEnv,
   CrowdedApiError,
 } from '../lib/services/crowded/crowded-client';
+import { getCrowdedIdsForTrailblaizeChapter } from '../lib/services/crowded/chapterCrowdedMapping';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+/** Service-role client for scripts only — avoids importing `lib/supabase/client` (browser client breaks in Node). */
+function createServiceSupabaseOrNull(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url?.trim() || !key?.trim()) {
+    return null;
+  }
+  return createClient(url, key);
+}
+
+async function runMappingSmokeTest(): Promise<void> {
+  const trailblaizeChapterId = process.env.CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID?.trim();
+  if (!trailblaizeChapterId) {
+    return;
+  }
+
+  const supabase = createServiceSupabaseOrNull();
+  if (!supabase) {
+    console.warn(
+      '[crowded] CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID set but NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing — skip DB mapping smoke.'
+    );
+    return;
+  }
+
+  console.log('\n[crowded] DB mapping smoke (TRA-561)…');
+  const mapping = await getCrowdedIdsForTrailblaizeChapter(supabase, trailblaizeChapterId);
+
+  if (!mapping) {
+    console.warn(
+      `[crowded] No crowded_chapter_id for Trailblaize chapter ${trailblaizeChapterId} — update public.chapters or unset CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID.`
+    );
+    return;
+  }
+
+  console.log(`  mapped crowded_chapter_id: ${mapping.crowdedChapterId}`);
+  if (mapping.crowdedOrganizationId) {
+    console.log(`  crowded_organization_id: ${mapping.crowdedOrganizationId}`);
+  }
+
+  const client = createCrowdedClientFromEnv();
+  const contacts = await client.listContacts(mapping.crowdedChapterId);
+  console.log(`[crowded] listContacts via DB mapping OK — ${contacts.data.length} contact(s)`);
+}
 
 async function main(): Promise<void> {
   console.log('[crowded] Loading client from env…');
@@ -59,6 +110,8 @@ async function main(): Promise<void> {
     } else {
       console.log('[crowded] Skipping contacts (no chapter in response). Set CROWDED_TEST_CHAPTER_ID to force.');
     }
+
+    await runMappingSmokeTest();
 
     console.log('\n[crowded] All requested checks passed.');
   } catch (e) {
