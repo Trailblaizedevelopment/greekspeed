@@ -84,6 +84,7 @@ Social feed posts.
   - `link_previews` - Array of link preview objects
   - `image_urls` - Array of image URLs (for multiple images)
   - `image_count` - Number of images
+  - `mentions` - Array of `{ username: string, user_id: string }` resolved @mention data
 - `likes_count` (INTEGER, default: 0)
 - `comments_count` (INTEGER, default: 0)
 - `shares_count` (INTEGER, default: 0)
@@ -141,7 +142,9 @@ Comments on posts.
 - `likes_count` (INTEGER, default: 0)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
-- `metadata` (JSONB, nullable) - Can store link previews
+- `metadata` (JSONB, nullable) - Can store:
+  - `link_previews` - Array of link preview objects
+  - `mentions` - Array of `{ username: string, user_id: string }` resolved @mention data
 
 **Relationships:**
 - Belongs to `posts` via `post_id`

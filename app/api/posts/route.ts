@@ -4,6 +4,8 @@ import { fetchLinkPreviewsServer } from '@/lib/services/linkPreviewService';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
 import { LinkPreview } from '@/types/posts';
 import { postHasDisplayableImage } from '@/lib/utils/postComposer';
+import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
+import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -254,10 +256,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update metadata to include link previews
+    // Resolve @mentions server-side
+    const mentionUsernames = parseMentions(content || '');
+    const resolvedMentions = mentionUsernames.length > 0
+      ? await resolveMentions(supabase, mentionUsernames, profile.chapter_id)
+      : [];
+
+    // Update metadata to include link previews and mentions
     const finalMetadata = {
       ...(metadata || {}),
       ...(linkPreviews.length > 0 ? { link_previews: linkPreviews } : {}),
+      ...(resolvedMentions.length > 0 ? { mentions: resolvedMentions } : {}),
     };
 
     // Create post
@@ -291,6 +300,19 @@ export async function POST(request: NextRequest) {
     if (createError) {
       console.error('Post creation error:', createError);
       return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+    }
+
+    // Send mention notifications (fire and forget)
+    if (resolvedMentions.length > 0 && post) {
+      sendMentionNotifications({
+        mentionedUsers: resolvedMentions,
+        actorUserId: user.id,
+        contentType: 'post',
+        contentId: post.id,
+        postId: post.id,
+        contentPreview: (content || '').trim().slice(0, 80),
+        supabase,
+      }).catch((err) => console.error('Failed to send mention notifications:', err));
     }
 
     return NextResponse.json({

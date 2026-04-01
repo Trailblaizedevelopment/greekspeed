@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Drawer } from 'vaul';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -16,8 +15,10 @@ import { X, Image, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { CreatePostRequest, Post } from '@/types/posts';
 import ImageWithFallback from '@/components/figma/ImageWithFallback';
 import { LinkPreviewCard } from '@/components/features/social/LinkPreviewCard';
+import MentionTextarea from '@/components/features/social/MentionTextarea';
 import { PostImageService } from '@/lib/services/postImageService';
 import { useAuth } from '@/lib/supabase/auth-context';
+import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +55,7 @@ export function CreatePostModal({
   onEditDelete,
 }: CreatePostModalProps) {
   const { user } = useAuth();
+  const { profile } = useProfile();
   const isEditMode = Boolean(editPost);
 
   const [content, setContent] = useState('');
@@ -63,7 +65,6 @@ export function CreatePostModal({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sanitizeContent = (value: string) =>
     value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -351,14 +352,13 @@ export function CreatePostModal({
       )}
     >
       <div className="space-y-4 sm:space-y-3">
-        <Textarea
-          ref={textareaRef}
-          placeholder={isEditMode ? undefined : 'What do you want to talk about?'}
+        <MentionTextarea
           value={content}
-          onChange={(e) => {
-            const nextValue = sanitizeContent(e.target.value);
-            setContent(nextValue);
+          onChange={(nextValue) => {
+            setContent(sanitizeContent(nextValue));
           }}
+          chapterId={profile?.chapter_id ?? undefined}
+          placeholder={isEditMode ? undefined : 'What do you want to talk about?'}
           onFocus={() => setIsInputFocused(true)}
           onBlur={() => setIsInputFocused(false)}
           className="min-h-[120px] sm:min-h-[100px] resize-none rounded-2xl border border-transparent bg-slate-50/80 p-5 text-base sm:text-lg text-slate-800 placeholder:text-slate-400 focus:border-primary-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-200 transition"
