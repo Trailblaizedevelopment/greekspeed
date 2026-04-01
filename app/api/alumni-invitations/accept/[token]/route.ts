@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { validateInvitationToken, validateEmailDomain, hasEmailUsedInvitation, recordInvitationUsage } from '@/lib/utils/invitationUtils';
+import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 
 // New interface for alumni form data (simplified - most fields collected during onboarding)
@@ -47,7 +48,11 @@ export async function POST(
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    
+
+    if (isEduEmail(normalizedEmail)) {
+      return NextResponse.json({ error: EDU_SIGNUP_ERROR }, { status: 400 });
+    }
+
     // Build effective name values
     const effectiveFullName = full_name?.trim() || `${first_name || ''} ${last_name || ''}`.trim();
     const normalizedFullName = effectiveFullName;
