@@ -110,10 +110,11 @@ export interface ProfileBasicsFormData {
   lastName: string;
   chapter: string;
   chapterId: string;
-  role: 'alumni' | 'active_member';
+  role: 'alumni' | 'active_member' | 'admin';
   graduationYear: number;
-  major: string;
-  // Alumni-specific fields
+  /** Required for active_member and admin; optional for alumni */
+  major?: string;
+  // Alumni-specific fields (company, jobTitle, location enforced in profile-basics UI for alumni)
   company?: string;
   jobTitle?: string;
   industry?: string;
@@ -125,11 +126,11 @@ export const profileBasicsSchema = z.object({
   lastName: z.string().min(1, 'Last name is required'),
   chapter: z.string().min(1, 'Chapter is required'),
   chapterId: z.string().min(1, 'Chapter ID is required'),
-  role: z.enum(['alumni', 'active_member']),
+  role: z.enum(['alumni', 'active_member', 'admin']),
   graduationYear: z.number()
     .min(1950, 'Invalid graduation year')
     .max(new Date().getFullYear() + 10, 'Invalid graduation year'),
-  major: z.string().min(1, 'Major is required'),
+  major: z.string().optional(),
   company: z.string().optional(),
   jobTitle: z.string().optional(),
   industry: z.string().optional(),
