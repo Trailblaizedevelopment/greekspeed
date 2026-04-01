@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/supabase/auth-context";
 import { useProfile } from "@/lib/contexts/ProfileContext";
 import { Button } from "@/components/ui/button";
+import { CALENDLY_DEMO_URL } from "@/lib/constants/externalLinks";
 
 interface MarketingHeaderProps {
   activeSection?: string;
@@ -57,10 +58,9 @@ export function MarketingHeader({ activeSection = "home", onSectionChange, hideN
     router.push('/sign-in');
   };
 
-  // Opens Google Calendar appointment scheduler
   const handleRequestDemo = () => {
     setMobileMenuOpen(false);
-    window.open('https://calendar.google.com/calendar/appointments/schedules/AcZssZ1NJXnIQMnkhbkRAfqYtikSbF2mQ-aDq07LRF24XMnmISst7xvN5A9B5QZwIz4PmcuMLPvNANUn', '_blank');
+    window.open(CALENDLY_DEMO_URL, '_blank');
   };
 
   return (

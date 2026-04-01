@@ -77,6 +77,7 @@ export function MessagesMainChat({
     <div className="flex-1 bg-white flex flex-col h-full">
       <ConnectionChat
         connectionId={selectedConnectionId}
+        connectionsOverride={connections}
         onBack={onBack}
         className="flex-1"
       />

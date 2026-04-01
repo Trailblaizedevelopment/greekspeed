@@ -85,6 +85,49 @@ export interface CreateAnnouncementData {
   metadata?: Record<string, any>;
 }
 
+/**
+ * Multi-chapter broadcast request for governance users.
+ * Extends the single-chapter CreateAnnouncementData with an array of target chapter IDs.
+ */
+export interface MultiChapterAnnouncementData extends CreateAnnouncementData {
+  /** Target chapter IDs for the broadcast. Must be a subset of the caller's managed chapters. */
+  chapter_ids: string[];
+}
+
+/** Per-chapter recipient counts returned by the preview endpoint. */
+export interface ChapterRecipientCounts {
+  chapter_id: string;
+  chapter_name: string;
+  sms_recipients: number;
+  alumni_sms_recipients: number;
+  email_recipients: number;
+  alumni_email_recipients: number;
+  total_members: number;
+  total_alumni: number;
+}
+
+/** Request body for the multi-chapter recipient preview endpoint. */
+export interface RecipientPreviewRequest {
+  chapter_ids: string[];
+  send_sms?: boolean;
+  send_sms_to_alumni?: boolean;
+  send_email_to_members?: boolean;
+  send_email_to_alumni?: boolean;
+}
+
+/** Response from the multi-chapter recipient preview endpoint. */
+export interface RecipientPreviewResponse {
+  chapters: ChapterRecipientCounts[];
+  totals: {
+    sms_recipients: number;
+    alumni_sms_recipients: number;
+    email_recipients: number;
+    alumni_email_recipients: number;
+    total_members: number;
+    total_alumni: number;
+  };
+}
+
 /** One image in announcements.metadata.images (v1: max one in API validation later) */
 export interface AnnouncementImageMetadataEntry {
   url: string;

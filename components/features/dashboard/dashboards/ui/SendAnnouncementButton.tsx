@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -9,31 +9,30 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Megaphone, Send, Mail, Smartphone, X } from 'lucide-react';
-import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { useAnnouncements } from '@/lib/hooks/useAnnouncements';
-import { CreateAnnouncementData } from '@/types/announcements';
+import type { CreateAnnouncementData } from '@/types/announcements';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { useEffect } from 'react';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
+import { cn } from '@/lib/utils';
 import { AnnouncementImageAttachmentField } from './AnnouncementImageAttachmentField';
 
 export function SendAnnouncementButton() {
-  const { profile } = useProfile();
   const { session } = useAuth();
   const chapterId = useScopedChapterId();
   const { createAnnouncement, loading: announcementsLoading } = useAnnouncements(chapterId || null);
-  
+
   const [showModal, setShowModal] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
-  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcement, setAnnouncement] = useState('');
+  const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementType, setAnnouncementType] = useState<'general' | 'urgent' | 'event' | 'academic'>('general');
   const [sendSmsToMembers, setSendSmsToMembers] = useState(false);
   const [sendSmsToAlumni, setSendSmsToAlumni] = useState(false);
   const [sendEmailToMembers, setSendEmailToMembers] = useState(false);
   const [sendEmailToAlumni, setSendEmailToAlumni] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [emailRecipientCount, setEmailRecipientCount] = useState<number | null>(null);
   const [memberSmsRecipientCount, setMemberSmsRecipientCount] = useState<number | null>(null);
   const [alumniSmsRecipientCount, setAlumniSmsRecipientCount] = useState<number | null>(null);
@@ -53,28 +52,26 @@ export function SendAnnouncementButton() {
     acceptTypes,
   } = useAnnouncementImageAttachment();
 
-  // Auto-set SMS for urgent announcements
   useEffect(() => {
     setSendSmsToMembers(announcementType === 'urgent');
     setSendSmsToAlumni(false);
   }, [announcementType]);
 
-  // Fetch recipient counts when modal opens
   useEffect(() => {
     const fetchRecipientCounts = async () => {
       if (!chapterId || !session?.access_token || !showModal) return;
-      
+
       setLoadingRecipients(true);
       try {
         const response = await fetch(
           `/api/announcements/recipient-counts?chapter_id=${chapterId}`,
           {
             headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            }
+              Authorization: `Bearer ${session.access_token}`,
+            },
           }
         );
-        
+
         if (response.ok) {
           const data = await response.json();
           setEmailRecipientCount(data.email_recipients);
@@ -121,9 +118,10 @@ export function SendAnnouncementButton() {
       };
 
       await createAnnouncement(announcementData);
-      
-      setAnnouncement("");
-      setAnnouncementTitle("");
+      toast.success('Announcement sent successfully!');
+
+      setAnnouncement('');
+      setAnnouncementTitle('');
       setAnnouncementType('general');
       setSendSmsToMembers(false);
       setSendSmsToAlumni(false);
@@ -131,8 +129,6 @@ export function SendAnnouncementButton() {
       setSendEmailToAlumni(false);
       resetAttachment();
       setShowModal(false);
-      
-      toast.success('Announcement sent successfully!');
     } catch (error) {
       toast.error('Failed to send announcement');
       console.error('Error sending announcement:', error);
@@ -141,9 +137,18 @@ export function SendAnnouncementButton() {
     }
   };
 
-  // Shared form content used in both mobile and desktop
-  const formContent = (idSuffix: string) => (
-    <>
+  const displayCounts = {
+    sms: memberSmsRecipientCount,
+    alumniSms: alumniSmsRecipientCount,
+    email: emailRecipientCount,
+    alumniEmail: alumniEmailRecipientCount,
+  };
+
+  const formContent = (idSuffix: string) => {
+    const isMobileSheet = idSuffix === 'mobile';
+
+    return (
+      <>
       <div className="space-y-2">
         <Input
           placeholder="Announcement title..."
@@ -153,7 +158,9 @@ export function SendAnnouncementButton() {
         />
         <Select
           value={announcementType}
-          onValueChange={(value: string) => setAnnouncementType(value as 'general' | 'urgent' | 'event' | 'academic')}
+          onValueChange={(value: string) =>
+            setAnnouncementType(value as 'general' | 'urgent' | 'event' | 'academic')
+          }
         >
           <SelectItem value="general">General</SelectItem>
           <SelectItem value="urgent">Urgent</SelectItem>
@@ -187,62 +194,170 @@ export function SendAnnouncementButton() {
           Delivery Options
         </p>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-sms-members-${idSuffix}`}
             checked={sendSmsToMembers}
             onCheckedChange={(checked) => setSendSmsToMembers(checked as boolean)}
           />
-          <Label htmlFor={`send-sms-members-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
-            <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+          <Label
+            htmlFor={`send-sms-members-${idSuffix}`}
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
+          >
+            <Smartphone
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             SMS to Actives
-            {memberSmsRecipientCount !== null && (
-              <span className="text-xs text-gray-400 font-normal">({memberSmsRecipientCount})</span>
+            {displayCounts.sms !== null && displayCounts.sms !== undefined && (
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.sms})
+              </span>
             )}
           </Label>
         </div>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-sms-alumni-${idSuffix}`}
             checked={sendSmsToAlumni}
             onCheckedChange={(checked) => setSendSmsToAlumni(checked as boolean)}
           />
-          <Label htmlFor={`send-sms-alumni-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
-            <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+          <Label
+            htmlFor={`send-sms-alumni-${idSuffix}`}
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
+          >
+            <Smartphone
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             SMS to Alumni
-            {alumniSmsRecipientCount !== null && (
-              <span className="text-xs text-gray-400 font-normal">({alumniSmsRecipientCount})</span>
+            {displayCounts.alumniSms !== null && displayCounts.alumniSms !== undefined && (
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.alumniSms})
+              </span>
             )}
           </Label>
         </div>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-email-members-${idSuffix}`}
             checked={sendEmailToMembers}
             onCheckedChange={(checked) => setSendEmailToMembers(checked as boolean)}
           />
-          <Label htmlFor={`send-email-members-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
-            <Mail className="h-3.5 w-3.5 text-gray-500" />
+          <Label
+            htmlFor={`send-email-members-${idSuffix}`}
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
+          >
+            <Mail
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             Email to Actives
-            {emailRecipientCount !== null && (
-              <span className="text-xs text-gray-400 font-normal">({emailRecipientCount})</span>
+            {displayCounts.email !== null && displayCounts.email !== undefined && (
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.email})
+              </span>
             )}
           </Label>
         </div>
 
-        <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+        <div
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors',
+            isMobileSheet ? 'gap-1.5 p-1.5' : 'space-x-2 p-2'
+          )}
+        >
           <Checkbox
             id={`send-email-alumni-${idSuffix}`}
             checked={sendEmailToAlumni}
             onCheckedChange={(checked) => setSendEmailToAlumni(checked as boolean)}
           />
-          <Label htmlFor={`send-email-alumni-${idSuffix}`} className="text-sm cursor-pointer font-medium flex items-center gap-1.5">
-            <Mail className="h-3.5 w-3.5 text-gray-500" />
+          <Label
+            htmlFor={`send-email-alumni-${idSuffix}`}
+            className={cn(
+              'cursor-pointer font-medium flex items-center',
+              isMobileSheet
+                ? 'gap-1 text-[11px] leading-tight whitespace-nowrap'
+                : 'text-sm gap-1.5'
+            )}
+          >
+            <Mail
+              className={cn(
+                'shrink-0 text-gray-500',
+                isMobileSheet ? 'h-3 w-3' : 'h-3.5 w-3.5'
+              )}
+            />
             Email to Alumni
-            {alumniEmailRecipientCount !== null && (
-              <span className="text-xs text-gray-400 font-normal">({alumniEmailRecipientCount})</span>
+            {displayCounts.alumniEmail !== null && displayCounts.alumniEmail !== undefined && (
+              <span
+                className={cn(
+                  'shrink-0 font-normal',
+                  isMobileSheet
+                    ? 'text-[10px] text-gray-500 tabular-nums'
+                    : 'text-xs text-gray-400 font-normal'
+                )}
+              >
+                ({displayCounts.alumniEmail})
+              </span>
             )}
           </Label>
         </div>
@@ -251,12 +366,12 @@ export function SendAnnouncementButton() {
           <p className="text-xs text-gray-400 pl-1">Loading recipient counts...</p>
         )}
       </div>
-    </>
-  );
+      </>
+    );
+  };
 
   return (
     <>
-      {/* Mobile trigger */}
       <button
         onClick={() => setShowModal(true)}
         className="w-full sm:hidden flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-brand-primary hover:bg-brand-primary-hover transition-colors duration-200 shadow-md"
@@ -267,7 +382,6 @@ export function SendAnnouncementButton() {
         <span className="text-white font-medium text-sm">Send Announcement</span>
       </button>
 
-      {/* Desktop trigger */}
       <button
         onClick={() => setShowModal(true)}
         className="hidden sm:flex w-full items-center justify-center gap-2 px-4 py-3 rounded-full bg-brand-primary hover:bg-brand-primary-hover transition-colors duration-200 shadow-md"
@@ -278,14 +392,12 @@ export function SendAnnouncementButton() {
         <span className="text-white font-medium text-sm">Send Announcement</span>
       </button>
 
-      {/* Mobile: Sheet (bottom drawer) */}
       <Sheet open={showModal} onOpenChange={setShowModal}>
         <SheetContent
           side="bottom"
           backdropClassName="sm:hidden"
           className="sm:hidden rounded-t-2xl flex flex-col p-0 max-h-[85dvh] border-0"
         >
-          {/* Header */}
           <div className="bg-brand-primary px-4 py-4 flex-shrink-0 rounded-t-2xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -295,6 +407,7 @@ export function SendAnnouncementButton() {
                 <h3 className="text-base font-semibold text-white">Send Announcement</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
                 className="text-white/80 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
               >
@@ -303,12 +416,8 @@ export function SendAnnouncementButton() {
             </div>
           </div>
 
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {formContent('mobile')}
-          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">{formContent('mobile')}</div>
 
-          {/* Footer */}
           <div className="flex flex-row gap-3 flex-shrink-0 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
             <Button
               variant="outline"
@@ -329,18 +438,16 @@ export function SendAnnouncementButton() {
         </SheetContent>
       </Sheet>
 
-      {/* Desktop: Centered modal */}
       {showModal && (
         <>
-          {/* Backdrop */}
           <div
             className="hidden sm:block fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm"
             onClick={() => setShowModal(false)}
+            aria-hidden
           />
 
           <div className="hidden sm:flex fixed inset-0 z-[9999] items-center justify-center p-4">
             <div className="relative bg-white shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden">
-              {/* Header */}
               <div className="bg-brand-primary p-6 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -350,6 +457,7 @@ export function SendAnnouncementButton() {
                     <h3 className="text-xl font-semibold text-white">Send Announcement</h3>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setShowModal(false)}
                     className="text-white/80 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
                   >
@@ -358,12 +466,8 @@ export function SendAnnouncementButton() {
                 </div>
               </div>
 
-              {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {formContent('desktop')}
-              </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">{formContent('desktop')}</div>
 
-              {/* Footer */}
               <div className="flex flex-row gap-3 flex-shrink-0 border-t border-gray-200 p-6">
                 <Button
                   variant="outline"
