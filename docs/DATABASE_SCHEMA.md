@@ -71,6 +71,35 @@ Greek life chapters (fraternities/sororities).
 - Has many `profiles` via `chapter_id`
 - Has many `posts` via `chapter_id`
 - Has many `events` via `chapter_id`
+- Has many `crowded_accounts` via `chapter_id`
+
+### `crowded_accounts`
+Synced Crowded banking accounts per chapter (TRA-410). **RLS:** authenticated users can `SELECT` rows for their chapter (same pattern as chapter-scoped posts). Writes are intended for service-role sync jobs.
+
+**Key Columns:**
+- `id` (UUID, Primary Key)
+- `chapter_id` (UUID, Foreign Key → `chapters.id`, ON DELETE CASCADE)
+- `crowded_account_id` (UUID) — Crowded API account id; unique per chapter with `chapter_id`
+- `display_name`, `status`, `currency` (TEXT, nullable) — optional cache from API
+- `crowded_contact_id` (UUID, nullable)
+- `balance_minor`, `hold_minor`, `available_minor` (BIGINT, nullable) — minor units (e.g. cents); **routing/account numbers are not stored**
+- `last_synced_at` (TIMESTAMPTZ, nullable)
+- `created_at`, `updated_at` (TIMESTAMPTZ)
+
+**Indexes:** `chapter_id`, `crowded_account_id`
+
+### `crowded_transactions`
+Transactions synced from Crowded, deduped by `crowded_transaction_id` per `(chapter_id, crowded_account_id)`. Composite FK to `crowded_accounts(chapter_id, crowded_account_id)`.
+
+**Key Columns:**
+- `id` (UUID, Primary Key)
+- `chapter_id` (UUID) + `crowded_account_id` (UUID) — composite FK to `crowded_accounts`
+- `crowded_transaction_id` (TEXT) — Crowded’s stable id for upserts
+- `amount_minor` (BIGINT, nullable), `currency`, `description`, `status` (TEXT, nullable)
+- `occurred_at`, `posted_at`, `synced_at` (TIMESTAMPTZ)
+- `created_at`, `updated_at` (TIMESTAMPTZ)
+
+**Indexes:** `chapter_id`, `crowded_account_id`, `synced_at`
 
 ### `posts`
 Social feed posts.
