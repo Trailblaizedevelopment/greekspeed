@@ -9,7 +9,7 @@ import { EventsPanel } from './ui/EventsPanel';
 import { TasksPanel } from './ui/TasksPanel';
 import { DocsCompliancePanel } from './ui/DocsCompliancePanel';
 import { AlertsStrip } from './ui/AlertsStrip';
-import { CompactCalendarCard } from './ui/CompactCalendarCard';
+import { CalendarEventsWeekCard } from './ui/CalendarEventsWeekCard';
 import { Event } from '@/types/events';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
@@ -79,7 +79,7 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
     try {
       setEventsLoading(true);
       setEventsError(null);
-      // Single call with scope=all AND user_id — covers both CompactCalendarCard + UpcomingEventsCard
+      // Single call with scope=all AND user_id — covers tablet UpcomingEventsCard (desktop uses CalendarEventsWeekCard mock for now)
       const response = await fetch(
         `/api/events?chapter_id=${chapterId}&scope=all&user_id=${profile.id}`
       );
@@ -317,22 +317,7 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
           {/* Right Column - 3 columns wide */}
           <div className="col-span-3 col-start-10 row-start-1 space-y-6">
             <FeatureGuard flagName="events_management_enabled">
-              <CompactCalendarCard
-                events={allEvents}
-                loading={eventsLoading}
-                error={eventsError}
-                onRetry={fetchAllEvents}
-              />
-            </FeatureGuard>
-            <FeatureGuard flagName="events_management_enabled">
-              <UpcomingEventsCard
-                chapterId={chapterId}
-                userId={profile?.id}
-                events={allEvents}
-                loading={eventsLoading}
-                error={eventsError}
-                onRetry={fetchAllEvents}
-              />
+              <CalendarEventsWeekCard />
             </FeatureGuard>
             {chapterId && <TasksPanel chapterId={chapterId} />}
             <DocsCompliancePanel />
