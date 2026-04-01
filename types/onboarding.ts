@@ -112,7 +112,7 @@ export interface ProfileBasicsFormData {
   chapterId: string;
   role: 'alumni' | 'active_member';
   graduationYear: number;
-  major?: string;
+  major: string;
   // Alumni-specific fields
   company?: string;
   jobTitle?: string;
@@ -129,7 +129,7 @@ export const profileBasicsSchema = z.object({
   graduationYear: z.number()
     .min(1950, 'Invalid graduation year')
     .max(new Date().getFullYear() + 10, 'Invalid graduation year'),
-  major: z.string().optional(),
+  major: z.string().min(1, 'Major is required'),
   company: z.string().optional(),
   jobTitle: z.string().optional(),
   industry: z.string().optional(),

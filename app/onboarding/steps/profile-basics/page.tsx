@@ -309,9 +309,8 @@ export default function ProfileBasicsPage() {
       newErrors.phone = 'Please enter a valid 10-digit phone number';
     }
 
-    // Active member validation
-    if (effectiveRole === 'active_member') {
-      if (!formData.major?.trim()) newErrors.major = 'Major is required for active members';
+    if (!formData.major?.trim()) {
+      newErrors.major = 'Major is required';
     }
 
     // Bio length validation (TRA-491)
@@ -574,7 +573,7 @@ export default function ProfileBasicsPage() {
             {/* Major */}
             <div className="space-y-2">
               <Label htmlFor="major" className="flex items-center gap-2">
-                Major {effectiveRole === 'active_member' ? '*' : '(Optional)'}
+                Major *
               </Label>
               <SearchableSelect
                 value={formData.major}
