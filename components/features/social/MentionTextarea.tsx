@@ -99,6 +99,11 @@ export interface MentionTextareaProps {
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   /** Alias for onKeyDown — CommentModal uses onKeyPress */
   onKeyPress?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  /**
+   * On narrow viewports only: render the mention list under the textarea instead of a bottom sheet.
+   * Use inside Radix `Dialog` (e.g. Create post) so scroll/touch stay in `DialogContent`.
+   */
+  mentionMobilePresentation?: 'inline-below';
 }
 
 export interface MentionTextareaHandle {
@@ -125,10 +130,14 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       onBlur,
       onKeyDown,
       onKeyPress,
+      mentionMobilePresentation,
     },
     ref
   ) {
-    const useMobileSheet = useMobileMentionSheetEnabled();
+    const isNarrowMobile = useMobileMentionSheetEnabled();
+    const useInlineBelowOnMobile =
+      isNarrowMobile && mentionMobilePresentation === 'inline-below';
+    const useSheetOnMobile = isNarrowMobile && !useInlineBelowOnMobile;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const sheetListRef = useRef<HTMLDivElement>(null);
@@ -418,12 +427,15 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
     );
 
     const mentionPickerOpen = showDropdown && suggestions.length > 0;
-    const mobileSheetOpen = useMobileSheet && mentionPickerOpen;
-    const desktopDropdownOpen = !useMobileSheet && mentionPickerOpen;
+    const mobileSheetOpen = useSheetOnMobile && mentionPickerOpen;
+    const mobileInlineBelowOpen = useInlineBelowOnMobile && mentionPickerOpen;
+    const desktopDropdownOpen = !isNarrowMobile && mentionPickerOpen;
+    const textareaDrivenPickerOpen =
+      desktopDropdownOpen || mobileInlineBelowOpen;
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (desktopDropdownOpen) {
+        if (textareaDrivenPickerOpen) {
           if (e.key === 'ArrowDown') {
             e.preventDefault();
             setSelectedIndex((prev) =>
@@ -457,7 +469,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         onKeyPress?.(e);
       },
       [
-        desktopDropdownOpen,
+        textareaDrivenPickerOpen,
         mobileSheetOpen,
         suggestions,
         selectedIndex,
@@ -516,10 +528,16 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
     }, [desktopDropdownOpen, updateDropdownPosition]);
 
     useEffect(() => {
-      if (!desktopDropdownOpen || !dropdownLayout || !dropdownRef.current) return;
+      if (!textareaDrivenPickerOpen || !dropdownRef.current) return;
+      if (desktopDropdownOpen && !dropdownLayout) return;
       const selected = dropdownRef.current.children[selectedIndex] as HTMLElement | undefined;
       selected?.scrollIntoView({ block: 'nearest' });
-    }, [desktopDropdownOpen, selectedIndex, dropdownLayout]);
+    }, [
+      textareaDrivenPickerOpen,
+      desktopDropdownOpen,
+      dropdownLayout,
+      selectedIndex,
+    ]);
 
     useEffect(() => {
       if (!mobileSheetOpen) return;
@@ -657,7 +675,14 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
 
         {portalDropdown ? createPortal(portalDropdown, document.body) : null}
 
-        {useMobileSheet ? (
+        {mobileInlineBelowOpen
+          ? suggestionList(
+              'relative z-10 mt-2 w-full max-h-[min(15rem,40dvh)] shadow-md',
+              {}
+            )
+          : null}
+
+        {useSheetOnMobile ? (
           <Sheet open={mobileSheetOpen} onOpenChange={handleSheetOpenChange}>
             <SheetContent
               side="bottom"
@@ -740,5 +765,6 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
     );
   }
 );
+
 
 export default MentionTextarea;
