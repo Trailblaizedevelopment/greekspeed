@@ -370,7 +370,10 @@ function PostCardInner({
     }
     // MentionTextarea portals the suggestion list to document.body; treat it as part of the composer
     // so capture-phase pointerdown does not close the inline composer before a row can be selected.
-    if (node instanceof Element && node.closest('[data-mention-suggestions]')) {
+    if (
+      node instanceof Element &&
+      (node.closest('[data-mention-suggestions]') || node.closest('[data-mention-sheet]'))
+    ) {
       return true;
     }
     return false;

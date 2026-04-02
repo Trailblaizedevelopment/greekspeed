@@ -56,7 +56,7 @@ export function PostDetailClient({
       </header>
 
       {/* Scrollable post + comments (CommentModal embedded, no dialog) */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-visible">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <CommentModal
           isOpen={true}
           onClose={onBack}
