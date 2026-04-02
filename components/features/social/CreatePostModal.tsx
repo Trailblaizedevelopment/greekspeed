@@ -361,7 +361,6 @@ export function CreatePostModal({
           placeholder={isEditMode ? undefined : 'What do you want to talk about?'}
           onFocus={() => setIsInputFocused(true)}
           onBlur={() => setIsInputFocused(false)}
-          mentionMobilePresentation={isMobile ? 'inline-below' : undefined}
           className="min-h-[120px] sm:min-h-[100px] resize-none rounded-2xl border border-transparent bg-slate-50/80 p-5 text-base sm:text-lg text-slate-800 placeholder:text-slate-400 focus:border-primary-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-200 transition"
           disabled={isSubmitting}
         />
