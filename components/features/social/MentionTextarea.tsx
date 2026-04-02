@@ -468,7 +468,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       ) : null;
 
     return (
-      <div className="relative">
+      <div className="relative w-full min-w-0 flex-1">
         <textarea
           ref={textareaRef}
           value={value}
