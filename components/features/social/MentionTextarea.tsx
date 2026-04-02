@@ -123,15 +123,30 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       const rect = el.getBoundingClientRect();
       const gap = 6;
       const pad = 8;
+      const vv = window.visualViewport;
+
+      /**
+       * On iOS (and modern browsers), `position: fixed` is tied to the visual viewport while
+       * `getBoundingClientRect()` is in layout-viewport space. Using `innerHeight` for space
+       * math breaks when the soft keyboard is open (e.g. embedded post-detail composer).
+       */
+      const vOffsetTop = vv?.offsetTop ?? 0;
+      const vOffsetLeft = vv?.offsetLeft ?? 0;
+      const vHeight = vv?.height ?? window.innerHeight;
+      const vWidth = vv?.width ?? window.innerWidth;
+
+      const fieldTop = rect.top - vOffsetTop;
+      const fieldBottom = rect.bottom - vOffsetTop;
+      const fieldLeft = rect.left - vOffsetLeft;
+
       const width = rect.width;
       const left = Math.min(
-        Math.max(pad, rect.left),
-        Math.max(pad, window.innerWidth - width - pad)
+        Math.max(pad, fieldLeft),
+        Math.max(pad, vWidth - width - pad)
       );
 
-      const viewportH = window.innerHeight;
-      const spaceBelow = viewportH - rect.bottom - gap - pad;
-      const spaceAbove = rect.top - pad - gap;
+      const spaceBelow = vHeight - fieldBottom - gap - pad;
+      const spaceAbove = fieldTop - pad - gap;
 
       const capBelow = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceBelow));
       const capAbove = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceAbove));
@@ -140,24 +155,24 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       let maxHeight: number;
 
       if (capBelow >= MENTION_DROPDOWN_MIN_USABLE) {
-        top = rect.bottom + gap;
+        top = fieldBottom + gap;
         maxHeight = capBelow;
       } else if (capAbove >= MENTION_DROPDOWN_MIN_USABLE) {
         maxHeight = capAbove;
-        top = rect.top - gap - maxHeight;
+        top = fieldTop - gap - maxHeight;
       } else if (capBelow >= capAbove) {
-        top = rect.bottom + gap;
+        top = fieldBottom + gap;
         maxHeight = capBelow;
       } else {
         maxHeight = capAbove;
-        top = rect.top - gap - maxHeight;
+        top = fieldTop - gap - maxHeight;
       }
 
       if (top < pad) {
         maxHeight = Math.max(0, maxHeight - (pad - top));
         top = pad;
       }
-      maxHeight = Math.min(maxHeight, viewportH - pad - top);
+      maxHeight = Math.min(maxHeight, vHeight - pad - top);
 
       setDropdownLayout({ top, left, width, maxHeight });
     }, []);
@@ -428,9 +443,14 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       const onReposition = () => updateDropdownPosition();
       window.addEventListener('resize', onReposition);
       window.addEventListener('scroll', onReposition, true);
+      const vv = window.visualViewport;
+      vv?.addEventListener('resize', onReposition);
+      vv?.addEventListener('scroll', onReposition);
       return () => {
         window.removeEventListener('resize', onReposition);
         window.removeEventListener('scroll', onReposition, true);
+        vv?.removeEventListener('resize', onReposition);
+        vv?.removeEventListener('scroll', onReposition);
       };
     }, [showDropdown, suggestions.length, updateDropdownPosition]);
 
