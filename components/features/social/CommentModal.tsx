@@ -1102,6 +1102,7 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
             right: 0,
             bottom: `${inputBarBottom}px`,
             zIndex: 50,
+            overflow: 'visible',
             padding: '12px 16px',
             paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
             background: 'rgb(248 250 252 / 0.95)',
@@ -1125,7 +1126,7 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
               )}
             </div>
             
-            <div className="flex-1 min-w-0">
+            <div className="relative z-[55] min-w-0 flex-1 overflow-visible">
               <MentionTextarea
                 ref={textareaRef}
                 placeholder="Write a comment..."
@@ -1134,6 +1135,7 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
                 chapterId={profile?.chapter_id ?? undefined}
                 onKeyPress={handleKeyPress}
                 onFocus={handleCommentInputFocus}
+                mentionListPlacement={useFixedRegions ? 'inline-above' : 'portal-fixed'}
                 className="min-h-[48px] sm:min-h-[52px] max-h-[200px] resize-none overflow-y-hidden rounded-2xl border border-transparent bg-white/80 px-4 py-3 text-sm sm:text-base text-slate-800 placeholder:text-slate-400 focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-200 transition"
                 rows={1}
               />
@@ -1157,7 +1159,7 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
 
   if (embedded) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-visible">
         {postAndCommentsContent}
         <ImageViewerModal />
       </div>

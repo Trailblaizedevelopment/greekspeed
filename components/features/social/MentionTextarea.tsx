@@ -9,6 +9,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from 'react';
+import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer';
 import { cn } from '@/lib/utils';
@@ -71,6 +72,8 @@ interface MentionSuggestion {
   avatar_url: string | null;
 }
 
+export type MentionListPlacement = 'portal-fixed' | 'inline-above';
+
 export interface MentionTextareaProps {
   value: string;
   onChange: (value: string) => void;
@@ -84,6 +87,11 @@ export interface MentionTextareaProps {
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   /** Alias for onKeyDown — CommentModal uses onKeyPress */
   onKeyPress?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  /**
+   * `inline-above`: suggestions sit above the field in the same stacking context (no body portal).
+   * Use on embedded mobile post detail where `position: fixed` + visual viewport misaligns.
+   */
+  mentionListPlacement?: MentionListPlacement;
 }
 
 export interface MentionTextareaHandle {
@@ -110,9 +118,11 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       onBlur,
       onKeyDown,
       onKeyPress,
+      mentionListPlacement = 'portal-fixed',
     },
     ref
   ) {
+    const inlineAbove = mentionListPlacement === 'inline-above';
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [dropdownLayout, setDropdownLayout] = useState<DropdownLayout | null>(null);
@@ -449,7 +459,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
 
     useEffect(() => {
       if (!showDropdown) return;
-      const onClickOutside = (e: MouseEvent) => {
+      const onPointerOutside = (e: PointerEvent) => {
         if (
           !dropdownRef.current?.contains(e.target as Node) &&
           !textareaRef.current?.contains(e.target as Node)
@@ -458,8 +468,8 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           setShowDropdown(false);
         }
       };
-      document.addEventListener('mousedown', onClickOutside);
-      return () => document.removeEventListener('mousedown', onClickOutside);
+      document.addEventListener('pointerdown', onPointerOutside);
+      return () => document.removeEventListener('pointerdown', onPointerOutside);
     }, [showDropdown, cancelPendingMentionRequests]);
 
     useLayoutEffect(() => {
@@ -467,11 +477,15 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         setDropdownLayout(null);
         return;
       }
+      if (inlineAbove) {
+        setDropdownLayout(null);
+        return;
+      }
       updateDropdownPosition();
-    }, [showDropdown, suggestions.length, value, updateDropdownPosition]);
+    }, [inlineAbove, showDropdown, suggestions.length, value, updateDropdownPosition]);
 
     useEffect(() => {
-      if (!showDropdown || suggestions.length === 0) return;
+      if (inlineAbove || !showDropdown || suggestions.length === 0) return;
       const onReposition = () => updateDropdownPosition();
       window.addEventListener('resize', onReposition);
       window.addEventListener('scroll', onReposition, true);
@@ -484,33 +498,39 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         vv?.removeEventListener('resize', onReposition);
         vv?.removeEventListener('scroll', onReposition);
       };
-    }, [showDropdown, suggestions.length, updateDropdownPosition]);
+    }, [inlineAbove, showDropdown, suggestions.length, updateDropdownPosition]);
 
     useEffect(() => {
+      if (inlineAbove) {
+        if (!showDropdown || !dropdownRef.current) return;
+        const selected = dropdownRef.current.children[selectedIndex] as HTMLElement | undefined;
+        selected?.scrollIntoView({ block: 'nearest' });
+        return;
+      }
       if (!dropdownLayout || !dropdownRef.current) return;
       const selected = dropdownRef.current.children[selectedIndex] as HTMLElement | undefined;
       selected?.scrollIntoView({ block: 'nearest' });
-    }, [selectedIndex, dropdownLayout]);
+    }, [inlineAbove, selectedIndex, dropdownLayout, showDropdown]);
 
-    const dropdownOpen = showDropdown && suggestions.length > 0 && dropdownLayout;
+    const dropdownOpenPortal =
+      !inlineAbove && showDropdown && suggestions.length > 0 && dropdownLayout;
+    const dropdownOpenInline = inlineAbove && showDropdown && suggestions.length > 0;
 
-    const dropdownNode =
-      dropdownOpen && typeof document !== 'undefined' ? (
-        <DismissableLayerBranch
-          ref={dropdownRef}
-          data-mention-suggestions=""
-          role="listbox"
-          className="pointer-events-auto overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white shadow-lg"
-          style={{
-            position: 'fixed',
-            zIndex: MENTION_DROPDOWN_Z,
-            top: dropdownLayout.top,
-            left: dropdownLayout.left,
-            width: dropdownLayout.width,
-            maxHeight: dropdownLayout.maxHeight,
-          }}
-          onWheel={(e) => e.stopPropagation()}
-        >
+    const suggestionList = (positionClass: string, style: CSSProperties) => (
+      <DismissableLayerBranch
+        ref={dropdownRef}
+        data-mention-suggestions=""
+        role="listbox"
+        className={cn(
+          'pointer-events-auto overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white shadow-lg touch-pan-y',
+          positionClass
+        )}
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          ...style,
+        }}
+        onWheel={(e) => e.stopPropagation()}
+      >
           {suggestions.map((s, idx) => (
             <button
               key={s.id}
@@ -546,11 +566,36 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
               </div>
             </button>
           ))}
-        </DismissableLayerBranch>
-      ) : null;
+      </DismissableLayerBranch>
+    );
+
+    const portalDropdown =
+      dropdownOpenPortal && typeof document !== 'undefined'
+        ? suggestionList('', {
+            position: 'fixed',
+            zIndex: MENTION_DROPDOWN_Z,
+            top: dropdownLayout!.top,
+            left: dropdownLayout!.left,
+            width: dropdownLayout!.width,
+            maxHeight: dropdownLayout!.maxHeight,
+          })
+        : null;
+
+    const inlineDropdown = dropdownOpenInline
+      ? suggestionList(
+          'absolute left-0 right-0 bottom-full z-[300] mb-1.5 max-h-[min(12.5rem,45dvh)]',
+          {}
+        )
+      : null;
 
     return (
-      <div className="relative w-full min-w-0 flex-1">
+      <div
+        className={cn(
+          'relative w-full min-w-0 flex-1',
+          inlineAbove && 'z-[60] overflow-visible'
+        )}
+      >
+        {inlineDropdown}
         <textarea
           ref={textareaRef}
           value={value}
@@ -568,7 +613,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           rows={rows}
         />
 
-        {dropdownNode ? createPortal(dropdownNode, document.body) : null}
+        {portalDropdown ? createPortal(portalDropdown, document.body) : null}
       </div>
     );
   }
