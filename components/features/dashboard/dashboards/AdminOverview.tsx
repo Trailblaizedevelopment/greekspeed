@@ -30,7 +30,6 @@ import { toast } from 'react-toastify';
 import { createPortal } from 'react-dom';
 import { SendAnnouncementButton } from './ui/SendAnnouncementButton';
 import { EXECUTIVE_ROLES } from '@/lib/permissions';
-import { UpcomingEventsCard } from './ui/UpcomingEventsCard';
 import { cn } from '@/lib/utils';
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { AddRecruitForm } from '@/components/features/recruitment/AddRecruitForm';
@@ -79,7 +78,7 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
     try {
       setEventsLoading(true);
       setEventsError(null);
-      // Single call with scope=all AND user_id — covers tablet UpcomingEventsCard (desktop uses CalendarEventsWeekCard mock for now)
+      // Single call with scope=all AND user_id — CalendarEventsWeekCard (tablet + desktop)
       const response = await fetch(
         `/api/events?chapter_id=${chapterId}&scope=all&user_id=${profile.id}`
       );
@@ -279,8 +278,7 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
           <div className="col-span-4">
             <div className="space-y-4">
               <FeatureGuard flagName="events_management_enabled">
-                <UpcomingEventsCard
-                  chapterId={chapterId}
+                <CalendarEventsWeekCard
                   userId={profile?.id}
                   events={allEvents}
                   loading={eventsLoading}
@@ -317,7 +315,13 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
           {/* Right Column - 3 columns wide */}
           <div className="col-span-3 col-start-10 row-start-1 space-y-6">
             <FeatureGuard flagName="events_management_enabled">
-              <CalendarEventsWeekCard />
+              <CalendarEventsWeekCard
+                userId={profile?.id}
+                events={allEvents}
+                loading={eventsLoading}
+                error={eventsError}
+                onRetry={fetchAllEvents}
+              />
             </FeatureGuard>
             {chapterId && <TasksPanel chapterId={chapterId} />}
             <DocsCompliancePanel />
