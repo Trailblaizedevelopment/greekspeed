@@ -21,6 +21,11 @@ const MENTION_DROPDOWN_Z = 200;
 const MENTION_DEBOUNCE_MS = 200;
 const EMPTY_SUGGEST_CACHE_TTL_MS = 5000;
 
+/** Max list height when there is room (viewport-capped when near edges). */
+const MENTION_DROPDOWN_MAX_H = 320;
+/** Prefer opening below unless less than this many px are available (then flip above if better). */
+const MENTION_DROPDOWN_MIN_USABLE = 112;
+
 /**
  * Radix modal Dialog sets `body { pointer-events: none }`; children inherit it unless reset.
  * `DismissableLayerBranch` registers this node so pointer-down is not treated as "outside" the dialog.
@@ -123,11 +128,36 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         Math.max(pad, rect.left),
         Math.max(pad, window.innerWidth - width - pad)
       );
-      const top = rect.bottom + gap;
-      const maxHeight = Math.max(
-        120,
-        Math.min(320, window.innerHeight - top - pad)
-      );
+
+      const viewportH = window.innerHeight;
+      const spaceBelow = viewportH - rect.bottom - gap - pad;
+      const spaceAbove = rect.top - pad - gap;
+
+      const capBelow = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceBelow));
+      const capAbove = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceAbove));
+
+      let top: number;
+      let maxHeight: number;
+
+      if (capBelow >= MENTION_DROPDOWN_MIN_USABLE) {
+        top = rect.bottom + gap;
+        maxHeight = capBelow;
+      } else if (capAbove >= MENTION_DROPDOWN_MIN_USABLE) {
+        maxHeight = capAbove;
+        top = rect.top - gap - maxHeight;
+      } else if (capBelow >= capAbove) {
+        top = rect.bottom + gap;
+        maxHeight = capBelow;
+      } else {
+        maxHeight = capAbove;
+        top = rect.top - gap - maxHeight;
+      }
+
+      if (top < pad) {
+        maxHeight = Math.max(0, maxHeight - (pad - top));
+        top = pad;
+      }
+      maxHeight = Math.min(maxHeight, viewportH - pad - top);
 
       setDropdownLayout({ top, left, width, maxHeight });
     }, []);
