@@ -43,6 +43,23 @@ const MAX_IMAGES = 10;
 /** Set true to use bottom drawer on mobile; edit mode uses same header/footer logic. */
 const USE_CREATE_POST_DRAWER_MOBILE = false;
 
+/** Mention sheet is portaled to `document.body`; Radix Dialog must ignore those pointers. */
+function isPortaledMentionSheetTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return (
+    target.closest('[data-mention-sheet]') !== null ||
+    target.closest('[data-app-sheet-backdrop]') !== null
+  );
+}
+
+function preventDialogDismissIfMentionSheetOutside(e: {
+  preventDefault: () => void;
+  detail: { originalEvent: Event };
+}): void {
+  const t = e.detail?.originalEvent?.target ?? null;
+  if (isPortaledMentionSheetTarget(t)) e.preventDefault();
+}
+
 export function CreatePostModal({
   isOpen,
   onClose,
@@ -530,6 +547,8 @@ export function CreatePostModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="sm:max-w-[600px] max-w-[85vw] max-h-[90vh] sm:max-h-[80vh] overflow-hidden border border-slate-200/80 bg-white/95 backdrop-blur-sm shadow-[0_28px_90px_-40px_rgba(15,23,42,0.55)] sm:rounded-3xl rounded-2xl p-0 flex flex-col"
+        onPointerDownOutside={preventDialogDismissIfMentionSheetOutside}
+        onInteractOutside={preventDialogDismissIfMentionSheetOutside}
       >
         {isEditMode && (
           <DialogHeader className="sr-only">

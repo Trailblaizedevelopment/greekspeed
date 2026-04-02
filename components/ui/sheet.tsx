@@ -77,6 +77,7 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
     return createPortal(
       <>
         <div
+          data-app-sheet-backdrop=""
           className={cn(
             "fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm",
             backdropClassName
