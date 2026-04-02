@@ -45,6 +45,23 @@ interface DropdownLayout {
   maxHeight: number;
 }
 
+/** Visible viewport (accounts for mobile keyboard / iOS chrome when `visualViewport` exists). */
+interface ViewportMetrics {
+  top: number;
+  height: number;
+}
+
+function getViewportMetrics(): ViewportMetrics {
+  if (typeof window === 'undefined') {
+    return { top: 0, height: 0 };
+  }
+  const vv = window.visualViewport;
+  if (vv) {
+    return { top: vv.offsetTop, height: vv.height };
+  }
+  return { top: 0, height: window.innerHeight };
+}
+
 interface MentionSuggestion {
   id: string;
   username: string;
@@ -136,27 +153,32 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         Math.max(pad, window.innerWidth - width - pad)
       );
 
-      const viewportH = window.innerHeight;
+      const { top: viewportTop, height: visibleHeight } = getViewportMetrics();
+      const viewportBottom = viewportTop + visibleHeight;
+      const minTop = viewportTop + pad;
 
       if (isMobileMentionLayout()) {
-        // Always anchor directly above the input (layout viewport); cap height for keyboards / nav bars.
-        const spaceAbove = rect.top - pad - gap;
+        // Always above the field; use visual viewport so the list stays on-screen with the keyboard open.
+        const spaceAbove = rect.top - viewportTop - pad - gap;
         let maxHeight = Math.min(
           MENTION_DROPDOWN_MOBILE_MAX_H,
           Math.max(0, spaceAbove)
         );
         let top = rect.top - gap - maxHeight;
-        if (top < pad) {
-          top = pad;
-          maxHeight = Math.min(MENTION_DROPDOWN_MOBILE_MAX_H, Math.max(0, rect.top - gap - top));
+        if (top < minTop) {
+          top = minTop;
+          maxHeight = Math.min(
+            MENTION_DROPDOWN_MOBILE_MAX_H,
+            Math.max(0, rect.top - gap - top)
+          );
         }
-        maxHeight = Math.min(maxHeight, viewportH - pad - top);
+        maxHeight = Math.min(maxHeight, viewportBottom - pad - top);
         setDropdownLayout({ top, left, width, maxHeight });
         return;
       }
 
-      const spaceBelow = viewportH - rect.bottom - gap - pad;
-      const spaceAbove = rect.top - pad - gap;
+      const spaceBelow = viewportBottom - rect.bottom - gap - pad;
+      const spaceAbove = rect.top - viewportTop - pad - gap;
 
       const capBelow = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceBelow));
       const capAbove = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceAbove));
@@ -178,11 +200,11 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         top = rect.top - gap - maxHeight;
       }
 
-      if (top < pad) {
-        maxHeight = Math.max(0, maxHeight - (pad - top));
-        top = pad;
+      if (top < minTop) {
+        maxHeight = Math.max(0, maxHeight - (minTop - top));
+        top = minTop;
       }
-      maxHeight = Math.min(maxHeight, viewportH - pad - top);
+      maxHeight = Math.min(maxHeight, viewportBottom - pad - top);
 
       setDropdownLayout({ top, left, width, maxHeight });
     }, []);
@@ -453,9 +475,14 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       const onReposition = () => updateDropdownPosition();
       window.addEventListener('resize', onReposition);
       window.addEventListener('scroll', onReposition, true);
+      const vv = window.visualViewport;
+      vv?.addEventListener('resize', onReposition);
+      vv?.addEventListener('scroll', onReposition);
       return () => {
         window.removeEventListener('resize', onReposition);
         window.removeEventListener('scroll', onReposition, true);
+        vv?.removeEventListener('resize', onReposition);
+        vv?.removeEventListener('scroll', onReposition);
       };
     }, [showDropdown, suggestions.length, updateDropdownPosition]);
 
