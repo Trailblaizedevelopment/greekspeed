@@ -5,12 +5,33 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
   forwardRef,
   useImperativeHandle,
 } from 'react';
+import { createPortal } from 'react-dom';
+import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/supabase/auth-context';
 import Image from 'next/image';
+
+/** Above Radix Dialog (z-50) so mention list is not clipped by modal overflow. */
+const MENTION_DROPDOWN_Z = 200;
+
+const MENTION_DEBOUNCE_MS = 200;
+const EMPTY_SUGGEST_CACHE_TTL_MS = 5000;
+
+/**
+ * Radix modal Dialog sets `body { pointer-events: none }`; children inherit it unless reset.
+ * `DismissableLayerBranch` registers this node so pointer-down is not treated as "outside" the dialog.
+ */
+
+interface DropdownLayout {
+  top: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+}
 
 interface MentionSuggestion {
   id: string;
@@ -65,13 +86,51 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
   ) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const [dropdownLayout, setDropdownLayout] = useState<DropdownLayout | null>(null);
     const [suggestions, setSuggestions] = useState<MentionSuggestion[]>([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [mentionQuery, setMentionQuery] = useState('');
     const [mentionStart, setMentionStart] = useState(-1);
-    const { getAuthHeaders } = useAuth();
+    const { user, getAuthHeaders } = useAuth();
     const abortRef = useRef<AbortController | null>(null);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const latestQueryForFetchRef = useRef('');
+    const emptySuggestCacheRef = useRef<{
+      chapterId: string;
+      users: MentionSuggestion[];
+      fetchedAt: number;
+    } | null>(null);
+
+    const cancelPendingMentionRequests = useCallback(() => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      abortRef.current?.abort();
+      abortRef.current = null;
+    }, []);
+
+    const updateDropdownPosition = useCallback(() => {
+      const el = textareaRef.current;
+      if (!el || typeof window === 'undefined') return;
+
+      const rect = el.getBoundingClientRect();
+      const gap = 6;
+      const pad = 8;
+      const width = rect.width;
+      const left = Math.min(
+        Math.max(pad, rect.left),
+        Math.max(pad, window.innerWidth - width - pad)
+      );
+      const top = rect.bottom + gap;
+      const maxHeight = Math.max(
+        120,
+        Math.min(320, window.innerHeight - top - pad)
+      );
+
+      setDropdownLayout({ top, left, width, maxHeight });
+    }, []);
 
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
@@ -91,74 +150,138 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       },
     }));
 
-    const fetchSuggestions = useCallback(
-      async (query: string) => {
-        if (!chapterId || query.length === 0) {
-          setSuggestions([]);
-          setShowDropdown(false);
-          return;
-        }
-
-        abortRef.current?.abort();
-        const controller = new AbortController();
-        abortRef.current = controller;
+    const runSuggestionsFetch = useCallback(
+      async (query: string, signal: AbortSignal) => {
+        if (!chapterId) return;
 
         try {
           const headers = getAuthHeaders();
           const res = await fetch(
             `/api/mentions/search?q=${encodeURIComponent(query)}&chapterId=${encodeURIComponent(chapterId)}`,
-            { headers, signal: controller.signal }
+            { headers, signal }
           );
           if (!res.ok) {
-            setSuggestions([]);
+            if (!signal.aborted) {
+              setSuggestions([]);
+              setShowDropdown(false);
+            }
             return;
           }
           const data = await res.json();
-          if (!controller.signal.aborted) {
-            setSuggestions(data.users ?? []);
-            setShowDropdown((data.users ?? []).length > 0);
-            setSelectedIndex(0);
+          if (signal.aborted) return;
+          const users = (data.users ?? []) as MentionSuggestion[];
+          setSuggestions(users);
+          setShowDropdown(users.length > 0);
+          setSelectedIndex(0);
+          if (query.length === 0) {
+            emptySuggestCacheRef.current = {
+              chapterId,
+              users,
+              fetchedAt: Date.now(),
+            };
           }
         } catch (err) {
           if (err instanceof DOMException && err.name === 'AbortError') return;
           console.error('Mention search failed:', err);
-          setSuggestions([]);
+          if (!signal.aborted) {
+            setSuggestions([]);
+            setShowDropdown(false);
+          }
         }
       },
       [chapterId, getAuthHeaders]
     );
+
+    const requestSuggestions = useCallback(
+      (query: string) => {
+        latestQueryForFetchRef.current = query;
+
+        if (!chapterId) {
+          setSuggestions([]);
+          setShowDropdown(false);
+          return;
+        }
+
+        cancelPendingMentionRequests();
+
+        if (query.length === 0) {
+          const cache = emptySuggestCacheRef.current;
+          const now = Date.now();
+          if (
+            cache &&
+            cache.chapterId === chapterId &&
+            now - cache.fetchedAt < EMPTY_SUGGEST_CACHE_TTL_MS
+          ) {
+            setSuggestions(cache.users);
+            setShowDropdown(cache.users.length > 0);
+            setSelectedIndex(0);
+            return;
+          }
+
+          const controller = new AbortController();
+          abortRef.current = controller;
+          void runSuggestionsFetch('', controller.signal);
+          return;
+        }
+
+        debounceRef.current = setTimeout(() => {
+          debounceRef.current = null;
+          const q = latestQueryForFetchRef.current;
+          if (q.length === 0) return;
+
+          const controller = new AbortController();
+          abortRef.current = controller;
+          void runSuggestionsFetch(q, controller.signal);
+        }, MENTION_DEBOUNCE_MS);
+      },
+      [chapterId, cancelPendingMentionRequests, runSuggestionsFetch]
+    );
+
+    useEffect(() => {
+      emptySuggestCacheRef.current = null;
+    }, [chapterId, user?.id]);
+
+    useEffect(() => {
+      return () => {
+        cancelPendingMentionRequests();
+      };
+    }, [cancelPendingMentionRequests]);
 
     const detectMentionQuery = useCallback(
       (text: string, cursorPos: number) => {
         const before = text.slice(0, cursorPos);
         const atIdx = before.lastIndexOf('@');
         if (atIdx === -1) {
+          cancelPendingMentionRequests();
           setShowDropdown(false);
           return;
         }
 
         const charBefore = atIdx > 0 ? before[atIdx - 1] : undefined;
         if (charBefore && !/[\s(,;:!?\n]/.test(charBefore)) {
+          cancelPendingMentionRequests();
           setShowDropdown(false);
           return;
         }
 
         const query = before.slice(atIdx + 1);
         if (/\s/.test(query) && query.length > 20) {
+          cancelPendingMentionRequests();
           setShowDropdown(false);
           return;
         }
 
         if (/[^a-zA-Z0-9.\-]/.test(query)) {
+          cancelPendingMentionRequests();
           setShowDropdown(false);
           return;
         }
 
         setMentionQuery(query);
         setMentionStart(atIdx);
-        fetchSuggestions(query);
+        requestSuggestions(query);
       },
-      [fetchSuggestions]
+      [cancelPendingMentionRequests, requestSuggestions]
     );
 
     const insertMention = useCallback(
@@ -173,8 +296,10 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         const newValue = before + insertion + after;
         onChange(newValue);
 
+        cancelPendingMentionRequests();
         setShowDropdown(false);
         setSuggestions([]);
+        setDropdownLayout(null);
 
         requestAnimationFrame(() => {
           const pos = before.length + insertion.length;
@@ -182,7 +307,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           textarea.setSelectionRange(pos, pos);
         });
       },
-      [mentionStart, mentionQuery, value, onChange]
+      [mentionStart, mentionQuery, value, onChange, cancelPendingMentionRequests]
     );
 
     const handleChange = useCallback(
@@ -219,6 +344,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           }
           if (e.key === 'Escape') {
             e.preventDefault();
+            cancelPendingMentionRequests();
             setShowDropdown(false);
             return;
           }
@@ -226,7 +352,15 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
         onKeyDown?.(e);
         onKeyPress?.(e);
       },
-      [showDropdown, suggestions, selectedIndex, insertMention, onKeyDown, onKeyPress]
+      [
+        showDropdown,
+        suggestions,
+        selectedIndex,
+        insertMention,
+        cancelPendingMentionRequests,
+        onKeyDown,
+        onKeyPress,
+      ]
     );
 
     const handleClick = useCallback(() => {
@@ -243,18 +377,95 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           !dropdownRef.current?.contains(e.target as Node) &&
           !textareaRef.current?.contains(e.target as Node)
         ) {
+          cancelPendingMentionRequests();
           setShowDropdown(false);
         }
       };
       document.addEventListener('mousedown', onClickOutside);
       return () => document.removeEventListener('mousedown', onClickOutside);
-    }, [showDropdown]);
+    }, [showDropdown, cancelPendingMentionRequests]);
+
+    useLayoutEffect(() => {
+      if (!showDropdown || suggestions.length === 0) {
+        setDropdownLayout(null);
+        return;
+      }
+      updateDropdownPosition();
+    }, [showDropdown, suggestions.length, value, updateDropdownPosition]);
 
     useEffect(() => {
-      if (!showDropdown || !dropdownRef.current) return;
+      if (!showDropdown || suggestions.length === 0) return;
+      const onReposition = () => updateDropdownPosition();
+      window.addEventListener('resize', onReposition);
+      window.addEventListener('scroll', onReposition, true);
+      return () => {
+        window.removeEventListener('resize', onReposition);
+        window.removeEventListener('scroll', onReposition, true);
+      };
+    }, [showDropdown, suggestions.length, updateDropdownPosition]);
+
+    useEffect(() => {
+      if (!dropdownLayout || !dropdownRef.current) return;
       const selected = dropdownRef.current.children[selectedIndex] as HTMLElement | undefined;
       selected?.scrollIntoView({ block: 'nearest' });
-    }, [selectedIndex, showDropdown]);
+    }, [selectedIndex, dropdownLayout]);
+
+    const dropdownOpen = showDropdown && suggestions.length > 0 && dropdownLayout;
+
+    const dropdownNode =
+      dropdownOpen && typeof document !== 'undefined' ? (
+        <DismissableLayerBranch
+          ref={dropdownRef}
+          data-mention-suggestions=""
+          role="listbox"
+          className="pointer-events-auto overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white shadow-lg"
+          style={{
+            position: 'fixed',
+            zIndex: MENTION_DROPDOWN_Z,
+            top: dropdownLayout.top,
+            left: dropdownLayout.left,
+            width: dropdownLayout.width,
+            maxHeight: dropdownLayout.maxHeight,
+          }}
+          onWheel={(e) => e.stopPropagation()}
+        >
+          {suggestions.map((s, idx) => (
+            <button
+              key={s.id}
+              type="button"
+              role="option"
+              aria-selected={idx === selectedIndex}
+              className={cn(
+                'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors',
+                idx === selectedIndex ? 'bg-brand-primary/10' : 'hover:bg-gray-50'
+              )}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                insertMention(s);
+              }}
+              onMouseEnter={() => setSelectedIndex(idx)}
+            >
+              <div className="h-8 w-8 rounded-full bg-primary-100/70 flex items-center justify-center text-brand-primary-hover text-xs font-semibold shrink-0 overflow-hidden ring-1 ring-gray-200">
+                {s.avatar_url ? (
+                  <Image
+                    src={s.avatar_url}
+                    alt={s.full_name}
+                    width={32}
+                    height={32}
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : (
+                  (s.first_name?.charAt(0) ?? s.full_name?.charAt(0) ?? '?')
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-900 truncate">{s.full_name}</p>
+                <p className="text-xs text-gray-500 truncate">@{s.username}</p>
+              </div>
+            </button>
+          ))}
+        </DismissableLayerBranch>
+      ) : null;
 
     return (
       <div className="relative">
@@ -275,53 +486,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           rows={rows}
         />
 
-        {showDropdown && suggestions.length > 0 && (
-          <div
-            ref={dropdownRef}
-            className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg"
-            role="listbox"
-          >
-            {suggestions.map((s, idx) => (
-              <button
-                key={s.id}
-                type="button"
-                role="option"
-                aria-selected={idx === selectedIndex}
-                className={cn(
-                  'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors',
-                  idx === selectedIndex
-                    ? 'bg-brand-primary/10'
-                    : 'hover:bg-gray-50'
-                )}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  insertMention(s);
-                }}
-                onMouseEnter={() => setSelectedIndex(idx)}
-              >
-                <div className="h-8 w-8 rounded-full bg-primary-100/70 flex items-center justify-center text-brand-primary-hover text-xs font-semibold shrink-0 overflow-hidden ring-1 ring-gray-200">
-                  {s.avatar_url ? (
-                    <Image
-                      src={s.avatar_url}
-                      alt={s.full_name}
-                      width={32}
-                      height={32}
-                      className="h-full w-full rounded-full object-cover"
-                    />
-                  ) : (
-                    (s.first_name?.charAt(0) ?? s.full_name?.charAt(0) ?? '?')
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {s.full_name}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">@{s.username}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+        {dropdownNode ? createPortal(dropdownNode, document.body) : null}
       </div>
     );
   }

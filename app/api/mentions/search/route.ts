@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+const DEFAULT_LIMIT = 10;
+
 /**
  * GET /api/mentions/search?q=<query>&chapterId=<chapter_id>
  *
- * Returns chapter members whose username or full_name matches the query.
- * Used by the mention typeahead in the post/comment composers.
- * Scoped to the caller's chapter (or the explicitly passed chapterId for
- * governance/developer users who can view other chapters).
+ * - Empty `q`: up to 10 chapter members with usernames, ordered by full_name,
+ *   excluding the current user (default picker after typing `@`).
+ * - Non-empty `q`: filter by username / full_name (ilike), up to 10 rows.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,15 +34,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const query = (searchParams.get('q') ?? '').trim().toLowerCase();
+    const rawQ = searchParams.get('q') ?? '';
+    const query = rawQ.trim().toLowerCase();
     const chapterId = searchParams.get('chapterId');
 
     if (!chapterId) {
       return NextResponse.json({ error: 'chapterId is required' }, { status: 400 });
-    }
-
-    if (query.length === 0) {
-      return NextResponse.json({ users: [] });
     }
 
     const { data: profile } = await supabase
@@ -65,15 +63,41 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const wildcardQuery = `%${query}%`;
+    const selectCols = 'id, username, full_name, first_name, last_name, avatar_url';
 
-    const { data: users, error: searchError } = await supabase
-      .from('profiles')
-      .select('id, username, full_name, first_name, last_name, avatar_url')
-      .eq('chapter_id', chapterId)
-      .not('username', 'is', null)
-      .or(`username.ilike.${wildcardQuery},full_name.ilike.${wildcardQuery}`)
-      .limit(10);
+    let users: Array<{
+      id: string;
+      username: string | null;
+      full_name: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      avatar_url: string | null;
+    }> | null = null;
+    let searchError: unknown = null;
+
+    if (query.length === 0) {
+      const result = await supabase
+        .from('profiles')
+        .select(selectCols)
+        .eq('chapter_id', chapterId)
+        .not('username', 'is', null)
+        .neq('id', user.id)
+        .order('full_name', { ascending: true, nullsFirst: false })
+        .limit(DEFAULT_LIMIT);
+      users = result.data;
+      searchError = result.error;
+    } else {
+      const wildcardQuery = `%${query}%`;
+      const result = await supabase
+        .from('profiles')
+        .select(selectCols)
+        .eq('chapter_id', chapterId)
+        .not('username', 'is', null)
+        .or(`username.ilike.${wildcardQuery},full_name.ilike.${wildcardQuery}`)
+        .limit(DEFAULT_LIMIT);
+      users = result.data;
+      searchError = result.error;
+    }
 
     if (searchError) {
       console.error('Mention search error:', searchError);
