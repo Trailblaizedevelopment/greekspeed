@@ -23,8 +23,15 @@ const EMPTY_SUGGEST_CACHE_TTL_MS = 5000;
 
 /** Max list height when there is room (viewport-capped when near edges). */
 const MENTION_DROPDOWN_MAX_H = 320;
+/** Narrow viewports: always open above the field with a shorter list (keyboard / fixed bottom UI). */
+const MENTION_DROPDOWN_MOBILE_MAX_H = 200;
 /** Prefer opening below unless less than this many px are available (then flip above if better). */
 const MENTION_DROPDOWN_MIN_USABLE = 112;
+
+function isMobileMentionLayout(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(max-width: 767px)').matches;
+}
 
 /**
  * Radix modal Dialog sets `body { pointer-events: none }`; children inherit it unless reset.
@@ -123,30 +130,33 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       const rect = el.getBoundingClientRect();
       const gap = 6;
       const pad = 8;
-      const vv = window.visualViewport;
-
-      /**
-       * On iOS (and modern browsers), `position: fixed` is tied to the visual viewport while
-       * `getBoundingClientRect()` is in layout-viewport space. Using `innerHeight` for space
-       * math breaks when the soft keyboard is open (e.g. embedded post-detail composer).
-       */
-      const vOffsetTop = vv?.offsetTop ?? 0;
-      const vOffsetLeft = vv?.offsetLeft ?? 0;
-      const vHeight = vv?.height ?? window.innerHeight;
-      const vWidth = vv?.width ?? window.innerWidth;
-
-      const fieldTop = rect.top - vOffsetTop;
-      const fieldBottom = rect.bottom - vOffsetTop;
-      const fieldLeft = rect.left - vOffsetLeft;
-
       const width = rect.width;
       const left = Math.min(
-        Math.max(pad, fieldLeft),
-        Math.max(pad, vWidth - width - pad)
+        Math.max(pad, rect.left),
+        Math.max(pad, window.innerWidth - width - pad)
       );
 
-      const spaceBelow = vHeight - fieldBottom - gap - pad;
-      const spaceAbove = fieldTop - pad - gap;
+      const viewportH = window.innerHeight;
+
+      if (isMobileMentionLayout()) {
+        // Always anchor directly above the input (layout viewport); cap height for keyboards / nav bars.
+        const spaceAbove = rect.top - pad - gap;
+        let maxHeight = Math.min(
+          MENTION_DROPDOWN_MOBILE_MAX_H,
+          Math.max(0, spaceAbove)
+        );
+        let top = rect.top - gap - maxHeight;
+        if (top < pad) {
+          top = pad;
+          maxHeight = Math.min(MENTION_DROPDOWN_MOBILE_MAX_H, Math.max(0, rect.top - gap - top));
+        }
+        maxHeight = Math.min(maxHeight, viewportH - pad - top);
+        setDropdownLayout({ top, left, width, maxHeight });
+        return;
+      }
+
+      const spaceBelow = viewportH - rect.bottom - gap - pad;
+      const spaceAbove = rect.top - pad - gap;
 
       const capBelow = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceBelow));
       const capAbove = Math.min(MENTION_DROPDOWN_MAX_H, Math.max(0, spaceAbove));
@@ -155,24 +165,24 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       let maxHeight: number;
 
       if (capBelow >= MENTION_DROPDOWN_MIN_USABLE) {
-        top = fieldBottom + gap;
+        top = rect.bottom + gap;
         maxHeight = capBelow;
       } else if (capAbove >= MENTION_DROPDOWN_MIN_USABLE) {
         maxHeight = capAbove;
-        top = fieldTop - gap - maxHeight;
+        top = rect.top - gap - maxHeight;
       } else if (capBelow >= capAbove) {
-        top = fieldBottom + gap;
+        top = rect.bottom + gap;
         maxHeight = capBelow;
       } else {
         maxHeight = capAbove;
-        top = fieldTop - gap - maxHeight;
+        top = rect.top - gap - maxHeight;
       }
 
       if (top < pad) {
         maxHeight = Math.max(0, maxHeight - (pad - top));
         top = pad;
       }
-      maxHeight = Math.min(maxHeight, vHeight - pad - top);
+      maxHeight = Math.min(maxHeight, viewportH - pad - top);
 
       setDropdownLayout({ top, left, width, maxHeight });
     }, []);
@@ -443,14 +453,9 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       const onReposition = () => updateDropdownPosition();
       window.addEventListener('resize', onReposition);
       window.addEventListener('scroll', onReposition, true);
-      const vv = window.visualViewport;
-      vv?.addEventListener('resize', onReposition);
-      vv?.addEventListener('scroll', onReposition);
       return () => {
         window.removeEventListener('resize', onReposition);
         window.removeEventListener('scroll', onReposition, true);
-        vv?.removeEventListener('resize', onReposition);
-        vv?.removeEventListener('scroll', onReposition);
       };
     }, [showDropdown, suggestions.length, updateDropdownPosition]);
 
