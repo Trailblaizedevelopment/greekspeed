@@ -362,10 +362,18 @@ function PostCardInner({
 
   const isInsideCommentComposer = useCallback((node: Node | null) => {
     if (!node) return false;
-    return (
-      !!commentComposerMobileRef.current?.contains(node) ||
-      !!commentComposerDesktopRef.current?.contains(node)
-    );
+    if (
+      commentComposerMobileRef.current?.contains(node) ||
+      commentComposerDesktopRef.current?.contains(node)
+    ) {
+      return true;
+    }
+    // MentionTextarea portals the suggestion list to document.body; treat it as part of the composer
+    // so capture-phase pointerdown does not close the inline composer before a row can be selected.
+    if (node instanceof Element && node.closest('[data-mention-suggestions]')) {
+      return true;
+    }
+    return false;
   }, []);
   const postCardRef = useRef<HTMLDivElement | null>(null);
   const [showHeartOverlay, setShowHeartOverlay] = useState(false);
