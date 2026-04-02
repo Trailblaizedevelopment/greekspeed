@@ -6,7 +6,9 @@
 
 html {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-} 
+  /* Stable layout width when modals/drawers lock body scroll (removes horizontal jump) */
+  scrollbar-gutter: stable;
+}
 
 /* iOS Safari Auto-Zoom Prevention */
 /* Force 16px font-size on all form controls to prevent iOS Safari auto-zoom */
