@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
+import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 
 interface ChapterJoinFormData {
@@ -45,6 +46,10 @@ export async function POST(
 
     if (!join_role || !['active_member', 'alumni'].includes(join_role)) {
       return NextResponse.json({ error: 'Valid join role is required (active_member or alumni)' }, { status: 400 });
+    }
+
+    if (isEduEmail(email)) {
+      return NextResponse.json({ error: EDU_SIGNUP_ERROR }, { status: 400 });
     }
 
     if (!body.phone?.trim()) {

@@ -23,6 +23,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import ImageWithFallback from "@/components/figma/ImageWithFallback";
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 
 interface AlumniData {
   id: string;
@@ -303,16 +304,12 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
       <>
         <div className="h-screen w-screen bg-white -m-4">
           {/* Header with backdrop and avatar */}
-          <div className="relative h-32 bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100">
-            {alumniData.banner_url ? (
-              <img 
-                src={alumniData.banner_url} 
-                alt={`${alumniData.full_name} banner`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100" />
-            )}
+          <div className="relative h-32">
+            <img 
+              src={alumniData.banner_url || DEFAULT_BANNER_IMAGE} 
+              alt={`${alumniData.full_name} banner`}
+              className="w-full h-full object-cover"
+            />
             <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2">
               <div className="w-20 h-20 bg-white rounded-full border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
                 {alumniData.avatar_url ? (
@@ -458,16 +455,12 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
       <div className="sticky top-6">
         <Card className="bg-white overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 3rem)' }}>
           {/* Header with backdrop and avatar */}
-          <div className="relative h-24 bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100 flex-shrink-0">
-            {alumniData.banner_url ? (
-              <img 
-                src={alumniData.banner_url} 
-                alt={`${alumniData.full_name} banner`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100" />
-            )}
+          <div className="relative h-24 flex-shrink-0">
+            <img 
+              src={alumniData.banner_url || DEFAULT_BANNER_IMAGE} 
+              alt={`${alumniData.full_name} banner`}
+              className="w-full h-full object-cover"
+            />
             <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2">
               <div className="w-16 h-16 bg-white rounded-full border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
                 {alumniData.avatar_url ? (

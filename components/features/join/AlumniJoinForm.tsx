@@ -253,7 +253,7 @@ export function AlumniJoinForm({ invitation, onSuccess, onCancel }: AlumniJoinFo
                   maxLength={14}
                   inputMode="numeric"
                 />
-                <p className="text-xs text-gray-500">Used for SMS notifications about chapter updates and events</p>
+                <p className="text-xs text-gray-500"> Get timely chapter updates and invites by text.</p>
                 {errors.phone && (
                   <p className="text-xs text-red-600 flex items-center space-x-1">
                     <AlertCircle className="h-3 w-3" />
@@ -305,7 +305,7 @@ export function AlumniJoinForm({ invitation, onSuccess, onCancel }: AlumniJoinFo
                     htmlFor="sms-consent"
                     className="text-xs leading-tight peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    I agree to receive SMS notifications from Trailblaize, Inc. Message and data rates may apply. Reply STOP to opt out.
+                    Sign me up for SMS from your chapter.
                   </Label>
                 </div>
               </div>

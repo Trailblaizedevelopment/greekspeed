@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
+import { CALENDLY_DEMO_URL } from "@/lib/constants/externalLinks";
 import { HeroIcon } from "./icons/HeroIcon";
 import { TrustedBySection } from "./TrustedBySection";
 
@@ -73,7 +74,7 @@ const pricingPlans = [
       "Maintain lifelong affiliation"
     ],
     buttonText: "Request Access",
-    buttonAction: () => window.open('https://calendar.google.com/calendar/appointments/schedules/AcZssZ1NJXnIQMnkhbkRAfqYtikSbF2mQ-aDq07LRF24XMnmISst7xvN5A9B5QZwIz4PmcuMLPvNANUn', '_blank'),
+    buttonAction: () => window.open(CALENDLY_DEMO_URL, '_blank'),
     popular: false,
   },
   {
@@ -90,7 +91,7 @@ const pricingPlans = [
       "Protect your chapter’s legacy"
     ],
     buttonText: "Book a demo",
-    buttonAction: () => window.open('https://calendar.google.com/calendar/appointments/schedules/AcZssZ1NJXnIQMnkhbkRAfqYtikSbF2mQ-aDq07LRF24XMnmISst7xvN5A9B5QZwIz4PmcuMLPvNANUn', '_blank'),
+    buttonAction: () => window.open(CALENDLY_DEMO_URL, '_blank'),
     popular: true,
   },
   {
@@ -107,7 +108,7 @@ const pricingPlans = [
       "Long-term institutional value"
     ],
     buttonText: "Contact Us",
-    buttonAction: () => window.open('https://calendar.google.com/calendar/appointments/schedules/AcZssZ1NJXnIQMnkhbkRAfqYtikSbF2mQ-aDq07LRF24XMnmISst7xvN5A9B5QZwIz4PmcuMLPvNANUn', '_blank'),
+    buttonAction: () => window.open(CALENDLY_DEMO_URL, '_blank'),
     popular: false,
   },
 ];
@@ -188,7 +189,7 @@ export function LandingPage() {
                   whitespace-nowrap 
                   focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500
                 "
-                onClick={() => window.open('https://calendar.google.com/calendar/appointments/schedules/AcZssZ1NJXnIQMnkhbkRAfqYtikSbF2mQ-aDq07LRF24XMnmISst7xvN5A9B5QZwIz4PmcuMLPvNANUn', '_blank')}
+                onClick={() => window.open(CALENDLY_DEMO_URL, '_blank')}
               >
                 Request a Demo
               </Button>
@@ -564,7 +565,7 @@ export function LandingPage() {
                 transition-all duration-200
                 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500
               "
-              onClick={() => window.open('https://calendar.google.com/calendar/appointments/schedules/AcZssZ1NJXnIQMnkhbkRAfqYtikSbF2mQ-aDq07LRF24XMnmISst7xvN5A9B5QZwIz4PmcuMLPvNANUn', '_blank')}
+              onClick={() => window.open(CALENDLY_DEMO_URL, '_blank')}
             >
               Book a Demo
             </Button>

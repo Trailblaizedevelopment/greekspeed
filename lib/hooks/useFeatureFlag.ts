@@ -1,8 +1,7 @@
 import { useChapterFeaturesContext } from '@/lib/contexts/ChapterFeaturesContext';
 import { isFeatureEnabled } from '@/types/featureFlags';
 import type { FeatureFlagName } from '@/types/featureFlags';
-import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
-import { useChapterFeatures } from './useChapterFeatures';
+
 
 interface UseFeatureFlagResult {
   enabled: boolean;
@@ -27,8 +26,7 @@ interface UseFeatureFlagResult {
  * Opt-in flags (e.g. `crowded_integration_enabled`) resolve to off until flags load.
  */
 export function useFeatureFlag(flagName: FeatureFlagName): UseFeatureFlagResult {
-  const chapterId = useScopedChapterId();
-  const { flags, loading, error } = useChapterFeatures(chapterId);
+  const { flags, loading, error } = useChapterFeaturesContext();
 
   const enabled = isFeatureEnabled(flags, flagName);
 

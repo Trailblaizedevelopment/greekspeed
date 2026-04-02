@@ -41,7 +41,8 @@ const features = [
 /**
  * Welcome modal shown after signup. Uses vaul Drawer so it is portaled and
  * appears above the dashboard header (z-[10002]/z-[10003]). Mobile: bottom
- * sheet; desktop: centered panel.
+ * sheet via flex items-end; desktop: centered with flex (no left-50% / translate,
+ * avoids jump when scrollbar disappears under modal lock).
  */
 export function WelcomeModal({
   profile,
@@ -103,17 +104,18 @@ export function WelcomeModal({
     >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[10002] bg-black/40 transition-opacity" />
-        <Drawer.Content
-          className="
-            bg-white flex flex-col z-[10003]
-            fixed bottom-0 left-0 right-0
-            sm:left-1/2 sm:right-auto sm:max-w-2xl sm:w-full sm:-translate-x-1/2
-            max-h-[95dvh] sm:max-h-[90vh] min-h-[40dvh]
-            rounded-t-[20px] sm:rounded-lg
-            shadow-2xl border border-gray-200 border-b-0 sm:border
-            outline-none p-0
-          "
-        >
+        <div className="fixed inset-0 z-[10003] flex items-end justify-center sm:items-center p-0 sm:p-4 pointer-events-none">
+          <Drawer.Content
+            className="
+              pointer-events-auto
+              relative flex flex-col
+              w-full sm:max-w-2xl
+              max-h-[95dvh] sm:max-h-[90vh] min-h-[40dvh]
+              rounded-t-[20px] sm:rounded-lg
+              bg-white shadow-2xl border border-gray-200 border-b-0 sm:border
+              outline-none p-0
+            "
+          >
           {/* Drag handle - mobile */}
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-2 sm:hidden" aria-hidden />
 
@@ -218,7 +220,8 @@ export function WelcomeModal({
               </div>
             </CardContent>
           </Card>
-        </Drawer.Content>
+          </Drawer.Content>
+        </div>
       </Drawer.Portal>
     </Drawer.Root>
   );

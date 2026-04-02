@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { AvatarService } from '@/lib/services/avatarService';
 import { BannerService } from '@/lib/services/bannerService';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { useUserPosts } from '@/lib/hooks/useUserPosts';
 import { formatDistanceToNow } from 'date-fns';
 import { DeletePostModal } from '@/components/features/social/DeletePostModal';
@@ -421,7 +422,11 @@ export default function ProfilePage() {
           <div className="sticky top-0 z-50 w-full">
             <div className="p-4 bg-white border-b border-gray-200 shadow-sm flex items-center justify-between gap-4">
               <div className="flex-1 min-w-0 max-w-5xl mx-auto flex items-center gap-4">
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={openEditProfileModal}
+                  className="flex flex-1 min-w-0 items-center gap-3 cursor-pointer rounded-lg -m-2 p-2 text-left hover:bg-gray-50 transition-colors"
+                >
                   <div className="flex-shrink-0">
                     <Badge className="bg-brand-primary text-white">
                       {completion.percentage}% Complete
@@ -435,8 +440,9 @@ export default function ProfilePage() {
                       Complete your profile to unlock full features and improve your visibility in the network
                     </p>
                   </div>
-                </div>
+                </button>
                 <button
+                  type="button"
                   onClick={handleDismissCompletion}
                   className="flex-shrink-0 p-1.5 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
                   aria-label="Dismiss profile completion notice"
@@ -457,14 +463,20 @@ export default function ProfilePage() {
 
                 {/* Banner Section - Full width within container */}
                 <div className="relative">
-                  <div className="w-full h-48 bg-gradient-to-r from-brand-primary via-brand-accent to-accent-300 overflow-hidden">
+                  <div className="w-full h-48 overflow-hidden">
                     {profile?.banner_url ? (
                       <img
                         src={profile.banner_url}
                         alt="Profile banner"
                         className="w-full h-full object-cover"
                       />
-                    ) : null}
+                    ) : (
+                      <img
+                        src={DEFAULT_BANNER_IMAGE}
+                        alt="Default banner"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                   </div>
 
                   {/* Avatar - Overlapping banner */}
@@ -550,21 +562,27 @@ export default function ProfilePage() {
 
                   {/* Profile Completion Banner - Subtle */}
                   {completion && completion.percentage < 100 && !isCompletionDismissed && (
-                    <div className="mb-4 p-3 bg-accent-50 border border-accent-200 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-brand-accent/10 flex items-center justify-center">
-                          <User className="w-5 h-5 text-brand-accent" />
+                    <div className="mb-4 flex items-stretch gap-2 rounded-xl border border-accent-200 bg-accent-50 p-3 hover:bg-accent-100/80 transition-colors">
+                      <button
+                        type="button"
+                        onClick={openEditProfileModal}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2 rounded-lg"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-accent/10">
+                          <User className="h-5 w-5 text-brand-accent" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-900">Complete your profile</p>
                           <p className="text-xs text-gray-500">{completion.percentage}% complete</p>
                         </div>
-                      </div>
+                      </button>
                       <button
+                        type="button"
                         onClick={handleDismissCompletion}
-                        className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+                        className="shrink-0 self-start rounded-full p-1 hover:bg-gray-200/80 transition-colors"
+                        aria-label="Dismiss profile completion notice"
                       >
-                        <X className="w-4 h-4 text-gray-400" />
+                        <X className="h-4 w-4 text-gray-400" />
                       </button>
                     </div>
                   )}
@@ -606,8 +624,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Tab Content */}
-                <div className="divide-y divide-gray-200">
+                {/* Tab Content — posts use PostCard feed variant dividers; connections use divide-y below */}
+                <div>
                   {/* Posts Tab */}
                   {activeTab === 'posts' && (
                     <>
@@ -616,11 +634,12 @@ export default function ProfilePage() {
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
                         </div>
                       ) : userPosts.length > 0 ? (
-                        userPosts.map((post) => (
+                        userPosts.map((post, index) => (
                           <PostCard
-                            variant="profile"
+                            variant="feed"
                             key={post.id}
                             post={post}
+                            showDivider={index < userPosts.length - 1}
                             onLike={async (postId) => { await likePost(postId); }}
                             onDelete={(postId) => handleDeleteClick(postId)}
                             onCommentAdded={async () => { await refetchPosts(); }}
@@ -646,7 +665,8 @@ export default function ProfilePage() {
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
                         </div>
                       ) : sortedConnections.length > 0 ? (
-                        sortedConnections.map((connection) => {
+                        <div className="divide-y divide-gray-200">
+                        {sortedConnections.map((connection) => {
                           const partner = getConnectionPartner(connection);
                           if (!partner) return null;
 
@@ -689,7 +709,8 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           );
-                        })
+                        })}
+                        </div>
                       ) : (
                         <div className="py-12 text-center">
                           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">

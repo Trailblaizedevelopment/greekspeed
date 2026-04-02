@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { validateInvitationToken, validateEmailDomain, hasEmailUsedInvitation, recordInvitationUsage } from '@/lib/utils/invitationUtils';
+import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { JoinFormData } from '@/types/invitations';
 
@@ -27,6 +28,10 @@ export async function POST(
     // Require at least a name (full_name or first_name + last_name)
     if (!full_name && !first_name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    if (isEduEmail(email)) {
+      return NextResponse.json({ error: EDU_SIGNUP_ERROR }, { status: 400 });
     }
 
     // Phone required; must be 10 digits

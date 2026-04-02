@@ -18,6 +18,7 @@ import {
   OAUTH_SIGNUP_ROLE_COOKIE,
   OAUTH_POST_LOGIN_REDIRECT_MAX_AGE_SEC,
 } from '@/lib/utils/oauthPostLoginRedirect';
+import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 
 const MOBILE_OVERLAY_MIN_MS = 6000;
 
@@ -94,6 +95,12 @@ export default function SignUpPage() {
     const isValidPhone = phoneNumber && phoneNumber.replace(/\D/g, '').length === 10;
     if (!email || !password || !firstName || !lastName || !chapter || !phoneNumber || !isValidPhone) {
       setError(phoneNumber && !isValidPhone ? 'Please enter a complete 10-digit phone number' : 'All fields are required');
+      setLoading(false);
+      return;
+    }
+
+    if (isEduEmail(email)) {
+      setError(EDU_SIGNUP_ERROR);
       setLoading(false);
       return;
     }
@@ -432,7 +439,7 @@ export default function SignUpPage() {
                           inputMode="numeric"
                         />
                         <p className="text-xs text-gray-500">
-                          Used for SMS notifications about chapter updates and events
+                          Get timely chapter updates and invites by text.
                         </p>
                         {phoneNumber && !isValidPhoneNumber(phoneNumber) && (
                           <p className="text-xs text-red-500">
@@ -456,7 +463,7 @@ export default function SignUpPage() {
                               htmlFor="sms-consent"
                               className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
-                              By providing your phone number and clicking 'Submit,' you agree to receive SMS notifications about chapter updates and events from Trailblaize, Inc.
+                              Sign me up for SMS so I get immediate chapter updates & notifcations.
                             </Label>
                             <p className="text-xs text-gray-500">
                               Message frequency may vary. Standard Message and Data Rates may apply. Reply STOP to opt out. Reply HELP for help. Consent is not a condition of purchase. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.
@@ -743,7 +750,7 @@ export default function SignUpPage() {
                             inputMode="numeric"
                           />
                           <p className="text-xs text-gray-500">
-                            Used for SMS notifications about chapter updates and events
+                            Get timely chapter updates and invites by text
                           </p>
                           {phoneNumber && !isValidPhoneNumber(phoneNumber) && (
                             <p className="text-xs text-red-500">
@@ -767,7 +774,7 @@ export default function SignUpPage() {
                                 htmlFor="sms-consent"
                                 className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
-                                By providing your phone number and clicking 'Submit,' you agree to receive SMS notifications about chapter updates and events from Trailblaize, Inc.
+                                Sign me up for SMS so I get immediate chapter updates & notifcations.
                               </Label>
                               <p className="text-xs text-gray-500">
                                 Message frequency may vary. Standard Message and Data Rates may apply. Reply STOP to opt out. Reply HELP for help. Consent is not a condition of purchase. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.

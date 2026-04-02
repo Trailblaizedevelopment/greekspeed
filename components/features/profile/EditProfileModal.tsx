@@ -23,9 +23,11 @@ import { cn } from '@/lib/utils';
 import { getGraduationYears, industries, majors, minors } from '@/lib/alumniConstants';
 import { UsernameInput } from './UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
+import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ImageCropper, type CropType } from '@/components/features/common/ImageCropper';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -108,6 +110,15 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
   // Add loading state to prevent modal flicker
   const [isModalReady, setIsModalReady] = useState(false);
+
+  // Visual viewport tracking for mobile keyboard handling
+  const { height: visualHeight, offsetTop: vvOffsetTop } = useVisualViewportHeight();
+  const [fullInnerHeight, setFullInnerHeight] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 768
+  );
+  useEffect(() => {
+    setFullInnerHeight(window.innerHeight);
+  }, []);
 
   // Add loadAlumniData function
   const loadAlumniData = async () => {
@@ -762,6 +773,16 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
   const graduationYears = profile?.role === 'alumni' ? getGraduationYears() : [];
 
+  // Keyboard-aware drawer sizing (mobile only)
+  const keyboardOpen = isMobile && visualHeight < fullInnerHeight - 50;
+  const mobileDrawerStyle: React.CSSProperties | undefined = keyboardOpen
+    ? {
+        maxHeight: visualHeight,
+        bottom: fullInnerHeight - (vvOffsetTop + visualHeight),
+        transition: 'max-height 0.15s ease-out, bottom 0.15s ease-out',
+      }
+    : undefined;
+
   return (
     <Drawer.Root
       open={isOpen}
@@ -785,6 +806,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
             outline-none p-0
             ${isMobile ? 'pb-[env(safe-area-inset-bottom)]' : ''}
           `}
+          style={mobileDrawerStyle}
         >
           {/* Drag handle - mobile only */}
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-2 sm:hidden" aria-hidden />
@@ -810,17 +832,14 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
             <div className={`relative ${isMobile ? 'h-32' : 'h-64'} overflow-hidden rounded-lg`}>
               {/* Banner Section - Make it clickable */}
               <div 
-                className="absolute inset-0 bg-gradient-to-r from-brand-primary via-accent-400 to-accent-100 flex items-center justify-center text-white cursor-pointer group rounded-lg"
+                className="absolute inset-0 flex items-center justify-center text-white cursor-pointer group rounded-lg overflow-hidden"
                 onClick={() => document.getElementById('banner-upload')?.click()}
               >
-                  {/* Show actual banner if it exists */}
-                  {bannerPreview || profile?.banner_url ? (
-                    <img 
-                      src={bannerPreview || profile.banner_url} 
-                      alt="Profile banner" 
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                  ) : null}
+                  <img 
+                    src={bannerPreview || profile?.banner_url || DEFAULT_BANNER_IMAGE} 
+                    alt="Profile banner" 
+                    className="w-full h-full object-cover rounded-lg"
+                  />
                   
                   {/* Banner Upload Overlay */}
                   <div className={`absolute inset-0 flex flex-col items-center justify-start opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg ${isMobile ? 'pt-4' : 'pt-8'}`}>

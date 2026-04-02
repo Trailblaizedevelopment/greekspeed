@@ -60,7 +60,7 @@ export default function ProfileBasicsPage() {
     email: '',
     chapter: '',
     chapterId: '',
-    role: '' as 'alumni' | 'active_member' | '',
+    role: '' as 'alumni' | 'active_member' | 'admin' | '',
     graduationYear: '',
     major: '',
     // Active member-specific fields
@@ -87,8 +87,10 @@ export default function ProfileBasicsPage() {
     formData.role ||
     (chapterAndRoleLocked ? profile?.role : '') ||
     ''
-  ) as '' | 'alumni' | 'active_member';
+  ) as '' | 'alumni' | 'active_member' | 'admin';
   const isAlumni = effectiveRole === 'alumni';
+  /** Major required for actives and admin accounts; optional for alumni */
+  const majorRequired = effectiveRole === 'active_member' || effectiveRole === 'admin';
 
   // Check for invitation token and auto-populate
   useEffect(() => {
@@ -138,7 +140,7 @@ export default function ProfileBasicsPage() {
             ...prev,
             chapter: profile.chapter || prev.chapter,
             chapterId: profile.chapter_id || prev.chapterId,
-            role: (profile.role as 'alumni' | 'active_member') || prev.role,
+                role: (profile.role as 'alumni' | 'active_member' | 'admin') || prev.role,
           }));
         }
       } catch (error) {
@@ -300,6 +302,8 @@ export default function ProfileBasicsPage() {
     // Alumni-specific validation
     if (isAlumni) {
       if (!formData.industry) newErrors.industry = 'Industry is required for alumni';
+      if (!formData.company?.trim()) newErrors.company = 'Company is required';
+      if (!formData.jobTitle?.trim()) newErrors.jobTitle = 'Job title is required';
     }
 
     // Phone required; must be 10 digits
@@ -309,9 +313,18 @@ export default function ProfileBasicsPage() {
       newErrors.phone = 'Please enter a valid 10-digit phone number';
     }
 
-    // Active member validation
-    if (effectiveRole === 'active_member') {
-      if (!formData.major?.trim()) newErrors.major = 'Major is required for active members';
+    // Major: required for active members and admin; optional for alumni
+    if (majorRequired) {
+      if (!formData.major?.trim()) {
+        newErrors.major = 'Major is required for active members and chapter administrators';
+      }
+    }
+
+    // Location: required whenever the contact/location section is shown (active, admin, alumni)
+    if (effectiveRole === 'active_member' || effectiveRole === 'admin' || isAlumni) {
+      if (!formData.location?.trim()) {
+        newErrors.location = 'Location is required';
+      }
     }
 
     // Bio length validation (TRA-491)
@@ -353,13 +366,12 @@ export default function ProfileBasicsPage() {
         chapter_id: chapterIdVal,
         role: normalizedRole,
         grad_year: parseInt(formData.graduationYear),
-        major: formData.major || null,
+        major: formData.major?.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
-      // Add location for all roles
-      if (formData.location) {
-        updateData.location = formData.location;
+      if (formData.location?.trim()) {
+        updateData.location = formData.location.trim();
       }
 
       // Save phone for all roles
@@ -388,13 +400,13 @@ export default function ProfileBasicsPage() {
             last_name: formData.lastName,
             full_name: fullName,
             chapter: formData.chapter,
-            industry: formData.industry || 'Not specified',
+            industry: formData.industry.trim(),
             graduation_year: parseInt(formData.graduationYear),
-            company: formData.company || 'Not specified',
-            job_title: formData.jobTitle || 'Not specified',
+            company: formData.company.trim(),
+            job_title: formData.jobTitle.trim(),
             email: formData.email || user.email,
             phone: formData.phone || null,
-            location: formData.location || 'Not specified',
+            location: formData.location.trim(),
             description: `Alumni from ${chapterName}`,
             avatar_url: profile?.avatar_url || null,
             verified: false,
@@ -574,7 +586,7 @@ export default function ProfileBasicsPage() {
             {/* Major */}
             <div className="space-y-2">
               <Label htmlFor="major" className="flex items-center gap-2">
-                Major {effectiveRole === 'active_member' ? '*' : '(Optional)'}
+                Major {majorRequired ? '*' : '(Optional)'}
               </Label>
               <SearchableSelect
                 value={formData.major}
@@ -589,8 +601,8 @@ export default function ProfileBasicsPage() {
               )}
             </div>
 
-            {/* Additional Information - shown for all roles */}
-            {(effectiveRole === 'active_member' || isAlumni) && (
+            {/* Additional Information - active members, admins, and alumni */}
+            {(effectiveRole === 'active_member' || effectiveRole === 'admin' || isAlumni) && (
               <>
                 <div className="border-t pt-6 mt-6">
                   <h3 className="text-sm font-medium text-gray-900 mb-4 flex items-center gap-2">
@@ -640,14 +652,18 @@ export default function ProfileBasicsPage() {
                     <div className="space-y-2">
                       <Label htmlFor="location" className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-gray-400" />
-                        Current Location (Optional)
+                        Current Location *
                       </Label>
                       <Input
                         id="location"
                         value={formData.location}
                         onChange={(e) => handleChange('location', e.target.value)}
                         placeholder="e.g., Tampa, FL"
+                        className={cn(errors.location && 'border-red-500')}
                       />
+                      {errors.location && (
+                        <p className="text-sm text-red-500">{errors.location}</p>
+                      )}
                     </div>
                   </div>
 
@@ -703,22 +719,30 @@ export default function ProfileBasicsPage() {
                   {/* Company & Job Title */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="company">Company (Optional)</Label>
+                      <Label htmlFor="company">Company *</Label>
                       <Input
                         id="company"
                         value={formData.company}
                         onChange={(e) => handleChange('company', e.target.value)}
                         placeholder="e.g., Acme Corp"
+                        className={cn(errors.company && 'border-red-500')}
                       />
+                      {errors.company && (
+                        <p className="text-sm text-red-500">{errors.company}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="jobTitle">Job Title (Optional)</Label>
+                      <Label htmlFor="jobTitle">Job Title *</Label>
                       <Input
                         id="jobTitle"
                         value={formData.jobTitle}
                         onChange={(e) => handleChange('jobTitle', e.target.value)}
                         placeholder="e.g., Software Engineer"
+                        className={cn(errors.jobTitle && 'border-red-500')}
                       />
+                      {errors.jobTitle && (
+                        <p className="text-sm text-red-500">{errors.jobTitle}</p>
+                      )}
                     </div>
                   </div>
                 </div>
