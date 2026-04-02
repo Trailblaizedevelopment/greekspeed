@@ -7,6 +7,8 @@ import { buildPushPayload } from '@/lib/services/notificationPushPayload';
 import { sendPushToUser } from '@/lib/services/oneSignalPushService';
 import { canSendEmailNotification } from '@/lib/utils/checkEmailPreferences';
 import { EmailService } from '@/lib/services/emailService';
+import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
+import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 
 export async function GET(
   request: NextRequest,
@@ -265,10 +267,18 @@ export async function POST(
       }
     }
 
-    // Only create metadata object if we have link previews
-    // This prevents storing empty {} which Supabase might convert to {}
-    const finalMetadata = linkPreviews.length > 0 
-    ? { link_previews: linkPreviews }
+    // Resolve @mentions server-side
+    const mentionUsernames = parseMentions(content);
+    const resolvedMentions = mentionUsernames.length > 0
+      ? await resolveMentions(supabase, mentionUsernames, post.chapter_id)
+      : [];
+
+    // Build metadata with link previews and mentions
+    const finalMetadata = (linkPreviews.length > 0 || resolvedMentions.length > 0)
+    ? {
+        ...(linkPreviews.length > 0 ? { link_previews: linkPreviews } : {}),
+        ...(resolvedMentions.length > 0 ? { mentions: resolvedMentions } : {}),
+      }
     : undefined;
 
     // Create comment
@@ -379,6 +389,19 @@ export async function POST(
           }
         }
       }
+    }
+
+    // Send mention notifications (fire and forget, excluding the comment/reply notification recipient)
+    if (resolvedMentions.length > 0 && comment) {
+      sendMentionNotifications({
+        mentionedUsers: resolvedMentions,
+        actorUserId: user.id,
+        contentType: 'comment',
+        contentId: comment.id,
+        postId,
+        contentPreview: content.trim().slice(0, 80),
+        supabase,
+      }).catch((err) => console.error('Failed to send mention notifications:', err));
     }
 
     return NextResponse.json({ comment });
