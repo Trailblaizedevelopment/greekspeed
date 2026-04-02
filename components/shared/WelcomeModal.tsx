@@ -43,6 +43,8 @@ const features = [
  * appears above the dashboard header (z-[10002]/z-[10003]). Mobile: bottom
  * sheet via flex items-end; desktop: centered with flex (no left-50% / translate,
  * avoids jump when scrollbar disappears under modal lock).
+ * Vaul bottom drawers add a ::after extension for sheet drag UX; we hide it here
+ * so a centered desktop panel does not show a long white tail below the card.
  */
 export function WelcomeModal({
   profile,
@@ -110,16 +112,18 @@ export function WelcomeModal({
               pointer-events-auto
               relative flex flex-col
               w-full sm:max-w-2xl
-              max-h-[95dvh] sm:max-h-[90vh] min-h-[40dvh]
+              max-h-[95dvh] sm:max-h-[90vh] min-h-[40dvh] sm:min-h-0
+              overflow-y-auto overflow-x-hidden
               rounded-t-[20px] sm:rounded-lg
               bg-white shadow-2xl border border-gray-200 border-b-0 sm:border
               outline-none p-0
+              [&::after]:hidden
             "
           >
           {/* Drag handle - mobile */}
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-2 sm:hidden" aria-hidden />
 
-          <Card className="border-0 shadow-none h-full flex flex-col rounded-none sm:rounded-lg overflow-hidden">
+          <Card className="border-0 shadow-none flex flex-col rounded-none sm:rounded-lg">
             <CardHeader className="relative pb-2 md:pb-3 flex-shrink-0">
               <div className="flex items-center justify-center mb-2 md:mb-3">
                 <div
@@ -156,7 +160,7 @@ export function WelcomeModal({
               </Button>
             </CardHeader>
 
-            <CardContent className="pt-0 px-3 md:px-4 pb-3 md:pb-4 flex-1 flex flex-col min-h-0 overflow-y-auto">
+            <CardContent className="flex flex-col pt-0 px-3 md:px-4 pb-3 md:pb-4">
               {/* Features Grid */}
               <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3 md:mb-4">
                 {features.map((feature) => (
@@ -201,7 +205,7 @@ export function WelcomeModal({
               </div>
 
               {/* Buttons */}
-              <div className="flex flex-col sm:flex-row justify-center gap-2 mt-auto flex-shrink-0">
+              <div className="flex flex-shrink-0 flex-col justify-center gap-2 sm:flex-row">
                 <Button
                   onClick={markSeenAndClose}
                   variant="outline"
