@@ -270,7 +270,43 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 |------|--------|
 | Env | `CROWDED_API_BASE_URL=https://sandbox-api.crowdedfinance.com` (sandbox); Bearer token in env (e.g. `CROWDED_API_TOKEN`); webhook secret when known |
 | Client | `lib/services/crowded/crowded-client.ts` — `Authorization: Bearer`, base URL from env |
-| Test | `npm run test:crowded` — update to match Postman (Bearer + sandbox base) when implementing TRA-409 |
+| Chapter ↔ Crowded IDs | `public.chapters.crowded_chapter_id`, `crowded_organization_id` (nullable UUIDs). Set per chapter per environment (e.g. Supabase SQL `UPDATE`). Maps Trailblaize `chapters.id` → Crowded path segment for `/api/v1/chapters/:chapterId/...`. |
+| Resolver | `lib/services/crowded/chapterCrowdedMapping.ts` — `getCrowdedIdsForTrailblaizeChapter(supabase, trailblaizeChapterId)` returns `{ crowdedChapterId, crowdedOrganizationId }` or `null`. Use server-side with service role or RLS-safe client. |
+| Types | `types/chapter.ts` — `Chapter` includes optional `crowded_chapter_id` / `crowded_organization_id`. |
+| Test | `npm run test:crowded` — optional `CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID` + `SUPABASE_SERVICE_ROLE_KEY` loads mapping from DB then calls Crowded `listContacts` (TRA-561 smoke). |
+| Unit tests | `npm run test:crowded:unit` — `lib/services/crowded/crowded-client.accounts.test.ts` (`CrowdedApiError` / `NO_CUSTOMER` helpers, `mapCrowdedAccountToSyncFields`). |
+| DB (TRA-410 + TRA-561) | `supabase/migrations/20260401160000_add_chapters_crowded_mapping.sql` — `chapters.crowded_chapter_id` / `crowded_organization_id`. `20260401181943_crowded_accounts_and_transactions.sql` — `crowded_accounts`, `crowded_transactions` + RLS `SELECT` for chapter members. |
+| Account → DB row | `lib/services/crowded/crowdedAccountMapping.ts` — `mapCrowdedAccountToSyncFields` for future sync jobs (balances assumed minor units; confirm with Crowded before production). |
+| Supabase row types | `types/crowdedDb.ts` — `CrowdedAccountRow`, `CrowdedTransactionRow`. |
+| Feature flag (TRA-411) | `types/featureFlags.ts` — `crowded_integration_enabled` (default **false**). `app/dashboard/feature-flags/page.tsx` — exec toggle. Persisted via existing chapter feature-flags API. |
+
+---
+
+## Implementation scan & follow-ups (Apr 2026)
+
+**Linear — [Crowded Integration Strategy](https://linear.app/trailblaize/project/crowded-integration-strategy-6e845cc7474a/issues)** (project milestone *Foundation & Core Payment Migration*). Use this table when picking up work: **Done** items match what is in the repo today; **In Progress / Backlog** are the natural return points.
+
+| Ticket | Title | Linear status (snapshot) | In codebase? |
+|--------|--------|--------------------------|--------------|
+| [TRA-409](https://linear.app/trailblaize/issue/TRA-409) | Env & API client | Done | Yes — `crowded-client`, `createCrowdedClientFromEnv`, `.env.example` |
+| [TRA-561](https://linear.app/trailblaize/issue/TRA-561) | Chapter ↔ Crowded UUID stub | Done | Yes — columns + `chapterCrowdedMapping.ts` |
+| [TRA-410](https://linear.app/trailblaize/issue/TRA-410) | DB: accounts + transactions | Done | Yes — migration `20260401181943_*`, types `crowdedDb.ts`, `docs/DATABASE_SCHEMA.md` |
+| [TRA-411](https://linear.app/trailblaize/issue/TRA-411) | Feature flag | Done | Yes — `crowded_integration_enabled`, dashboard UI |
+| [TRA-412](https://linear.app/trailblaize/issue/TRA-412) | Account management API methods | In Progress | **Partial** — `listAccounts`, `getAccount`, query params on list; **not** create / bulk create yet |
+| [TRA-414](https://linear.app/trailblaize/issue/TRA-414) | Collections + intents | Backlog | **Not implemented** — no client methods; blocked in sandbox until terms accepted (see Pass 3) |
+| [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | Backlog | **Not implemented** |
+| [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** — no `/api/webhooks/crowded` |
+| [TRA-417](https://linear.app/trailblaize/issue/TRA-417) | Treasurer balance UI | Backlog | **Not implemented** — depends on live `GET …/accounts` + sync story |
+| [TRA-418](https://linear.app/trailblaize/issue/TRA-418) | Payment sync service | Backlog | **Not implemented** — `crowded_transactions` table exists; no sync job |
+
+**Revisit later (implementation notes)**
+
+1. **TRA-412 — Complete account API surface:** Add `postJson` wrappers for Crowded bulk/create account endpoints when product confirms paths and payloads; wire **NO_CUSTOMER** / typed errors in UI and sync jobs (`isCrowdedNoCustomerError` is already available).
+2. **TRA-410 / sync — Use `mapCrowdedAccountToSyncFields`:** No cron or API route calls it yet; first sync should upsert `crowded_accounts` then populate `crowded_transactions` per TRA-418.
+3. **TRA-411 — Gate server routes:** Flag exists in DB/UI; **dues and Crowded API calls** should check `crowded_integration_enabled` (and chapter mapping) before hitting Crowded — not yet centralized in a middleware/helper.
+4. **Collections / dues / webhooks:** Still aligned with **Pass 3–4** in this doc; Postman/API gaps (terms, pay URL) unchanged until Crowded unblocks sandbox.
+5. **`CROWDED_VALIDATE_RESPONSES`:** Optional strict Zod on all responses — off by default; turn on when stabilizing schemas against production payloads.
+6. **Later milestones** (e.g. TRA-423+): Expense/spending issues in Linear are **backlog**; no code in `lib/services/crowded` for cards/expenses yet.
 
 ---
 
@@ -289,6 +325,8 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 | Mar 2026 | **Contacts** list + get by id | **200** with `{{chapter_id}}` + `{{contact_id}}`; literal `contact_id` in path → **404**. |
 | Mar 2026 | **GET accounts** (correct UUID in path) | **400** `NO_CUSTOMER` — confirmed not a Postman placeholder bug; needs banking customer / portal setup. |
 | Mar 2026 | **POST Create Collection** | **401** `"To proceed, please accept terms"` — block on Crowded terms / account state; ask Crowded where to accept for partner API. |
+| Apr 2026 | **TRA-561 repo** | `chapters.crowded_*` columns + migration; `getCrowdedIdsForTrailblaizeChapter`; optional `CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID` in `npm run test:crowded`. |
+| Apr 2026 | **Repo scan + Linear** | Documented shipped vs backlog: TRA-410/411 DB + flag; `listAccounts`/`getAccount` + account mapping helper + unit test; **Implementation scan & follow-ups** section added. |
 
 ---
 
@@ -314,10 +352,10 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
    Add to **`.env.local`** (values stay private):  
    - `CROWDED_API_BASE_URL=https://sandbox-api.crowdedfinance.com`  
    - `CROWDED_API_TOKEN=<your sandbox JWT>`  
-   When you want the CLI test to match Postman, ask Cursor (Agent) to update `scripts/test-crowded-api.ts` to use **Bearer** + this base URL.
+   `scripts/test-crowded-api.ts` already uses **Bearer** via `createCrowdedClientFromEnv()` — no separate Postman parity change needed.
 
 8. **Linear**  
-   Continue **TRA-409** (client + env) using this doc as the source of truth for base URL and auth style. **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
+   **TRA-409** (client + env) is shipped; use the **Implementation scan & follow-ups (Apr 2026)** section above for the next tickets (**TRA-412** in progress, **414–418** backlog). **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
 
 ---
 

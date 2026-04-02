@@ -14,7 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import type { Chapter } from '@/types/chapter';
-import type { ChapterFeatureFlags } from '@/types/featureFlags';
+import { DEFAULT_FEATURE_FLAGS, type ChapterFeatureFlags } from '@/types/featureFlags';
 
 interface ChapterWithFlags extends Chapter {
   feature_flags?: ChapterFeatureFlags;
@@ -69,27 +69,22 @@ export default function FeatureFlagsPage() {
               const flagsData = await flagsResponse.json();
               return {
                 ...chapter,
-                feature_flags: flagsData.feature_flags || {}
+                feature_flags: {
+                  ...DEFAULT_FEATURE_FLAGS,
+                  ...(flagsData.feature_flags || {}),
+                },
               };
             }
-            // Default to all enabled if fetch fails
+            // Default if fetch fails
             return {
               ...chapter,
-              feature_flags: {
-                financial_tools_enabled: true,
-                recruitment_crm_enabled: true,
-                events_management_enabled: true,
-              }
+              feature_flags: { ...DEFAULT_FEATURE_FLAGS },
             };
           } catch (err) {
             console.error(`Error fetching flags for chapter ${chapter.id}:`, err);
             return {
               ...chapter,
-              feature_flags: {
-                financial_tools_enabled: true,
-                recruitment_crm_enabled: true,
-                events_management_enabled: true,
-              }
+              feature_flags: { ...DEFAULT_FEATURE_FLAGS },
             };
           }
         })
@@ -218,11 +213,7 @@ export default function FeatureFlagsPage() {
               </Card>
             ) : (
               filteredChapters.map((chapter) => {
-                const flags = chapter.feature_flags || {
-                  financial_tools_enabled: true,
-                  recruitment_crm_enabled: true,
-                  events_management_enabled: true,
-                };
+                const flags = chapter.feature_flags || { ...DEFAULT_FEATURE_FLAGS };
                 const isSaving = saving === chapter.id;
 
                 return (
@@ -241,7 +232,7 @@ export default function FeatureFlagsPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* Financial Tools Toggle */}
                         <div className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex items-center space-x-2">
@@ -300,6 +291,33 @@ export default function FeatureFlagsPage() {
                             <span
                               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                                 flags.events_management_enabled ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Crowded integration (opt-in) */}
+                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <Flag className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm font-medium">Crowded integration</span>
+                          </div>
+                          <button
+                            onClick={() =>
+                              toggleFlag(
+                                chapter.id,
+                                'crowded_integration_enabled',
+                                flags.crowded_integration_enabled ?? false
+                              )
+                            }
+                            disabled={isSaving}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              flags.crowded_integration_enabled ? 'bg-green-500' : 'bg-gray-300'
+                            } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                flags.crowded_integration_enabled ? 'translate-x-6' : 'translate-x-1'
                               }`}
                             />
                           </button>
