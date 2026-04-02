@@ -661,8 +661,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           <Sheet open={mobileSheetOpen} onOpenChange={handleSheetOpenChange}>
             <SheetContent
               side="bottom"
-              className="z-[10060] max-h-[85dvh] rounded-t-2xl border-t border-slate-200 p-0 flex flex-col gap-0 bg-white"
-              backdropClassName="z-[10050]"
+              className="max-h-[85dvh] rounded-t-2xl border-t border-slate-200 p-0 flex flex-col gap-0 bg-white"
             >
               <div data-mention-sheet="" className="flex max-h-[85dvh] flex-col">
                 <SheetHeader className="border-b border-slate-100 px-4 pb-3 pt-4 text-left">

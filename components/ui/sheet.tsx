@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 
@@ -71,19 +72,22 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
 
     if (!context.isOpen) return null;
 
-    return (
+    if (typeof document === "undefined") return null;
+
+    return createPortal(
       <>
-        {/* Backdrop - Click outside to close */}
         <div
-          className={cn("fixed inset-0 bg-black/50 z-[9998] backdrop-blur-sm", backdropClassName)}
+          className={cn(
+            "fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm",
+            backdropClassName
+          )}
           onClick={() => context.setIsOpen(false)}
+          aria-hidden
         />
-        
-        {/* Content */}
         <div
           ref={ref}
           className={cn(
-            "fixed z-[9999] bg-white shadow-lg",
+            "fixed z-[10000] bg-white shadow-lg",
             sideClasses[side],
             className
           )}
@@ -91,7 +95,8 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
         >
           {children}
         </div>
-      </>
+      </>,
+      document.body
     );
   }
 );
