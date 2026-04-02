@@ -99,6 +99,11 @@ export interface MentionTextareaProps {
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   /** Alias for onKeyDown — CommentModal uses onKeyPress */
   onKeyPress?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  /**
+   * Mobile mention bottom sheet: portal to body (default) for feed/comment flows.
+   * Set false for CreatePostModal to use inline sheet stacking (z-9998/9999) inside the dialog.
+   */
+  mentionSheetPortal?: boolean;
 }
 
 export interface MentionTextareaHandle {
@@ -125,6 +130,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
       onBlur,
       onKeyDown,
       onKeyPress,
+      mentionSheetPortal = true,
     },
     ref
   ) {
@@ -661,6 +667,7 @@ const MentionTextarea = forwardRef<MentionTextareaHandle, MentionTextareaProps>(
           <Sheet open={mobileSheetOpen} onOpenChange={handleSheetOpenChange}>
             <SheetContent
               side="bottom"
+              portal={mentionSheetPortal}
               data-mention-sheet=""
               className="max-h-[85dvh] rounded-t-2xl border-t border-slate-200 p-0 flex flex-col gap-0 bg-white"
             >

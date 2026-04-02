@@ -43,8 +43,8 @@ const MAX_IMAGES = 10;
 /** Set true to use bottom drawer on mobile; edit mode uses same header/footer logic. */
 const USE_CREATE_POST_DRAWER_MOBILE = false;
 
-/** Mention sheet is portaled to `document.body`; Radix Dialog must ignore those pointers. */
-function isPortaledMentionSheetTarget(target: EventTarget | null): boolean {
+/** Mention sheet UI or portaled app-sheet backdrop; Radix Dialog must ignore those pointers. */
+function isMentionSheetRelatedTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   return (
     target.closest('[data-mention-sheet]') !== null ||
@@ -57,7 +57,7 @@ function preventDialogDismissIfMentionSheetOutside(e: {
   detail: { originalEvent: Event };
 }): void {
   const t = e.detail?.originalEvent?.target ?? null;
-  if (isPortaledMentionSheetTarget(t)) e.preventDefault();
+  if (isMentionSheetRelatedTarget(t)) e.preventDefault();
 }
 
 export function CreatePostModal({
@@ -380,6 +380,7 @@ export function CreatePostModal({
           onBlur={() => setIsInputFocused(false)}
           className="min-h-[120px] sm:min-h-[100px] resize-none rounded-2xl border border-transparent bg-slate-50/80 p-5 text-base sm:text-lg text-slate-800 placeholder:text-slate-400 focus:border-primary-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-200 transition"
           disabled={isSubmitting}
+          mentionSheetPortal={false}
         />
 
         {uploadError && (

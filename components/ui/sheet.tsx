@@ -14,6 +14,12 @@ interface SheetContentProps {
   className?: string;
   backdropClassName?: string;
   side?: "left" | "right" | "top" | "bottom";
+  /**
+   * When false, render backdrop + panel in the React tree (legacy stacking: z-9998 / z-9999).
+   * Used for @mention sheet inside CreatePostModal so it matches pre-portal behavior.
+   * Default true: portal to document.body with z-9999 / z-10000 and data-app-sheet-backdrop.
+   */
+  portal?: boolean;
 }
 
 interface SheetHeaderProps {
@@ -57,7 +63,10 @@ export const Sheet = React.forwardRef<HTMLDivElement, SheetProps>(
 Sheet.displayName = "Sheet";
 
 export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
-  ({ children, className, backdropClassName, side = "right", ...props }, ref) => {
+  (
+    { children, className, backdropClassName, side = "right", portal = true, ...props },
+    ref
+  ) => {
     const context = React.useContext(SheetContext);
     if (!context) {
       throw new Error("SheetContent must be used within a Sheet");
@@ -72,32 +81,52 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
 
     if (!context.isOpen) return null;
 
-    if (typeof document === "undefined") return null;
+    const backdrop = (
+      <div
+        {...(portal ? { "data-app-sheet-backdrop": "" as const } : {})}
+        className={cn(
+          portal
+            ? "fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm"
+            : "fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm",
+          backdropClassName
+        )}
+        onClick={() => context.setIsOpen(false)}
+        aria-hidden
+      />
+    );
 
-    return createPortal(
+    const panel = (
+      <div
+        ref={ref}
+        className={cn(
+          portal
+            ? "fixed z-[10000] bg-white shadow-lg"
+            : "fixed z-[9999] bg-white shadow-lg",
+          sideClasses[side],
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+
+    if (portal) {
+      if (typeof document === "undefined") return null;
+      return createPortal(
+        <>
+          {backdrop}
+          {panel}
+        </>,
+        document.body
+      );
+    }
+
+    return (
       <>
-        <div
-          data-app-sheet-backdrop=""
-          className={cn(
-            "fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm",
-            backdropClassName
-          )}
-          onClick={() => context.setIsOpen(false)}
-          aria-hidden
-        />
-        <div
-          ref={ref}
-          className={cn(
-            "fixed z-[10000] bg-white shadow-lg",
-            sideClasses[side],
-            className
-          )}
-          {...props}
-        >
-          {children}
-        </div>
-      </>,
-      document.body
+        {backdrop}
+        {panel}
+      </>
     );
   }
 );
