@@ -7,11 +7,10 @@ import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
 import { DuesStatusCard } from './ui/DuesStatusCard';
 import { Event } from '@/types/events';
 import { MyTasksCard } from './ui/MyTasksCard';
-import { UpcomingEventsCard } from './ui/UpcomingEventsCard';
 import { AnnouncementsCard } from './ui/AnnouncementsCard';
 import { AnnouncementsProvider } from '@/lib/contexts/AnnouncementsContext';
 import { DocsCompliancePanel } from './ui/DocsCompliancePanel';
-import { CompactCalendarCard } from './ui/CompactCalendarCard';
+import { CalendarEventsWeekCard } from './ui/CalendarEventsWeekCard';
 import { MobileBottomNavigation, MobileTab } from './ui/MobileBottomNavigation';
 import { MobileTasksPage } from './ui/MobileTasksPage';
 import { MobileAnnouncementsPage } from './ui/MobileAnnouncementsPage';
@@ -57,7 +56,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
     try {
       setEventsLoading(true);
       setEventsError(null);
-      // Single call with scope=all AND user_id — covers both components
+      // Single call with scope=all AND user_id — tablet UpcomingEventsCard + desktop CalendarEventsWeekCard
       const response = await fetch(
         `/api/events?chapter_id=${chapterId}&scope=all&user_id=${profile.id}`
       );
@@ -213,8 +212,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           <div className="col-span-4">
             <div className="space-y-4">
               <FeatureGuard flagName="events_management_enabled">
-                <UpcomingEventsCard
-                  chapterId={chapterId}
+                <CalendarEventsWeekCard
                   userId={profile?.id}
                   events={allEvents}
                   loading={eventsLoading}
@@ -253,16 +251,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           <div className="col-span-3 col-start-10 row-start-1">
             <div className="space-y-6">
               <FeatureGuard flagName="events_management_enabled">
-                <CompactCalendarCard
-                  events={allEvents}
-                  loading={eventsLoading}
-                  error={eventsError}
-                  onRetry={fetchAllEvents}
-                />
-              </FeatureGuard>
-              <FeatureGuard flagName="events_management_enabled">
-                <UpcomingEventsCard
-                  chapterId={chapterId}
+                <CalendarEventsWeekCard
                   userId={profile?.id}
                   events={allEvents}
                   loading={eventsLoading}
