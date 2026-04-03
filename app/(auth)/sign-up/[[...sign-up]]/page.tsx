@@ -560,7 +560,7 @@ export default function SignUpPage() {
                     Welcome to Trailblaize
                   </h1>
                   <p className="text-base text-gray-700 mb-6 leading-relaxed">
-                    Rethink the way you connect, manage, and grow your fraternity network
+                    Rethink the way you connect, manage, and grow your organization's network
                   </p>
                   
                   {/* Networking Lottie - desktop only */}

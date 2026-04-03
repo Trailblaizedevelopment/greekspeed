@@ -162,7 +162,7 @@ export function ChaptersTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading chapters...</div>
+        <div className="text-gray-500">Loading organization...</div>
       </div>
     );
   }
@@ -172,15 +172,15 @@ export function ChaptersTab() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Chapter Management</h2>
-          <p className="text-gray-600">Create and manage fraternity chapters</p>
+          <h2 className="text-2xl font-bold text-gray-900">Organization Management</h2>
+          <p className="text-gray-600">Create and manage your organization's at scale</p>
         </div>
         <Button 
           onClick={() => setShowCreateForm(true)} 
           className="flex items-center space-x-2"
         >
           <Plus className="h-4 w-4" />
-          <span>Create Chapter</span>
+          <span>Create Organization</span>
         </Button>
       </div>
 
