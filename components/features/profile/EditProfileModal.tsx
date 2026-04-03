@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { AvatarService } from '@/lib/services/avatarService';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -28,6 +27,11 @@ import { ImageCropper, type CropType } from '@/components/features/common/ImageC
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
+
+const ALUMNI_INDUSTRY_OPTIONS = [
+  { value: '', label: 'Select Industry' },
+  ...industries.map((industry) => ({ value: industry, label: industry })),
+];
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -772,6 +776,10 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
   const isMobile = variant === 'mobile';
 
   const graduationYears = profile?.role === 'alumni' ? getGraduationYears() : [];
+  const graduationYearOptions = graduationYears.map((year) => ({
+    value: String(year),
+    label: String(year),
+  }));
 
   // Keyboard-aware drawer sizing (mobile only)
   const keyboardOpen = isMobile && visualHeight < fullInnerHeight - 50;
@@ -1003,17 +1011,14 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                   {profile?.role === 'alumni' && (
                     <div>
                       <Label htmlFor="grad_year">Graduation Year</Label>
-                      <Select
+                      <SearchableSelect
                         value={formData.grad_year || ''}
                         onValueChange={(value) => handleInputChange('grad_year', value)}
+                        options={graduationYearOptions}
                         placeholder="Select graduation year"
-                      >
-                        {graduationYears.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </Select>
+                        searchPlaceholder="Search years..."
+                        className="mt-1"
+                      />
                     </div>
                   )}
                 </div>
@@ -1036,22 +1041,14 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="industry">Industry</Label>
-                        <Select
+                        <SearchableSelect
                           value={formData.industry || ''}
                           onValueChange={(value) => handleInputChange('industry', value)}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">Select Industry</SelectItem>
-                            {industries.map((industry) => (
-                              <SelectItem key={industry} value={industry}>
-                                {industry}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={ALUMNI_INDUSTRY_OPTIONS}
+                          placeholder="Select Industry"
+                          searchPlaceholder="Search industries..."
+                          className="mt-1"
+                        />
                       </div>
                       <div>
                         <Label htmlFor="company">Company</Label>

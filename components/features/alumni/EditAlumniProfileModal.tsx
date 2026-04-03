@@ -19,13 +19,18 @@ import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection
 import type { DetectedChange } from '@/components/features/profile/ProfileUpdatePromptModal';
 import { getGraduationYears, industries } from '@/lib/alumniConstants';
 import { queueProfileUpdatePrompt } from '@/lib/utils/profileUpdatePromptQueue';
-import { Select, SelectItem } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { UsernameInput } from '@/components/features/profile/UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
+
+const ALUMNI_INDUSTRY_OPTIONS = [
+  { value: '', label: 'Select Industry' },
+  ...industries.map((industry) => ({ value: industry, label: industry })),
+];
 
 interface EditAlumniProfileModalProps {
   isOpen: boolean;
@@ -651,6 +656,10 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
   const isMobile = variant === 'mobile';
 
   const graduationYears = getGraduationYears();
+  const graduationYearOptions = graduationYears.map((year) => ({
+    value: String(year),
+    label: String(year),
+  }));
 
   const keyboardOpen = isMobile && visualHeight < fullInnerHeight - 50;
   const mobileDrawerStyle: React.CSSProperties | undefined = keyboardOpen
@@ -869,17 +878,14 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                   
                   <div>
                     <Label htmlFor="graduation_year">Graduation Year</Label>
-                    <Select
-                      value={formData.graduation_year}
+                    <SearchableSelect
+                      value={formData.graduation_year || ''}
                       onValueChange={(value) => handleInputChange('graduation_year', value)}
+                      options={graduationYearOptions}
                       placeholder="Select graduation year"
-                    >
-                      {graduationYears.map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </Select>
+                      searchPlaceholder="Search years..."
+                      className="mt-1"
+                    />
                   </div>
                 </div>
               </div>
@@ -898,17 +904,14 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="industry">Industry</Label>
-                    <Select
+                    <SearchableSelect
                       value={formData.industry || ''}
                       onValueChange={(value) => handleInputChange('industry', value)}
-                    >
-                      <SelectItem value="">Select Industry</SelectItem>
-                      {industries.map((industry) => (
-                        <SelectItem key={industry} value={industry}>
-                          {industry}
-                        </SelectItem>
-                      ))}
-                    </Select>
+                      options={ALUMNI_INDUSTRY_OPTIONS}
+                      placeholder="Select Industry"
+                      searchPlaceholder="Search industries..."
+                      className="mt-1"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="company">Company</Label>
