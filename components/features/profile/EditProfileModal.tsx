@@ -111,6 +111,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
   // Form ref for programmatic submission
   const formRef = useRef<HTMLFormElement>(null);
+  const drawerContentRef = useRef<HTMLDivElement>(null);
 
   // Add loading state to prevent modal flicker
   const [isModalReady, setIsModalReady] = useState(false);
@@ -804,6 +805,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[10002] bg-black/50 transition-opacity" />
         <Drawer.Content
+          ref={drawerContentRef}
           className={`
             bg-white flex flex-col z-[10003]
             fixed bottom-0 left-0 right-0
@@ -1020,6 +1022,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         placeholder="Select graduation year"
                         searchPlaceholder="Search years..."
                         className="mt-1"
+                        portalContainerRef={drawerContentRef}
                       />
                     </div>
                   )}
@@ -1050,6 +1053,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                           placeholder="Select Industry"
                           searchPlaceholder="Search industries..."
                           className="mt-1"
+                          portalContainerRef={drawerContentRef}
                         />
                       </div>
                       <div>

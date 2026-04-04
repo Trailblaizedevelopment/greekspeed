@@ -99,6 +99,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
 
   // Form ref for programmatic submission
   const formRef = useRef<HTMLFormElement>(null);
+  const drawerContentRef = useRef<HTMLDivElement>(null);
 
   // SessionStorage persistence functions
   const saveFormDataToStorage = useCallback((data: typeof formData) => {
@@ -683,6 +684,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[10002] bg-black/50 transition-opacity" />
         <Drawer.Content
+          ref={drawerContentRef}
           className={`
             bg-white flex flex-col z-[10003]
             fixed bottom-0 left-0 right-0
@@ -887,6 +889,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                       placeholder="Select graduation year"
                       searchPlaceholder="Search years..."
                       className="mt-1"
+                      portalContainerRef={drawerContentRef}
                     />
                   </div>
                 </div>
@@ -913,6 +916,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                       placeholder="Select Industry"
                       searchPlaceholder="Search industries..."
                       className="mt-1"
+                      portalContainerRef={drawerContentRef}
                     />
                   </div>
                   <div>
