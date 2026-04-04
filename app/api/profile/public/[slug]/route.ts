@@ -22,11 +22,40 @@ export async function GET(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
+    // Fetch connection count and event RSVPs using service role
+    const supabaseService = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const [connectionCountResult, eventRsvpsResult] = await Promise.all([
+      supabaseService
+        .from('connections')
+        .select('id', { count: 'exact', head: true })
+        .or(`requester_id.eq.${profile.id},recipient_id.eq.${profile.id}`)
+        .eq('status', 'accepted'),
+      supabaseService
+        .from('event_rsvps')
+        .select('event_id, events!inner(id, title, start_time, location, status)')
+        .eq('user_id', profile.id)
+        .in('status', ['attending', 'going'])
+        .gte('events.start_time', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
+
+    const connectionCount = connectionCountResult.count ?? 0;
+    const userEventRsvps = (eventRsvpsResult.data || [])
+      .map((r: Record<string, unknown>) => r.events as { id: string; title: string; start_time: string; location?: string; status?: string } | null)
+      .filter(Boolean)
+      .filter((e) => e!.status !== 'cancelled');
+
     // Try to get viewer (optional authentication)
     let viewerId: string | null = null;
     let isOwnProfile = false;
     let connectionStatus: 'none' | 'pending_sent' | 'pending_received' | 'accepted' | 'declined' | 'blocked' = 'none';
     let connectionId: string | null = null;
+    let sharedChapter: string | null = null;
 
     try {
       const cookieStore = await cookies();
@@ -52,11 +81,6 @@ export async function GET(
 
         // Get connection status if not own profile
         if (!isOwnProfile) {
-          const supabaseService = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-          );
-
           const { data: connections } = await supabaseService
             .from('connections')
             .select('id, status, requester_id, recipient_id')
@@ -69,6 +93,19 @@ export async function GET(
               connectionStatus = connections.requester_id === viewerId ? 'pending_sent' : 'pending_received';
             } else {
               connectionStatus = connections.status as 'accepted' | 'declined' | 'blocked';
+            }
+          }
+
+          // Check shared chapter
+          if (profile.chapter_id) {
+            const { data: viewerProfile } = await supabaseService
+              .from('profiles')
+              .select('chapter_id')
+              .eq('id', viewerId)
+              .single();
+
+            if (viewerProfile?.chapter_id === profile.chapter_id) {
+              sharedChapter = profile.chapter || null;
             }
           }
         }
@@ -123,6 +160,11 @@ export async function GET(
         emailVisible,
         phoneVisible,
         locationVisible,
+      },
+      enrichment: {
+        connectionCount,
+        sharedChapter,
+        eventRsvps: userEventRsvps,
       },
     });
   } catch (error) {
