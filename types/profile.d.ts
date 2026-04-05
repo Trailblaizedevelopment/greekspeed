@@ -32,6 +32,9 @@ export type DeveloperPermission =
 
 export type AccessLevel = 'standard' | 'elevated' | 'admin';
 
+/** How the user signed up; null/undefined = legacy or unknown. */
+export type SignupChannel = 'marketing_alumni' | 'invitation' | 'chapter_slug';
+
 export interface Profile {
   id: string;
   email: string;
@@ -66,6 +69,7 @@ export interface Profile {
   welcome_seen?: boolean;
   onboarding_completed?: boolean;
   onboarding_completed_at?: string;
+  signup_channel?: SignupChannel | null;
 }
 
 export interface ProfileFormData {
