@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -149,6 +149,61 @@ export default function RoleChapterPage() {
   const useMarketingMembershipRequestFlow =
     profile?.signup_channel === 'marketing_alumni' && !hasInvitation;
 
+  /** TRA-590: shared POST so confirmation mode (sign-up pre-filled chapter/role) also queues the row. */
+  const postMarketingMembershipRequest = useCallback(
+    async (chapterUuid: string): Promise<boolean> => {
+      const {
+        data: { session: freshSession },
+      } = await supabase.auth.getSession();
+
+      let bearer = freshSession?.access_token;
+      if (!bearer) {
+        try {
+          bearer = getAuthHeaders().Authorization.replace(/^Bearer\s+/i, '');
+        } catch {
+          bearer = undefined;
+        }
+      }
+
+      if (!bearer) {
+        toast.error('Please sign in again to submit your chapter request.');
+        return false;
+      }
+
+      const requestRes = await fetch('/api/chapter-membership-requests', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chapterId: chapterUuid }),
+      });
+
+      const requestBody: { error?: string } = await requestRes.json().catch(() => ({}));
+      const errText =
+        typeof requestBody.error === 'string' ? requestBody.error.trim() : '';
+
+      if (requestRes.ok) {
+        return true;
+      }
+
+      if (requestRes.status === 400 && errText.includes('already exists')) {
+        return true;
+      }
+
+      const serverMsg =
+        errText ||
+        (requestRes.status === 401
+          ? 'Your session expired. Please sign in again.'
+          : requestRes.status === 403
+            ? 'You are not eligible to submit a request through this flow.'
+            : `Could not submit your chapter request (${requestRes.status}). Please try again.`);
+      toast.error(serverMsg);
+      return false;
+    },
+    [getAuthHeaders]
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !validateForm()) return;
@@ -218,46 +273,8 @@ export default function RoleChapterPage() {
       }
 
       if (useMarketingMembershipRequestFlow) {
-        const {
-          data: { session: freshSession },
-        } = await supabase.auth.getSession();
-
-        let bearer = freshSession?.access_token;
-        if (!bearer) {
-          try {
-            bearer = getAuthHeaders().Authorization.replace(/^Bearer\s+/i, '');
-          } catch {
-            bearer = undefined;
-          }
-        }
-
-        if (!bearer) {
-          toast.error('Please sign in again to submit your chapter request.');
-          setLoading(false);
-          return;
-        }
-
-        const requestRes = await fetch('/api/chapter-membership-requests', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${bearer}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ chapterId: selectedChapter.id }),
-        });
-
-        const requestBody: { error?: string } = await requestRes.json().catch(() => ({}));
-
-        if (!requestRes.ok) {
-          const serverMsg =
-            typeof requestBody.error === 'string' && requestBody.error.trim()
-              ? requestBody.error
-              : requestRes.status === 401
-                ? 'Your session expired. Please sign in again.'
-                : requestRes.status === 403
-                  ? 'You are not eligible to submit a request through this flow.'
-                  : `Could not submit your chapter request (${requestRes.status}). Please try again.`;
-          toast.error(serverMsg);
+        const ok = await postMarketingMembershipRequest(selectedChapter.id);
+        if (!ok) {
           setLoading(false);
           return;
         }
@@ -321,17 +338,36 @@ export default function RoleChapterPage() {
 
   // NOTE: Removed auto-skip - we now show confirmation mode for invitation users
 
-  // Handle confirmation mode continue (just complete step and move on)
+  // Handle confirmation mode continue (invitation: skip POST; marketing without chapter_id: POST first)
   const handleConfirmContinue = async () => {
     setLoading(true);
     try {
-      toast.success('Welcome! Let\'s continue setting up your profile.');
+      if (useMarketingMembershipRequestFlow && !profile?.chapter_id) {
+        const selectedChapter = chapters.find((c) => c.name === profile?.chapter?.trim());
+        if (!selectedChapter) {
+          toast.error(
+            'Could not match your chapter to our directory. Please contact support or try selecting your chapter again.'
+          );
+          setLoading(false);
+          return;
+        }
+        const ok = await postMarketingMembershipRequest(selectedChapter.id);
+        if (!ok) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      toast.success(
+        useMarketingMembershipRequestFlow && !profile?.chapter_id
+          ? 'Membership request sent. Continue to complete your profile.'
+          : 'Welcome! Let\'s continue setting up your profile.'
+      );
       await completeStep('role-chapter');
-      // Don't reset loading - page is navigating away
     } catch (error) {
       console.error('Error completing step:', error);
       toast.error('Something went wrong. Please try again.');
-      setLoading(false); // Only reset on error
+      setLoading(false);
     }
   };
 
@@ -412,7 +448,12 @@ export default function RoleChapterPage() {
             <div className="pt-0">
               <Button
                 onClick={handleConfirmContinue}
-                disabled={loading}
+                disabled={
+                  loading ||
+                  (useMarketingMembershipRequestFlow &&
+                    !profile?.chapter_id &&
+                    (chaptersLoading || chapters.length === 0))
+                }
                 className="w-full bg-brand-primary hover:bg-brand-primary-hover rounded-full"
               >
                 {loading ? (
