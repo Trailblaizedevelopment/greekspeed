@@ -2,9 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
 import { UserDropdown } from '@/components/features/profile/UserDropdown';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -15,9 +13,16 @@ import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { useChapterLogo } from '@/lib/hooks/useChapterLogo';
 import { ChapterSwitcher } from '@/components/features/dashboard/ChapterSwitcher';
 import { useActiveChapter } from '@/lib/contexts/ActiveChapterContext';
-
 // Small helper for consistent tab styling
-function NavLink({ href, label, locked = false }: { href: string; label: string; locked?: boolean }) {
+function NavLink({
+  href,
+  label,
+  locked = false,
+}: {
+  href: string;
+  label: string;
+  locked?: boolean;
+}) {
   const pathname = usePathname();
   const isActive = pathname === href;
 
@@ -40,13 +45,13 @@ function NavLink({ href, label, locked = false }: { href: string; label: string;
     <Link
       href={href}
       className={cn(
-        'relative flex items-center justify-center h-8 rounded-full px-3 sm:px-4 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-focus',
+        'relative flex items-center justify-center h-8 rounded-full px-3 sm:px-4 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-focus gap-1.5',
         isActive
           ? 'bg-brand-primary/10 text-brand-primary font-medium shadow-sm hover:bg-brand-primary/20 hover:shadow-md'
           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm shadow-sm'
       )}
     >
-      {label}
+      <span>{label}</span>
     </Link>
   );
 }
@@ -79,8 +84,15 @@ export function DashboardHeader() {
 
   const isGovernance = userRole === 'governance';
 
+  type NavTabConfig = {
+    href: string;
+    label: string;
+    roles: string[];
+    locked: boolean;
+  };
+
   // Define navigation tabs with role-based access
-  const navigationTabs = [
+  const navigationTabs: NavTabConfig[] = [
     { href: isGovernance ? '/dashboard/governance' : '/dashboard', label: 'Home', roles: ['admin', 'active_member', 'alumni', 'governance'], locked: false },
     { href: '/dashboard/alumni', label: 'Alumni', roles: ['admin', 'active_member', 'alumni', 'governance'], locked: false },
     { href: '/dashboard/dues', label: 'Dues', roles: ['active_member', 'admin', 'governance'], locked: false },
@@ -165,7 +177,12 @@ export function DashboardHeader() {
           {/* Desktop Navigation - Now appears next to logo with divider */}
           <div className="hidden sm:flex items-center space-x-1">
             {visibleTabs.map((tab) => (
-              <NavLink key={tab.href} href={tab.href} label={tab.label} locked={tab.locked} />
+              <NavLink
+                key={tab.href}
+                href={tab.href}
+                label={tab.label}
+                locked={tab.locked}
+              />
             ))}
           </div>
 
