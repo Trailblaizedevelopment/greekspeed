@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, signup_channel')
+      .select('id, signup_channel, is_developer')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -104,7 +104,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    if (profile.signup_channel !== 'marketing_alumni') {
+    // TRA-585: Developers may create test requests without marketing_alumni signup_channel.
+    if (profile.signup_channel !== 'marketing_alumni' && profile.is_developer !== true) {
       return NextResponse.json(
         {
           error:

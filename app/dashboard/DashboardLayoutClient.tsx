@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { DashboardHeader } from '@/components/features/dashboard/DashboardHeader';
 import { useActivityTracking } from '@/lib/hooks/useActivityTracking';
 import { useOneSignalPush } from '@/lib/hooks/useOneSignalPush';
@@ -49,18 +50,34 @@ export default function DashboardLayoutClient({
   useOneSignalPush(profile?.id);
   const router = useRouter();
 
-  // Guard: incomplete onboarding → onboarding entry or pending page (TRA-580/582: DB row works without localStorage)
+  /** TRA-583: Do not render dashboard chrome while marketing alumni without chapter are being sent to pending/onboarding. */
+  const [marketingDashboardGatePending, setMarketingDashboardGatePending] = useState(false);
+
+  // Guard: incomplete onboarding → onboarding entry or pending page (TRA-580/582: DB row works without localStorage).
+  // TRA-583: Also gate when onboarding_completed is true but profile is still marketing_alumni without chapter_id (edge case).
   useEffect(() => {
-    if (profileLoading || !profile || profile.onboarding_completed) return;
+    if (profileLoading || !profile) {
+      setMarketingDashboardGatePending(false);
+      return;
+    }
+
+    const awaiting = isMarketingAlumniAwaitingChapterApproval(profile);
+
+    if (profile.onboarding_completed && !awaiting) {
+      setMarketingDashboardGatePending(false);
+      return;
+    }
+
+    if (profile.chapter_id && profile.signup_channel === 'marketing_alumni') {
+      setMarketingDashboardGatePending(false);
+      return;
+    }
 
     let cancelled = false;
 
     const guard = async () => {
-      if (profile.chapter_id && profile.signup_channel === 'marketing_alumni') {
-        return;
-      }
-
-      if (isMarketingAlumniAwaitingChapterApproval(profile)) {
+      if (awaiting) {
+        setMarketingDashboardGatePending(true);
         if (hasPendingMembershipFlowAcknowledged(profile.id)) {
           if (!cancelled) router.replace('/onboarding/pending-chapter-approval');
           return;
@@ -72,8 +89,11 @@ export default function DashboardLayoutClient({
           router.replace('/onboarding/pending-chapter-approval');
           return;
         }
+        if (!cancelled) router.replace('/onboarding');
+        return;
       }
 
+      setMarketingDashboardGatePending(false);
       if (!cancelled) router.replace('/onboarding');
     };
 
@@ -116,6 +136,15 @@ export default function DashboardLayoutClient({
     profile?.chapter_id,
     refreshProfile,
   ]);
+
+  if (marketingDashboardGatePending) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="h-10 w-10 animate-spin text-brand-primary" aria-hidden />
+        <p className="mt-4 text-sm text-gray-600">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <ActiveChapterProvider>

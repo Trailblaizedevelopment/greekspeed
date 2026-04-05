@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
 
 const DEFAULT_LIMIT = 10;
 
@@ -42,25 +43,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'chapterId is required' }, { status: 400 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id, is_developer')
+      .select('chapter_id, is_developer, signup_channel')
       .eq('id', user.id)
       .single();
 
-    if (!profile) {
+    if (profileError || !profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const isDeveloper = profile.is_developer === true;
-    const isOwnChapter = profile.chapter_id === chapterId;
-
-    if (!isDeveloper && !isOwnChapter) {
-      const { getManagedChapterIds } = await import('@/lib/services/governanceService');
-      const managedIds = await getManagedChapterIds(supabase, user.id);
-      if (!managedIds.includes(chapterId)) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-      }
+    const access = await assertAuthenticatedChapterReadAccess(
+      supabase,
+      user.id,
+      {
+        chapter_id: profile.chapter_id,
+        signup_channel: profile.signup_channel,
+        is_developer: profile.is_developer,
+      },
+      chapterId
+    );
+    if (!access.ok) {
+      return access.response;
     }
 
     const selectCols = 'id, username, full_name, first_name, last_name, avatar_url';

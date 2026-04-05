@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { fetchLinkPreviewsServer } from '@/lib/services/linkPreviewService';
-import { getManagedChapterIds } from '@/lib/services/governanceService';
 import { LinkPreview } from '@/types/posts';
 import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
 import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,10 +40,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid authentication' }, { status: 401 });
     }
 
-    // --- ADD DEVELOPER BYPASS LOGIC ---
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id, is_developer')
+      .select('chapter_id, is_developer, signup_channel')
       .eq('id', user.id)
       .single();
 
@@ -51,18 +50,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const isDeveloper = profile.is_developer === true;
-    const isOwnChapter = profile.chapter_id === chapterId;
-
-    // Developers can view any chapter; others only own chapter or (if governance) managed chapters
-    if (!isDeveloper && !isOwnChapter) {
-      const managedIds = await getManagedChapterIds(supabase, user.id);
-      if (!managedIds.length || !managedIds.includes(chapterId)) {
-        return NextResponse.json(
-          { error: 'Insufficient permissions to view another chapter' },
-          { status: 403 },
-        );
-      }
+    const access = await assertAuthenticatedChapterReadAccess(
+      supabase,
+      user.id,
+      {
+        chapter_id: profile.chapter_id,
+        signup_channel: profile.signup_channel,
+        is_developer: profile.is_developer,
+      },
+      chapterId
+    );
+    if (!access.ok) {
+      return access.response;
     }
 
     // Calculate offset for pagination

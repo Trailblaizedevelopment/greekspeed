@@ -144,6 +144,9 @@ async function syncAlumniRecord(params: {
 
 /**
  * Insert a pending row. Idempotent: duplicate pending for same user+chapter returns the existing row (unique partial index).
+ *
+ * TRA-585: After a request is **rejected**, the partial unique index no longer applies (it only covers `status = pending`),
+ * so the applicant may submit a new pending row for the same chapter.
  */
 export async function createPendingMembershipRequest(
   supabase: SupabaseClient,

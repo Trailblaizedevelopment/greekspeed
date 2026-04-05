@@ -11,6 +11,7 @@ import {
 } from '@/lib/validation/announcementMetadata';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
 import { canManageChapterForContext, type ProfileForPermission } from '@/lib/permissions';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
 
 // Configure function timeout for Vercel (60 seconds for Pro plan)
 export const maxDuration = 60;
@@ -45,6 +46,30 @@ export async function GET(request: NextRequest) {
     
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid authentication' }, { status: 401 });
+    }
+
+    const { data: accessProfile, error: accessProfileError } = await supabase
+      .from('profiles')
+      .select('chapter_id, signup_channel, is_developer')
+      .eq('id', user.id)
+      .single();
+
+    if (accessProfileError || !accessProfile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const access = await assertAuthenticatedChapterReadAccess(
+      supabase,
+      user.id,
+      {
+        chapter_id: accessProfile.chapter_id,
+        signup_channel: accessProfile.signup_channel,
+        is_developer: accessProfile.is_developer,
+      },
+      chapterId
+    );
+    if (!access.ok) {
+      return access.response;
     }
 
     // Calculate offset for pagination
