@@ -392,7 +392,7 @@ export default function SignInPage() {
 
                 {/* Trust Badges */}
                 <div className="mt-6 text-center">
-                  <p className="text-sm text-gray-600 mb-3">Grow Your Fraternity Network</p>
+                  <p className="text-sm text-gray-600 mb-3">Grow Your Network At Scale</p>
                   <div className="flex items-center justify-center space-x-3">
                     <div className="w-6 h-6 bg-brand-primary rounded-lg flex items-center justify-center">
                       <Star className="h-4 w-4 text-white" />
