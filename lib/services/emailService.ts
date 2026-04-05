@@ -338,6 +338,95 @@ export class EmailService {
   }
 
   /**
+   * Membership request approved or rejected (marketing alumni / pending invitation queue).
+   * Template: SENDGRID_MEMBERSHIP_REQUEST_TEMPLATE_ID (dynamic data matches Handlebars in SendGrid).
+   */
+  static async sendMembershipRequestDecisionEmail({
+    to,
+    firstName,
+    chapterName,
+    approved,
+    rejectionReason,
+  }: {
+    to: string;
+    firstName: string;
+    chapterName: string;
+    approved: boolean;
+    rejectionReason?: string | null;
+  }): Promise<boolean> {
+    const templateId = process.env.SENDGRID_MEMBERSHIP_REQUEST_TEMPLATE_ID;
+    if (!templateId) {
+      console.warn(
+        'SENDGRID_MEMBERSHIP_REQUEST_TEMPLATE_ID not set; skipping membership decision email'
+      );
+      return false;
+    }
+
+    const baseUrl = getEmailBaseUrl().replace(/\/$/, '');
+    const dashboardUrl = `${baseUrl}/dashboard`;
+
+    const trimmedReason = rejectionReason?.trim() ?? '';
+    const headline = approved
+      ? 'Your chapter membership was approved'
+      : 'Your membership request was not approved';
+    const body = approved
+      ? "You now have access to your chapter on Trailblaize. Open the app to finish onboarding if you haven't already."
+      : `Your request to join ${chapterName} was not approved at this time.`;
+
+    const membershipPayload: {
+      approved: boolean;
+      headline: string;
+      body: string;
+      rejection_reason?: string;
+    } = {
+      approved,
+      headline,
+      body,
+    };
+    if (!approved && trimmedReason) {
+      membershipPayload.rejection_reason = trimmedReason;
+    }
+
+    try {
+      const msg = {
+        to,
+        from: {
+          email: this.fromEmail,
+          name: this.fromName,
+        },
+        subject: approved
+          ? 'Trailblaize: Your membership was approved'
+          : 'Trailblaize: Update on your membership request',
+        templateId,
+        dynamicTemplateData: {
+          payload: {
+            membership: membershipPayload,
+          },
+          recipient: {
+            first_name: firstName,
+            email: to,
+          },
+          chapter: {
+            name: chapterName,
+          },
+          cta: {
+            label: 'GO TO DASHBOARD',
+            url: dashboardUrl,
+          },
+          unsubscribe: `{{unsubscribe}}`,
+          unsubscribe_preferences: `{{unsubscribe_preferences}}`,
+        },
+      };
+
+      await sgMail.send(msg);
+      return true;
+    } catch (error) {
+      console.error('Failed to send membership request decision email:', error);
+      return false;
+    }
+  }
+
+  /**
    * NEW: Send event notification to multiple recipients
    */
   static async sendEventToChapter(
