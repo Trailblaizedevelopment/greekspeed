@@ -23,6 +23,14 @@ import {
 } from '@/lib/utils/profileUpdatePreferences';
 import { getPendingPrompt, clearPendingPrompt, queueProfileUpdatePrompt } from '@/lib/utils/profileUpdatePromptQueue';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
+import {
+  clearPendingMembershipFlowAcknowledged,
+  fetchHasPendingMarketingChapterMembershipRequest,
+  hasPendingMembershipFlowAcknowledged,
+  isMarketingAlumniAwaitingChapterApproval,
+  setPendingMembershipFlowAcknowledged,
+} from '@/lib/utils/marketingAlumniOnboarding';
 import { ChapterFeaturesProvider } from '@/lib/contexts/ChapterFeaturesContext';
 import { OneSignalDashboardLoader } from '@/components/features/dashboard/OneSignalDashboardLoader';
 import { PwaPromptProvider } from '@/lib/contexts/PwaPromptContext';
@@ -35,18 +43,79 @@ export default function DashboardLayoutClient({
   // Initialize activity tracking for all dashboard pages
   useActivityTracking();
 
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading, refreshProfile } = useProfile();
 
   // Register push subscription so users receive chapter announcements, events, messages, etc.
   useOneSignalPush(profile?.id);
   const router = useRouter();
 
-  // Guard: redirect to onboarding if not completed
+  // Guard: incomplete onboarding → onboarding entry or pending page (TRA-580/582: DB row works without localStorage)
   useEffect(() => {
-    if (!profileLoading && profile && !profile.onboarding_completed) {
-      router.replace('/onboarding');
-    }
+    if (profileLoading || !profile || profile.onboarding_completed) return;
+
+    let cancelled = false;
+
+    const guard = async () => {
+      if (profile.chapter_id && profile.signup_channel === 'marketing_alumni') {
+        return;
+      }
+
+      if (isMarketingAlumniAwaitingChapterApproval(profile)) {
+        if (hasPendingMembershipFlowAcknowledged(profile.id)) {
+          if (!cancelled) router.replace('/onboarding/pending-chapter-approval');
+          return;
+        }
+        const hasRow = await fetchHasPendingMarketingChapterMembershipRequest(profile.id);
+        if (cancelled) return;
+        if (hasRow) {
+          setPendingMembershipFlowAcknowledged(profile.id);
+          router.replace('/onboarding/pending-chapter-approval');
+          return;
+        }
+      }
+
+      if (!cancelled) router.replace('/onboarding');
+    };
+
+    void guard();
+    return () => {
+      cancelled = true;
+    };
   }, [profile, profileLoading, router]);
+
+  // Approved marketing alumni: chapter_id set but wizard never flipped onboarding_completed — sync once (exec approval path).
+  useEffect(() => {
+    if (profileLoading || !profile?.id) return;
+    if (profile.onboarding_completed) return;
+    if (profile.signup_channel !== 'marketing_alumni' || !profile.chapter_id) return;
+
+    let cancelled = false;
+    (async () => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          onboarding_completed: true,
+          onboarding_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.id);
+
+      if (cancelled || error) return;
+      clearPendingMembershipFlowAcknowledged(profile.id);
+      await refreshProfile();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    profileLoading,
+    profile?.id,
+    profile?.onboarding_completed,
+    profile?.signup_channel,
+    profile?.chapter_id,
+    refreshProfile,
+  ]);
 
   return (
     <ActiveChapterProvider>
