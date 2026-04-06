@@ -2,6 +2,14 @@ import sgMail from '@sendgrid/mail';
 import { getEmailBaseUrl } from '@/lib/utils/urlUtils';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 
+function escapeHtmlForEmail(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // Initialize SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
@@ -422,6 +430,77 @@ export class EmailService {
       return true;
     } catch (error) {
       console.error('Failed to send membership request decision email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * New pending membership request — notify platform admins / governance for the chapter (TRA-590).
+   * Template: SENDGRID_MEMBERSHIP_REQUEST_ADMIN_TEMPLATE_ID (`payload.new_request`, `cta` deep link).
+   */
+  static async sendNewMembershipRequestAdminEmail({
+    to,
+    adminFirstName,
+    chapterName,
+    applicantName,
+    reviewUrl,
+  }: {
+    to: string;
+    adminFirstName: string;
+    chapterName: string;
+    applicantName: string;
+    reviewUrl: string;
+  }): Promise<boolean> {
+    const templateId = process.env.SENDGRID_MEMBERSHIP_REQUEST_ADMIN_TEMPLATE_ID;
+    if (!templateId) {
+      console.warn(
+        'SENDGRID_MEMBERSHIP_REQUEST_ADMIN_TEMPLATE_ID not set; skipping new membership request admin email'
+      );
+      return false;
+    }
+
+    const applicantDisplayPlain = applicantName.trim() || 'A member';
+    const applicantEscapedForHtml = escapeHtmlForEmail(applicantDisplayPlain);
+    const headline = 'New membership request';
+    const body = `<strong>${applicantEscapedForHtml}</strong> submitted a request to join your chapter after signing up through Trailblaize marketing. Review and approve or decline from your dashboard.`;
+
+    try {
+      const msg = {
+        to,
+        from: {
+          email: this.fromEmail,
+          name: this.fromName,
+        },
+        subject: `Trailblaize: New membership request for ${chapterName}`,
+        templateId,
+        dynamicTemplateData: {
+          payload: {
+            new_request: {
+              headline,
+              body,
+              applicant_name: applicantDisplayPlain,
+            },
+          },
+          recipient: {
+            first_name: adminFirstName,
+            email: to,
+          },
+          chapter: {
+            name: chapterName,
+          },
+          cta: {
+            label: 'REVIEW REQUEST',
+            url: reviewUrl,
+          },
+          unsubscribe: `{{unsubscribe}}`,
+          unsubscribe_preferences: `{{unsubscribe_preferences}}`,
+        },
+      };
+
+      await sgMail.send(msg);
+      return true;
+    } catch (error) {
+      console.error('Failed to send new membership request admin email:', error);
       return false;
     }
   }

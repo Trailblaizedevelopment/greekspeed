@@ -32,6 +32,11 @@ export interface NotificationPushContext {
   commentId?: string;
   contentPreview?: string;
 
+  /** Pending membership request (admin / governance reviewer push) */
+  membershipRequestId?: string;
+  /** Applicant display name for membership_request_admin */
+  membershipApplicantName?: string;
+
   /** For system_alert / generic_notification */
   title?: string;
   body?: string;
@@ -51,6 +56,8 @@ const SAMPLE_PUSH_CONTEXT: NotificationPushContext = {
   postId: 'test-post-id',
   commentId: 'test-comment-id',
   contentPreview: 'Great event!',
+  membershipRequestId: '00000000-0000-4000-8000-000000000001',
+  membershipApplicantName: 'Jordan Lee',
   title: 'Test notification',
   body: 'This is a test push from the developer portal.',
 };
@@ -81,6 +88,7 @@ export const PUSH_EVENT_TYPES: readonly NotificationType[] = [
   'system_alert',
   'welcome',
   'generic_notification',
+  'membership_request_admin',
 ];
 
 /**
@@ -143,6 +151,18 @@ export function buildPushPayload(
         url: context.connectionId
           ? `${base}/dashboard/notifications?connection=${context.connectionId}`
           : `${base}/dashboard/notifications`,
+      };
+
+    case 'membership_request_admin':
+      return {
+        title: 'New membership request',
+        body:
+          context.membershipApplicantName || context.actorFullName
+            ? `${context.membershipApplicantName ?? context.actorFullName} requested to join ${context.chapterName ?? 'your chapter'}`
+            : `Someone requested to join ${context.chapterName ?? 'your chapter'}`,
+        url: context.membershipRequestId
+          ? `${base}/dashboard/requests?request=${encodeURIComponent(context.membershipRequestId)}`
+          : `${base}/dashboard/requests`,
       };
 
     case 'connection_accepted':

@@ -9,6 +9,7 @@ import {
   createMarketingMembershipRequestBodySchema,
   listPendingMembershipRequestsQuerySchema,
 } from '@/lib/validation/chapterMembershipRequests';
+import { notifyChapterAdminsOfNewMembershipRequest } from '@/lib/services/membershipRequestNotificationService';
 
 /**
  * GET — pending membership requests for a chapter (admin / exec / governance / platform admin).
@@ -149,6 +150,12 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: result.message }, { status: 500 });
       }
     }
+
+    notifyChapterAdminsOfNewMembershipRequest(supabase, {
+      requestId: result.data.id,
+      chapterId,
+      applicantUserId: user.id,
+    });
 
     return NextResponse.json({ data: result.data }, { status: 201 });
   } catch (error) {
