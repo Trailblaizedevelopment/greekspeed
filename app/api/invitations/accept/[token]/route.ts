@@ -6,6 +6,10 @@ import { notifyChapterAdminsOfNewMembershipRequest } from '@/lib/services/member
 import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { JoinFormData } from '@/types/invitations';
+import {
+  ensureProfileChapterIdNullForPendingInvite,
+  findProfileByEmailForInviteAccept,
+} from '@/lib/services/invitationAcceptPendingProfile';
 
 export async function POST(
   request: NextRequest,
@@ -83,9 +87,21 @@ export async function POST(
       }, { status: 400 });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingProfile = await findProfileByEmailForInviteAccept(supabase, normalizedEmail);
+    if (existingProfile) {
+      return NextResponse.json(
+        {
+          error:
+            'This email already has an account. Sign in to continue, or use a different email to accept this invitation.',
+        },
+        { status: 409 }
+      );
+    }
+
     // Create the user account
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password,
       options: {
         data: {
@@ -170,7 +186,7 @@ export async function POST(
           .from('profiles')
           .insert({
             id: authData.user.id,
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             full_name: effectiveFullName,
             first_name: effectiveFirstName,
             last_name: effectiveLastName,
@@ -200,6 +216,26 @@ export async function POST(
           }
           return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 });
         }
+      }
+
+      const cleared = await ensureProfileChapterIdNullForPendingInvite(supabase, authData.user.id);
+      if (!cleared.ok) {
+        console.error(
+          '❌ Invitation Accept (pending): chapter_id could not be cleared for pending invite; last chapter_id=',
+          cleared.chapter_id
+        );
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+        } catch (deleteError) {
+          console.error('❌ Invitation Accept: Failed to clean up auth user:', deleteError);
+        }
+        return NextResponse.json(
+          {
+            error:
+              'We could not finish signup for pending approval (profile still tied to a chapter). Please contact support or try again.',
+          },
+          { status: 500 }
+        );
       }
 
       const queueResult = await createPendingMembershipRequest(supabase, {
@@ -232,7 +268,7 @@ export async function POST(
       });
 
       const { error: pendingSignInError } = await supabase.auth.signInWithPassword({
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         password,
       });
       if (pendingSignInError) {
@@ -330,7 +366,7 @@ export async function POST(
         .from('profiles')
         .insert({
           id: authData.user.id,
-          email: email.toLowerCase(),
+          email: normalizedEmail,
           full_name: effectiveFullName,
           first_name: effectiveFirstName,
           last_name: effectiveLastName,
@@ -374,7 +410,7 @@ export async function POST(
 
     // Sign in the user after account creation
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password
     });
 

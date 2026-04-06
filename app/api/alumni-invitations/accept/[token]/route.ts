@@ -5,6 +5,10 @@ import { createPendingMembershipRequest } from '@/lib/services/membershipRequest
 import { notifyChapterAdminsOfNewMembershipRequest } from '@/lib/services/membershipRequestNotificationService';
 import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
+import {
+  ensureProfileChapterIdNullForPendingInvite,
+  findProfileByEmailForInviteAccept,
+} from '@/lib/services/invitationAcceptPendingProfile';
 
 // New interface for alumni form data (simplified - most fields collected during onboarding)
 interface AlumniJoinFormData {
@@ -115,6 +119,17 @@ export async function POST(
       }, { status: 400 });
     }
 
+    const existingProfile = await findProfileByEmailForInviteAccept(supabase, normalizedEmail);
+    if (existingProfile) {
+      return NextResponse.json(
+        {
+          error:
+            'This email already has an account. Sign in to continue, or use a different email to accept this invitation.',
+        },
+        { status: 409 }
+      );
+    }
+
     // Create the user account
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
@@ -179,6 +194,26 @@ export async function POST(
           console.error('❌ Alumni Invitation Accept: Failed to clean up auth user:', deleteError);
         }
         return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 });
+      }
+
+      const cleared = await ensureProfileChapterIdNullForPendingInvite(supabase, authData.user.id);
+      if (!cleared.ok) {
+        console.error(
+          '❌ Alumni Invitation Accept (pending): chapter_id could not be cleared; last chapter_id=',
+          cleared.chapter_id
+        );
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+        } catch (deleteError) {
+          console.error('❌ Alumni Invitation Accept: Failed to clean up auth user:', deleteError);
+        }
+        return NextResponse.json(
+          {
+            error:
+              'We could not finish signup for pending approval (profile still tied to a chapter). Please contact support or try again.',
+          },
+          { status: 500 }
+        );
       }
 
       const queueResult = await createPendingMembershipRequest(supabase, {
