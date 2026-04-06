@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { validateInvitationToken, validateEmailDomain, hasEmailUsedInvitation, recordInvitationUsage } from '@/lib/utils/invitationUtils';
+import { createPendingMembershipRequest } from '@/lib/services/membershipRequestService';
+import { notifyChapterAdminsOfNewMembershipRequest } from '@/lib/services/membershipRequestNotificationService';
 import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { JoinFormData } from '@/types/invitations';
@@ -64,6 +66,7 @@ export async function POST(
     }
 
     const invitation = validation.invitation!;
+    const pendingExecApproval = invitation.approval_mode === 'pending';
 
     // Validate email domain if restricted
     if (!validateEmailDomain(email, invitation.email_domain_allowlist)) {
@@ -118,6 +121,138 @@ export async function POST(
     const effectiveFullName = full_name || `${first_name || ''} ${last_name || ''}`.trim();
     const effectiveFirstName = first_name || effectiveFullName.split(' ')[0] || '';
     const effectiveLastName = last_name || effectiveFullName.split(' ').slice(1).join(' ') || '';
+
+    if (pendingExecApproval) {
+      const username = await generateUniqueUsername(
+        supabase,
+        effectiveFirstName,
+        effectiveLastName,
+        authData.user.id
+      );
+      const profileSlug = generateProfileSlug(username);
+
+      if (autoProfile) {
+        const { error: pendingUpdateError } = await supabase
+          .from('profiles')
+          .update({
+            username,
+            profile_slug: profileSlug,
+            first_name: effectiveFirstName,
+            last_name: effectiveLastName,
+            full_name: effectiveFullName,
+            chapter_id: null,
+            chapter: validation.chapter_name ?? null,
+            signup_channel: 'invitation',
+            role: 'active_member',
+            member_status: 'active',
+            welcome_seen: false,
+            phone: phoneDigits || null,
+            sms_consent: body.sms_consent || false,
+            grad_year: effectiveGradYear,
+            major: majorString.trim() || null,
+            location: location?.trim() || null,
+            onboarding_completed: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', authData.user.id);
+
+        if (pendingUpdateError) {
+          console.error('❌ Invitation Accept (pending): Profile update error:', pendingUpdateError);
+          try {
+            await supabase.auth.admin.deleteUser(authData.user.id);
+          } catch (deleteError) {
+            console.error('❌ Invitation Accept: Failed to clean up auth user:', deleteError);
+          }
+          return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+        }
+      } else {
+        const { error: pendingInsertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            email: email.toLowerCase(),
+            full_name: effectiveFullName,
+            first_name: effectiveFirstName,
+            last_name: effectiveLastName,
+            username,
+            profile_slug: profileSlug,
+            phone: phoneDigits || null,
+            sms_consent: body.sms_consent || false,
+            chapter_id: null,
+            chapter: validation.chapter_name ?? null,
+            signup_channel: 'invitation',
+            role: 'active_member',
+            member_status: 'active',
+            grad_year: effectiveGradYear,
+            major: majorString.trim() || null,
+            location: location?.trim() || null,
+            onboarding_completed: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+        if (pendingInsertError) {
+          console.error('❌ Invitation Accept (pending): Profile creation error:', pendingInsertError);
+          try {
+            await supabase.auth.admin.deleteUser(authData.user.id);
+          } catch (deleteError) {
+            console.error('❌ Invitation Accept: Failed to clean up auth user:', deleteError);
+          }
+          return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 });
+        }
+      }
+
+      const queueResult = await createPendingMembershipRequest(supabase, {
+        userId: authData.user.id,
+        chapterId: invitation.chapter_id,
+        source: 'invitation',
+        invitationId: invitation.id,
+      });
+
+      if (!queueResult.ok) {
+        console.error('❌ Invitation Accept (pending):', queueResult.code, queueResult.message);
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+        } catch (deleteError) {
+          console.error('❌ Invitation Accept: Failed to clean up auth user:', deleteError);
+        }
+        const status =
+          queueResult.code === 'ALREADY_MEMBER' || queueResult.code === 'WRONG_CHAPTER'
+            ? 409
+            : queueResult.code === 'DUPLICATE_PENDING'
+              ? 400
+              : 500;
+        return NextResponse.json({ error: queueResult.message }, { status });
+      }
+
+      notifyChapterAdminsOfNewMembershipRequest(supabase, {
+        requestId: queueResult.data.id,
+        chapterId: invitation.chapter_id,
+        applicantUserId: authData.user.id,
+      });
+
+      const { error: pendingSignInError } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase(),
+        password,
+      });
+      if (pendingSignInError) {
+        console.error('❌ Invitation Accept: Auto sign-in failed:', pendingSignInError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: authData.user.id,
+          email: authData.user.email,
+          full_name: effectiveFullName,
+          chapter_id: null,
+          chapter: validation.chapter_name,
+          role: 'active_member',
+          member_status: 'active',
+          needs_approval: true,
+        },
+      });
+    }
 
     if (autoProfile) {
       // Generate username if needed

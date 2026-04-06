@@ -14,6 +14,17 @@ export function isMarketingAlumniPendingHomeChapter(
   return profile.signup_channel === 'marketing_alumni' && !profile.chapter_id;
 }
 
+/** No chapter yet: marketing signup or invitation with exec approval pending (TRA-594/595). */
+export function isPendingHomeChapterAssignment(
+  profile: Pick<ProfileChapterReadGate, 'signup_channel' | 'chapter_id'>
+): boolean {
+  return (
+    !profile.chapter_id &&
+    (profile.signup_channel === 'marketing_alumni' ||
+      profile.signup_channel === 'invitation')
+  );
+}
+
 /**
  * TRA-584: Authenticated reads of another chapter’s data (feed, events, etc.).
  * Developers may traverse any chapter; marketing alumni without an assigned chapter may not.
@@ -28,7 +39,7 @@ export async function assertAuthenticatedChapterReadAccess(
     return { ok: true };
   }
 
-  if (isMarketingAlumniPendingHomeChapter(profile)) {
+  if (isPendingHomeChapterAssignment(profile)) {
     return {
       ok: false,
       response: NextResponse.json(

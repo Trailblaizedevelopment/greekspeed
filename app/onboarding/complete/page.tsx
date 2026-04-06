@@ -21,7 +21,7 @@ import {
   User
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { isMarketingAlumniAwaitingChapterApproval } from '@/lib/utils/marketingAlumniOnboarding';
+import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 
 // ============================================================================
 // Component
@@ -72,7 +72,7 @@ export default function OnboardingCompletePage() {
       // finishOnboarding handles the redirect
     } catch (error) {
       console.error('Error finishing onboarding:', error);
-      if (profile && isMarketingAlumniAwaitingChapterApproval(profile)) {
+      if (profile && isAwaitingChapterMembershipApproval(profile)) {
         router.replace('/onboarding/pending-chapter-approval');
       } else {
         router.push('/dashboard');

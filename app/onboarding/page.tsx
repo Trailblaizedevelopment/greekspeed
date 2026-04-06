@@ -8,9 +8,9 @@ import { Loader2 } from 'lucide-react';
 import { STEP_CONFIG } from '@/types/onboarding';
 import {
   clearPendingMembershipFlowAcknowledged,
-  fetchHasPendingMarketingChapterMembershipRequest,
+  fetchHasPendingChapterMembershipRequest,
   hasPendingMembershipFlowAcknowledged,
-  isMarketingAlumniAwaitingChapterApproval,
+  isAwaitingChapterMembershipApproval,
   setPendingMembershipFlowAcknowledged,
 } from '@/lib/utils/marketingAlumniOnboarding';
 
@@ -35,7 +35,11 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (profile?.signup_channel === 'marketing_alumni' && profile.chapter_id) {
+    if (
+      profile?.chapter_id &&
+      (profile.signup_channel === 'marketing_alumni' ||
+        profile.signup_channel === 'invitation')
+    ) {
       router.replace('/dashboard');
       return;
     }
@@ -48,8 +52,8 @@ export default function OnboardingPage() {
     let cancelled = false;
 
     const resolve = async () => {
-      if (isMarketingAlumniAwaitingChapterApproval(profile)) {
-        const hasPendingRow = await fetchHasPendingMarketingChapterMembershipRequest(profile.id);
+      if (isAwaitingChapterMembershipApproval(profile)) {
+        const hasPendingRow = await fetchHasPendingChapterMembershipRequest(profile.id);
         if (cancelled) return;
         if (hasPendingRow) {
           setPendingMembershipFlowAcknowledged(profile.id);
@@ -62,7 +66,7 @@ export default function OnboardingPage() {
       if (cancelled) return;
 
       if (
-        isMarketingAlumniAwaitingChapterApproval(profile) &&
+        isAwaitingChapterMembershipApproval(profile) &&
         hasPendingMembershipFlowAcknowledged(profile.id)
       ) {
         router.replace('/onboarding/pending-chapter-approval');

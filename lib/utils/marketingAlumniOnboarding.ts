@@ -12,6 +12,19 @@ export function isMarketingAlumniAwaitingChapterApproval(
   return profile?.signup_channel === 'marketing_alumni' && !profile.chapter_id;
 }
 
+/**
+ * TRA-594/595: Marketing alumni or invitation accept with `approval_mode: pending` — no chapter_id until exec approves.
+ */
+export function isAwaitingChapterMembershipApproval(
+  profile: Pick<Profile, 'signup_channel' | 'chapter_id'> | null | undefined
+): boolean {
+  if (!profile || profile.chapter_id) return false;
+  return (
+    profile.signup_channel === 'marketing_alumni' ||
+    profile.signup_channel === 'invitation'
+  );
+}
+
 export function setPendingMembershipFlowAcknowledged(userId: string): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(pendingMembershipLocalStorageKey(userId), '1');
@@ -44,6 +57,25 @@ export async function fetchHasPendingMarketingChapterMembershipRequest(
 
   if (error) {
     console.warn('Pending marketing membership request check failed:', error.message);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+/** Pending queue row for marketing alumni or invitation (TRA-594/595). */
+export async function fetchHasPendingChapterMembershipRequest(
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('chapter_membership_requests')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .in('source', ['marketing_alumni', 'invitation'])
+    .limit(1);
+
+  if (error) {
+    console.warn('Pending chapter membership request check failed:', error.message);
     return false;
   }
   return (data?.length ?? 0) > 0;

@@ -12,7 +12,7 @@ import { toast } from 'react-toastify';
 import { supabase } from '@/lib/supabase/client';
 import {
   clearPendingMembershipFlowAcknowledged,
-  isMarketingAlumniAwaitingChapterApproval,
+  isAwaitingChapterMembershipApproval,
 } from '@/lib/utils/marketingAlumniOnboarding';
 import {
   PENDING_CHAPTER_APPROVAL_SLA_COPY,
@@ -43,11 +43,15 @@ export default function PendingChapterApprovalPage() {
       router.replace('/dashboard');
       return;
     }
-    if (profile.signup_channel === 'marketing_alumni' && profile.chapter_id) {
+    const hasChapterAfterApproval =
+      profile.chapter_id &&
+      (profile.signup_channel === 'marketing_alumni' ||
+        profile.signup_channel === 'invitation');
+    if (hasChapterAfterApproval) {
       router.replace('/dashboard');
       return;
     }
-    if (!isMarketingAlumniAwaitingChapterApproval(profile)) {
+    if (!isAwaitingChapterMembershipApproval(profile)) {
       router.replace('/onboarding');
     }
   }, [user, profile, authLoading, profileLoading, router]);

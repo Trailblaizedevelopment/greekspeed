@@ -17,7 +17,7 @@ import {
   needsRoleChapterStep,
 } from '@/types/onboarding';
 import {
-  isMarketingAlumniAwaitingChapterApproval,
+  isAwaitingChapterMembershipApproval,
   setPendingMembershipFlowAcknowledged,
 } from '@/lib/utils/marketingAlumniOnboarding';
 
@@ -217,7 +217,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     try {
       // TRA-580: marketing alumni without chapter assignment must not flip onboarding_completed
       // until a chapter admin approves (profiles.chapter_id is set). Avoid dashboard redirect loops.
-      if (isMarketingAlumniAwaitingChapterApproval(profile)) {
+      if (isAwaitingChapterMembershipApproval(profile)) {
         setPendingMembershipFlowAcknowledged(profile.id);
         localStorage.removeItem(`onboarding_progress_${profile.id}`);
         await refreshProfile();

@@ -27,9 +27,9 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import {
   clearPendingMembershipFlowAcknowledged,
-  fetchHasPendingMarketingChapterMembershipRequest,
+  fetchHasPendingChapterMembershipRequest,
   hasPendingMembershipFlowAcknowledged,
-  isMarketingAlumniAwaitingChapterApproval,
+  isAwaitingChapterMembershipApproval,
   setPendingMembershipFlowAcknowledged,
 } from '@/lib/utils/marketingAlumniOnboarding';
 import { ChapterFeaturesProvider } from '@/lib/contexts/ChapterFeaturesContext';
@@ -61,14 +61,18 @@ export default function DashboardLayoutClient({
       return;
     }
 
-    const awaiting = isMarketingAlumniAwaitingChapterApproval(profile);
+    const awaiting = isAwaitingChapterMembershipApproval(profile);
 
     if (profile.onboarding_completed && !awaiting) {
       setMarketingDashboardGatePending(false);
       return;
     }
 
-    if (profile.chapter_id && profile.signup_channel === 'marketing_alumni') {
+    if (
+      profile.chapter_id &&
+      (profile.signup_channel === 'marketing_alumni' ||
+        profile.signup_channel === 'invitation')
+    ) {
       setMarketingDashboardGatePending(false);
       return;
     }
@@ -82,7 +86,7 @@ export default function DashboardLayoutClient({
           if (!cancelled) router.replace('/onboarding/pending-chapter-approval');
           return;
         }
-        const hasRow = await fetchHasPendingMarketingChapterMembershipRequest(profile.id);
+        const hasRow = await fetchHasPendingChapterMembershipRequest(profile.id);
         if (cancelled) return;
         if (hasRow) {
           setPendingMembershipFlowAcknowledged(profile.id);
@@ -107,7 +111,12 @@ export default function DashboardLayoutClient({
   useEffect(() => {
     if (profileLoading || !profile?.id) return;
     if (profile.onboarding_completed) return;
-    if (profile.signup_channel !== 'marketing_alumni' || !profile.chapter_id) return;
+    if (
+      (profile.signup_channel !== 'marketing_alumni' &&
+        profile.signup_channel !== 'invitation') ||
+      !profile.chapter_id
+    )
+      return;
 
     let cancelled = false;
     (async () => {
