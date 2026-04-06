@@ -270,25 +270,6 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
           </div>
         </div>
 
-        {/* Email Uniqueness Info */}
-        <div className="space-y-2">
-          <Label className="flex items-center space-x-2">
-            <CheckCircle className="h-4 w-4 text-brand-accent" />
-            <span>Email Uniqueness</span>
-          </Label>
-          <div className="bg-accent-50 border border-accent-200 rounded-lg p-4">
-            <div className="flex items-start space-x-2">
-              <CheckCircle className="h-5 w-5 text-brand-accent mt-0.5" />
-              <div>
-                <h4 className="font-medium text-accent-900">One Account Per Email</h4>
-                <p className="text-sm text-accent-800 mt-1">
-                  Each email address can only create one account across the entire system. If someone tries to use an email that already has an account, they'll be prompted to sign in instead.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Active Status (only for editing) */}
         {invitation && (
           <div className="flex items-center space-x-2">
