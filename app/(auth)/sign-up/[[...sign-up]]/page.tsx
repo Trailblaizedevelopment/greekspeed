@@ -466,7 +466,7 @@ export default function SignUpPage() {
                               Sign me up for SMS so I get immediate chapter updates & notifcations.
                             </Label>
                             <p className="text-xs text-gray-500">
-                              Message frequency may vary. Standard Message and Data Rates may apply. Reply STOP to opt out. Reply HELP for help. Consent is not a condition of purchase. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.
+                              Message frequency may vary. Standard Message and Data Rates may apply.
                             </p>
                           </div>
                         </div>
