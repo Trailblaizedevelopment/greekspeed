@@ -205,7 +205,7 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
                   Auto-approve
                 </Label>
                 <p className="text-xs text-gray-600 mt-1">
-                  Member gets chapter access after they complete signup through this link (when your chapter settings allow it).
+                  Member gets instant chapter access after they complete signup through this link.
                 </p>
               </div>
             </div>
@@ -226,7 +226,7 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
                   Requires chapter approval
                 </Label>
                 <p className="text-xs text-gray-600 mt-1">
-                  Signup creates a membership request. Chapter execs must approve before the member gets chapter access.
+                  Manually approve all incoming membership requests from this link.
                 </p>
               </div>
             </div>
