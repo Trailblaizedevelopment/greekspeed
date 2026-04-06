@@ -28,6 +28,7 @@ import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { isPublishedEventUpcoming } from '@/lib/utils/eventScheduleDisplay';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
 import { AnnouncementImageAttachmentField } from '../AnnouncementImageAttachmentField';
+import { EmbeddedMembershipRequestsSection } from '@/components/features/dashboard/EmbeddedMembershipRequestsSection';
 
 interface OverviewViewProps {
   selectedRole: string;
@@ -668,6 +669,8 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
           </CardContent>
         </Card>
       </div>
+
+      <EmbeddedMembershipRequestsSection />
 
       {/* Chapter Documents Section */}
       {chapterId && (

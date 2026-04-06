@@ -6,7 +6,6 @@ import { useProfile } from '@/lib/contexts/ProfileContext';
 import { supabase } from '@/lib/supabase/client';
 import {
   OnboardingStep,
-  OnboardingState,
   OnboardingProgress,
   ONBOARDING_STEPS,
   OAUTH_ONBOARDING_STEPS,
@@ -17,6 +16,10 @@ import {
   getEffectiveSteps,
   needsRoleChapterStep,
 } from '@/types/onboarding';
+import {
+  isMarketingAlumniAwaitingChapterApproval,
+  setPendingMembershipFlowAcknowledged,
+} from '@/lib/utils/marketingAlumniOnboarding';
 
 // ============================================================================
 // Context Types
@@ -212,7 +215,16 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     if (!profile?.id) return;
 
     try {
-      // Update database
+      // TRA-580: marketing alumni without chapter assignment must not flip onboarding_completed
+      // until a chapter admin approves (profiles.chapter_id is set). Avoid dashboard redirect loops.
+      if (isMarketingAlumniAwaitingChapterApproval(profile)) {
+        setPendingMembershipFlowAcknowledged(profile.id);
+        localStorage.removeItem(`onboarding_progress_${profile.id}`);
+        await refreshProfile();
+        router.replace('/onboarding/pending-chapter-approval');
+        return;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -227,28 +239,23 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         throw error;
       }
 
-      // Clear local storage
       localStorage.removeItem(`onboarding_progress_${profile.id}`);
 
-      // Update state
       setIsComplete(true);
 
-      // Refresh profile to get updated data
       await refreshProfile();
 
-      // Signal dashboard to show A2HS prompt (after onboarding completion)
       if (typeof window !== 'undefined') {
         const { setFromOnboarding } = await import('@/lib/utils/pwaPromptStorage');
         setFromOnboarding();
       }
 
-      // Redirect to dashboard
       router.push('/dashboard');
     } catch (error) {
       console.error('Error finishing onboarding:', error);
       throw error;
     }
-  }, [profile?.id, refreshProfile, router]);
+  }, [profile, refreshProfile, router]);
 
   // Computed values using effective steps
   const currentStepIndex = effectiveSteps.indexOf(currentStep);

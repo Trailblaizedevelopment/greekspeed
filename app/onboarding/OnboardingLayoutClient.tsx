@@ -170,7 +170,12 @@ export default function OnboardingLayoutClient({ children }: OnboardingLayoutCli
   // Don't show progress bar on the main onboarding page (redirect page)
   // Also hide for users who have completed onboarding and are using prefill-profile (profile editing flow)
   const isProfileEditFlow = pathname.includes('/prefill-profile') && profile?.onboarding_completed === true;
-  const showProgressBar = pathname !== '/onboarding' && !pathname.includes('/complete') && !isProfileEditFlow;
+  const showProgressBar =
+    pathname !== '/onboarding' &&
+    !pathname.includes('/complete') &&
+    !pathname.includes('/membership-pending') &&
+    !pathname.includes('/pending-chapter-approval') &&
+    !isProfileEditFlow;
 
   return (
     <OnboardingProvider>

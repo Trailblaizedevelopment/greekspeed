@@ -10,15 +10,22 @@ import {
   MessageCircle, 
   Bell, 
   Calendar,
-  Clock,
-  ChevronRight
+  ChevronRight,
+  UserRound,
 } from 'lucide-react';
 import { ClickableAvatar } from '@/components/features/user-profile/ClickableAvatar';
 import { formatDistanceToNow, isToday, isYesterday, differenceInDays } from 'date-fns';
 
 interface Notification {
   id: string;
-  type: 'connection_request' | 'connection_accepted' | 'message' | 'announcement' | 'event';
+  type:
+    | 'connection_request'
+    | 'connection_accepted'
+    | 'message'
+    | 'announcement'
+    | 'event'
+    | 'event_reminder'
+    | 'membership_request';
   title: string;
   message: string;
   actionUrl: string;
@@ -93,7 +100,10 @@ export function NotificationsFeed({ variant = 'desktop', hideCard = false }: Not
       case 'announcement':
         return <Bell className={commonClasses} />;
       case 'event':
+      case 'event_reminder':
         return <Calendar className={commonClasses} />;
+      case 'membership_request':
+        return <UserRound className={commonClasses} />;
       default:
         return <Bell className={commonClasses + " opacity-60"} />;
     }
@@ -107,6 +117,8 @@ export function NotificationsFeed({ variant = 'desktop', hideCard = false }: Not
       case 'message':
       case 'announcement':
       case 'event':
+      case 'event_reminder':
+      case 'membership_request':
         return (
           <Badge className="bg-brand-primary/10 text-brand-primary text-xs font-medium border border-brand-primary/20">
             {(() => {
@@ -121,6 +133,10 @@ export function NotificationsFeed({ variant = 'desktop', hideCard = false }: Not
                   return 'Announcement';
                 case 'event':
                   return 'Event';
+                case 'event_reminder':
+                  return 'RSVP';
+                case 'membership_request':
+                  return 'Membership';
                 default:
                   return '';
               }

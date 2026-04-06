@@ -39,7 +39,8 @@ const profilesEqual = (a: Profile | null, b: Profile | null): boolean => {
 
     // IMPORTANT: include these so onboarding completion updates propagate
     a.onboarding_completed === b.onboarding_completed &&
-    a.onboarding_completed_at === b.onboarding_completed_at
+    a.onboarding_completed_at === b.onboarding_completed_at &&
+    a.signup_channel === b.signup_channel
   );
 };
 

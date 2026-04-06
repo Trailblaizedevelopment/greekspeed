@@ -6,46 +6,78 @@ import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { Loader2 } from 'lucide-react';
 import { STEP_CONFIG } from '@/types/onboarding';
+import {
+  clearPendingMembershipFlowAcknowledged,
+  fetchHasPendingMarketingChapterMembershipRequest,
+  hasPendingMembershipFlowAcknowledged,
+  isMarketingAlumniAwaitingChapterApproval,
+  setPendingMembershipFlowAcknowledged,
+} from '@/lib/utils/marketingAlumniOnboarding';
 
 /**
- * Onboarding Entry Point
- * 
- * This page redirects users to the appropriate step:
- * - If onboarding is complete → redirect to dashboard
- * - If not authenticated → redirect to sign-in
- * - Otherwise → redirect to role-chapter step (first step in unified 5-step flow)
- * 
- * The role-chapter page handles both:
- * - Selection mode: for users without role/chapter
- * - Confirmation mode: for invitation users who already have role/chapter
+ * Onboarding entry: dashboard, sign-in, marketing pending (DB + LS), or first step.
+ * TRA-582: marketing alumni with a pending chapter_membership_requests row skip role-chapter (refresh-safe).
  */
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
-
   useEffect(() => {
-    // Wait for auth and profile to load
     if (authLoading || profileLoading) return;
 
-    // If not authenticated, redirect to sign-in
     if (!user) {
       router.replace('/sign-in');
       return;
     }
 
-    // If onboarding is already complete, redirect to dashboard
     if (profile?.onboarding_completed) {
       router.replace('/dashboard');
       return;
     }
 
-    // Always start at role-chapter step (first step in unified 5-step flow)
-    // The page handles showing confirmation mode if user already has role/chapter
-    router.replace(STEP_CONFIG['role-chapter'].path);
+    if (profile?.signup_channel === 'marketing_alumni' && profile.chapter_id) {
+      router.replace('/dashboard');
+      return;
+    }
+
+    if (!profile?.id) {
+      router.replace(STEP_CONFIG['role-chapter'].path);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolve = async () => {
+      if (isMarketingAlumniAwaitingChapterApproval(profile)) {
+        const hasPendingRow = await fetchHasPendingMarketingChapterMembershipRequest(profile.id);
+        if (cancelled) return;
+        if (hasPendingRow) {
+          setPendingMembershipFlowAcknowledged(profile.id);
+          router.replace('/onboarding/pending-chapter-approval');
+          return;
+        }
+        clearPendingMembershipFlowAcknowledged(profile.id);
+      }
+
+      if (cancelled) return;
+
+      if (
+        isMarketingAlumniAwaitingChapterApproval(profile) &&
+        hasPendingMembershipFlowAcknowledged(profile.id)
+      ) {
+        router.replace('/onboarding/pending-chapter-approval');
+        return;
+      }
+
+      router.replace(STEP_CONFIG['role-chapter'].path);
+    };
+
+    void resolve();
+    return () => {
+      cancelled = true;
+    };
   }, [user, profile, authLoading, profileLoading, router]);
 
-  // Show loading state while determining redirect
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-brand-primary mb-4" />

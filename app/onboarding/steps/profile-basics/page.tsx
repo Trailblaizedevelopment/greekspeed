@@ -78,6 +78,8 @@ export default function ProfileBasicsPage() {
   const [loading, setLoading] = useState(false);
   const [hasInvitation, setHasInvitation] = useState(false);
   const [invitationLoading, setInvitationLoading] = useState(true);
+  /** TRA-579: canonical chapter UUID when profile.chapter_id is null (pending marketing request). */
+  const [pendingRequestChapterId, setPendingRequestChapterId] = useState<string | null>(null);
 
   const graduationYears = getGraduationYears();
 
@@ -91,6 +93,62 @@ export default function ProfileBasicsPage() {
   const isAlumni = effectiveRole === 'alumni';
   /** Major required for actives and admin accounts; optional for alumni */
   const majorRequired = effectiveRole === 'active_member' || effectiveRole === 'admin';
+
+  /** Marketing alumni: no profiles.chapter_id until exec approves — still need UUID for alumni row / consistency. */
+  const isMarketingPendingChapter =
+    profile?.signup_channel === 'marketing_alumni' && !profile?.chapter_id;
+
+  // Pending membership request → chapter UUID (preferred over name match)
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPendingChapterId = async () => {
+      if (!user?.id || profile?.chapter_id) {
+        setPendingRequestChapterId(null);
+        return;
+      }
+      if (profile?.signup_channel !== 'marketing_alumni') {
+        setPendingRequestChapterId(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('chapter_membership_requests')
+        .select('chapter_id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled || error) return;
+      if (data?.chapter_id) {
+        setPendingRequestChapterId(data.chapter_id);
+      }
+    };
+
+    void loadPendingChapterId();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, profile?.chapter_id, profile?.signup_channel]);
+
+  // When chapter name is known but UUID missing, resolve from directory (until pending fetch returns)
+  useEffect(() => {
+    if (!profile?.chapter?.trim() || profile.chapter_id || formData.chapterId || chapters.length === 0) {
+      return;
+    }
+    const id = chapters.find((c) => c.name === profile.chapter)?.id;
+    if (id) {
+      setFormData((prev) => ({ ...prev, chapterId: id }));
+    }
+  }, [profile?.chapter, profile?.chapter_id, chapters, formData.chapterId]);
+
+  // Apply pending-request UUID when it loads (authoritative for requested chapter)
+  useEffect(() => {
+    if (!pendingRequestChapterId) return;
+    setFormData((prev) => ({ ...prev, chapterId: pendingRequestChapterId }));
+  }, [pendingRequestChapterId]);
 
   // Check for invitation token and auto-populate
   useEffect(() => {
@@ -347,7 +405,13 @@ export default function ProfileBasicsPage() {
       const fullName = `${formData.firstName} ${formData.lastName}`;
       const chapterName =
         formData.chapter?.trim() || profile?.chapter?.trim() || '';
-      const chapterIdVal = formData.chapterId || profile?.chapter_id || null;
+      const resolvedChapterUuid =
+        formData.chapterId ||
+        profile?.chapter_id ||
+        pendingRequestChapterId ||
+        (chapterName
+          ? chapters.find((c) => c.name === chapterName)?.id ?? null
+          : null);
       const roleRaw = formData.role || profile?.role || '';
       const normalizedRole = roleRaw.toLowerCase();
       if (!normalizedRole) {
@@ -356,19 +420,24 @@ export default function ProfileBasicsPage() {
         return;
       }
 
-      // Update profiles table
-      const updateData: any = {
+      const omitProfileChapterId = isMarketingPendingChapter;
+
+      // Update profiles table (TRA-579: do not set profiles.chapter_id while marketing approval is pending)
+      const updateData: Record<string, unknown> = {
         first_name: formData.firstName,
         last_name: formData.lastName,
         full_name: fullName,
         email: formData.email,
         chapter: chapterName,
-        chapter_id: chapterIdVal,
         role: normalizedRole,
-        grad_year: parseInt(formData.graduationYear),
+        grad_year: parseInt(formData.graduationYear, 10),
         major: formData.major?.trim() || null,
         updated_at: new Date().toISOString(),
       };
+
+      if (!omitProfileChapterId) {
+        updateData.chapter_id = resolvedChapterUuid;
+      }
 
       if (formData.location?.trim()) {
         updateData.location = formData.location.trim();
@@ -390,35 +459,38 @@ export default function ProfileBasicsPage() {
 
       if (profileError) throw profileError;
 
-      // Create/update alumni record if alumni role
+      // Create/update alumni record if alumni role (chapter name + optional UUID; profile.chapter_id may stay null for pending marketing)
       if (normalizedRole === 'alumni') {
-        const { error: alumniError } = await supabase
-          .from('alumni')
-          .upsert({
-            user_id: user.id,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            full_name: fullName,
-            chapter: formData.chapter,
-            industry: formData.industry.trim(),
-            graduation_year: parseInt(formData.graduationYear),
-            company: formData.company.trim(),
-            job_title: formData.jobTitle.trim(),
-            email: formData.email || user.email,
-            phone: formData.phone || null,
-            location: formData.location.trim(),
-            description: `Alumni from ${chapterName}`,
-            avatar_url: profile?.avatar_url || null,
-            verified: false,
-            is_actively_hiring: false,
-            last_contact: null,
-            tags: null,
-            mutual_connections: [],
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'user_id',
-            ignoreDuplicates: false,
-          });
+        const alumniRow: Record<string, unknown> = {
+          user_id: user.id,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          full_name: fullName,
+          chapter: chapterName,
+          industry: formData.industry.trim(),
+          graduation_year: parseInt(formData.graduationYear, 10),
+          company: formData.company.trim(),
+          job_title: formData.jobTitle.trim(),
+          email: formData.email || user.email,
+          phone: formData.phone || null,
+          location: formData.location.trim(),
+          description: `Alumni from ${chapterName}`,
+          avatar_url: profile?.avatar_url || null,
+          verified: false,
+          is_actively_hiring: false,
+          last_contact: null,
+          tags: null,
+          mutual_connections: [],
+          updated_at: new Date().toISOString(),
+        };
+        if (resolvedChapterUuid) {
+          alumniRow.chapter_id = resolvedChapterUuid;
+        }
+
+        const { error: alumniError } = await supabase.from('alumni').upsert(alumniRow, {
+          onConflict: 'user_id',
+          ignoreDuplicates: false,
+        });
 
         if (alumniError) {
           console.error('Alumni record error:', alumniError);
@@ -469,6 +541,13 @@ export default function ProfileBasicsPage() {
             <User className="h-5 w-5 text-brand-primary" />
             Tell Us About Yourself
           </CardTitle>
+          {isMarketingPendingChapter && (
+            <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+              Request submitted for <span className="font-medium">{profile?.chapter}</span>. Your chapter membership is
+              pending administrator approval. Complete your profile below; chapter-scoped features stay locked until
+              you are approved.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="pt-0">
           <form onSubmit={handleSubmit} className="space-y-6">
