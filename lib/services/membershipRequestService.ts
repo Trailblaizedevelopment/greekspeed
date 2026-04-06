@@ -21,6 +21,7 @@ export type MembershipRequestServiceErrorCode =
   | 'INVITATION_REQUIRED'
   | 'INVITATION_NOT_FOUND'
   | 'INVITATION_CHAPTER_MISMATCH'
+  | 'INVITATION_USAGE_FAILED'
   | 'PROFILE_UPDATE_FAILED'
   | 'REQUEST_UPDATE_FAILED'
   | 'ALUMNI_SYNC_FAILED';
@@ -270,7 +271,8 @@ export async function getMembershipRequestById(
 }
 
 /**
- * Approve: assign chapter on profile, sync alumni when role is alumni, record invitation usage for invitation source, then mark request approved.
+ * Approve: for invitation-sourced requests, record invitation usage before assigning chapter; then update profile,
+ * sync alumni when role is alumni, then mark request approved.
  * Idempotent if already approved for this chapter. Profile onboarding flags are not flipped here — applicants continue normal onboarding when incomplete.
  */
 export async function approveMembershipRequest(
@@ -321,6 +323,12 @@ export async function approveMembershipRequest(
   }
 
   let targetRole: 'alumni' | 'active_member';
+  /** TRA-596: snapshot for recordInvitationUsage before chapter assignment (pending invite accept skips usage on signup). */
+  let linkedInvitation: {
+    id: string;
+    usage_count: number;
+  } | null = null;
+
   if (request.source === 'marketing_alumni') {
     targetRole = 'alumni';
   } else {
@@ -352,6 +360,12 @@ export async function approveMembershipRequest(
         message: 'Invitation chapter does not match request',
       };
     }
+
+    linkedInvitation = {
+      id: invitation.id,
+      usage_count:
+        typeof invitation.usage_count === 'number' ? invitation.usage_count : 0,
+    };
 
     targetRole = mapInvitationTypeToProfileRole(
       invitation.invitation_type as InvitationType
@@ -401,6 +415,23 @@ export async function approveMembershipRequest(
       ? profile.grad_year
       : currentYear;
 
+  if (request.source === 'invitation' && linkedInvitation) {
+    const usageResult = await recordInvitationUsage(
+      linkedInvitation.id,
+      profile.email ?? '',
+      request.user_id,
+      linkedInvitation.usage_count
+    );
+    if (!usageResult.success) {
+      return {
+        ok: false,
+        code: 'INVITATION_USAGE_FAILED',
+        message:
+          usageResult.error ?? 'Failed to record invitation usage on approval',
+      };
+    }
+  }
+
   if (profile.chapter_id !== request.chapter_id) {
     const profileUpdate: Record<string, unknown> = {
       chapter_id: chapter.id,
@@ -443,32 +474,6 @@ export async function approveMembershipRequest(
       existingAvatarUrl: (profile.avatar_url as string | null) ?? null,
     });
     if (!alumniResult.ok) return alumniResult;
-  }
-
-  if (request.source === 'invitation' && request.invitation_id) {
-    const { data: invitationRow } = await supabase
-      .from('invitations')
-      .select('usage_count')
-      .eq('id', request.invitation_id)
-      .maybeSingle();
-
-    const usageCount =
-      typeof invitationRow?.usage_count === 'number'
-        ? invitationRow.usage_count
-        : 0;
-
-    const usageResult = await recordInvitationUsage(
-      request.invitation_id,
-      profile.email ?? '',
-      request.user_id,
-      usageCount
-    );
-    if (!usageResult.success) {
-      console.error(
-        'approveMembershipRequest: recordInvitationUsage',
-        usageResult.error
-      );
-    }
   }
 
   const finalized = await finalizeApproveUpdate(

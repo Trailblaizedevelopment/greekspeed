@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { AlertCircle, Users, Shield, Calendar, CheckCircle, Loader2, Linkedin, Mail } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Loader2, Linkedin, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { JoinForm } from '@/components/features/join/JoinForm';
@@ -96,14 +96,21 @@ export default function JoinPageClient() {
     }
   }, [token, router]);
 
-  const handleJoinSuccess = (userData: any) => {
+  /** Auto (`approval_mode: auto`): brief success then onboarding. Pending: stay on page with messaging (TRA-597). */
+  useEffect(() => {
+    if (!signupSuccess || showApprovalPending) return;
+    const id = window.setTimeout(() => {
+      window.location.assign('/onboarding');
+    }, 1600);
+    return () => window.clearTimeout(id);
+  }, [signupSuccess, showApprovalPending]);
+
+  const handleJoinSuccess = (userData: { needs_approval?: boolean }) => {
     setSignupSuccess(true);
-    
-    if (userData.needs_approval) {
+    if (userData.needs_approval === true) {
       setShowApprovalPending(true);
     } else {
-      // Redirect to onboarding to complete profile setup
-      window.location.href = '/onboarding';
+      setShowApprovalPending(false);
     }
   };
 
@@ -262,7 +269,35 @@ export default function JoinPageClient() {
     );
   }
 
-  if (signupSuccess && !invitation.approval_mode) {
+  if (signupSuccess && showApprovalPending) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-amber-700">
+              <Clock className="h-5 w-5" />
+              <span>Approval pending</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-600">
+              Your account is created. Chapter leadership must approve your membership before you have full
+              chapter access. You can complete your profile while you wait—we&apos;ll email you when
+              you&apos;re approved.
+            </p>
+            <Button
+              className="w-full bg-brand-accent hover:bg-brand-accent-hover"
+              onClick={() => router.push('/onboarding')}
+            >
+              Continue to onboarding
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (signupSuccess && !showApprovalPending) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-accent-50 to-purple-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
@@ -274,8 +309,11 @@ export default function JoinPageClient() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-gray-600">
-              Your account has been created successfully. Redirecting you to the dashboard...
+              Your account is ready. Taking you to finish setup…
             </p>
+            <div className="flex justify-center py-2">
+              <Loader2 className="h-8 w-8 animate-spin text-brand-accent" aria-hidden />
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -316,6 +354,15 @@ export default function JoinPageClient() {
                 Create your account to get started.
               </p>
             </div>
+
+            {invitation.approval_mode === 'pending' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                <p className="text-sm text-amber-900">
+                  <strong>Heads up:</strong> After you sign up, chapter leadership must approve your membership
+                  before you have full chapter access.
+                </p>
+              </div>
+            )}
 
             {invitation.single_use && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">

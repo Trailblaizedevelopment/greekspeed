@@ -17,6 +17,7 @@ export function membershipRequestServiceErrorResponse(
     case 'INVITATION_NOT_FOUND':
     case 'DUPLICATE_PENDING':
       return NextResponse.json({ error: message }, { status: 400 });
+    case 'INVITATION_USAGE_FAILED':
     case 'PROFILE_UPDATE_FAILED':
     case 'ALUMNI_SYNC_FAILED':
     case 'REQUEST_UPDATE_FAILED':

@@ -151,9 +151,21 @@ export async function recordInvitationUsage(
     if (usageError) {
       // If it's a unique constraint violation, the email already used this invitation
       if (usageError.code === '23505') {
+        // TRA-596: Same user + invitation (e.g. approve retry) — usage row already exists.
+        if (userId) {
+          const { data: existing } = await supabase
+            .from('invitation_usage')
+            .select('user_id')
+            .eq('invitation_id', invitationId)
+            .eq('email', email.toLowerCase())
+            .maybeSingle();
+          if (existing?.user_id === userId) {
+            return { success: true };
+          }
+        }
         return {
           success: false,
-          error: 'This email has already been used with this invitation'
+          error: 'This email has already been used with this invitation',
         };
       }
       throw usageError;
