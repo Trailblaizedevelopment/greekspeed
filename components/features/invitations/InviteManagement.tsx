@@ -17,6 +17,12 @@ interface InviteManagementProps {
   className?: string;
 }
 
+function invitationApprovalLabel(
+  approvalMode: InvitationWithUsage['approval_mode'] | undefined
+): string {
+  return approvalMode === 'pending' ? 'Requires chapter approval' : 'Auto-approve';
+}
+
 export function InviteManagement({ chapterId, className }: InviteManagementProps) {
   const [invitations, setInvitations] = useState<InvitationWithUsage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -300,7 +306,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
                     
                     <div className="flex items-center space-x-1">
                       <Shield className="h-4 w-4" />
-                      <span>Auto-approve</span>
+                      <span>{invitationApprovalLabel(invitation.approval_mode)}</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
@@ -375,10 +381,14 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
               </div>
               
               {/* Stats row - aligned with invitation ID */}
-              <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 mb-2">
                 <div className="flex items-center space-x-1">
                   <Users className="h-3 w-3" />
                   <span>{invitation.usage.length} uses</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Shield className="h-3 w-3" />
+                  <span>{invitationApprovalLabel(invitation.approval_mode)}</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Calendar className="h-3 w-3" />
