@@ -32,6 +32,7 @@ import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 
 // ============================================================================
 // Constants
@@ -94,20 +95,12 @@ export default function ProfileBasicsPage() {
   /** Major required for actives and admin accounts; optional for alumni */
   const majorRequired = effectiveRole === 'active_member' || effectiveRole === 'admin';
 
-  /** Marketing alumni: no profiles.chapter_id until exec approves — still need UUID for alumni row / consistency. */
-  const isMarketingPendingChapter =
-    profile?.signup_channel === 'marketing_alumni' && !profile?.chapter_id;
-
-  // Pending membership request → chapter UUID (preferred over name match)
+  // Pending membership request → chapter UUID for forms/alumni row (marketing or invitation source)
   useEffect(() => {
     let cancelled = false;
 
     const loadPendingChapterId = async () => {
       if (!user?.id || profile?.chapter_id) {
-        setPendingRequestChapterId(null);
-        return;
-      }
-      if (profile?.signup_channel !== 'marketing_alumni') {
         setPendingRequestChapterId(null);
         return;
       }
@@ -117,6 +110,7 @@ export default function ProfileBasicsPage() {
         .select('chapter_id')
         .eq('user_id', user.id)
         .eq('status', 'pending')
+        .in('source', ['marketing_alumni', 'invitation'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -124,6 +118,8 @@ export default function ProfileBasicsPage() {
       if (cancelled || error) return;
       if (data?.chapter_id) {
         setPendingRequestChapterId(data.chapter_id);
+      } else {
+        setPendingRequestChapterId(null);
       }
     };
 
@@ -131,7 +127,17 @@ export default function ProfileBasicsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profile?.chapter_id, profile?.signup_channel]);
+  }, [user?.id, profile?.chapter_id]);
+
+  /**
+   * Omit profiles.chapter_id until exec approval. Include invitation + no UUID yet (even if signup_channel
+   * is still null before pending row loads) — but never treat marketing_alumni as invitation via sessionStorage alone.
+   */
+  const omitProfileChapterId =
+    !profile?.chapter_id &&
+    (isAwaitingChapterMembershipApproval(profile) ||
+      pendingRequestChapterId !== null ||
+      (hasInvitation && profile?.signup_channel !== 'marketing_alumni'));
 
   // When chapter name is known but UUID missing, resolve from directory (until pending fetch returns)
   useEffect(() => {
@@ -190,6 +196,9 @@ export default function ProfileBasicsPage() {
         // Check if profile already has chapter and/or role (saved from step 1)
         // Note: These are checked separately — OAuth alumni users always have both
         // saved from step 1, but we handle each independently as a safety net.
+        if (profile?.signup_channel === 'invitation') {
+          setHasInvitation(true);
+        }
         if (profile?.chapter || profile?.role) {
           if (profile.role === 'active_member') {
             setHasInvitation(true);
@@ -420,9 +429,7 @@ export default function ProfileBasicsPage() {
         return;
       }
 
-      const omitProfileChapterId = isMarketingPendingChapter;
-
-      // Update profiles table (TRA-579: do not set profiles.chapter_id while marketing approval is pending)
+      // Update profiles table (TRA-579/invitation-pending: do not set profiles.chapter_id until exec approves)
       const updateData: Record<string, unknown> = {
         first_name: formData.firstName,
         last_name: formData.lastName,
@@ -437,6 +444,10 @@ export default function ProfileBasicsPage() {
 
       if (!omitProfileChapterId) {
         updateData.chapter_id = resolvedChapterUuid;
+      } else if (profile?.signup_channel === 'invitation') {
+        updateData.signup_channel = 'invitation';
+      } else if (profile?.signup_channel === 'marketing_alumni') {
+        updateData.signup_channel = 'marketing_alumni';
       }
 
       if (formData.location?.trim()) {
@@ -541,7 +552,7 @@ export default function ProfileBasicsPage() {
             <User className="h-5 w-5 text-brand-primary" />
             Tell Us About Yourself
           </CardTitle>
-          {isMarketingPendingChapter && (
+          {omitProfileChapterId && (
             <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
               Request submitted for <span className="font-medium">{profile?.chapter}</span>. Your chapter membership is
               pending administrator approval. Complete your profile below; chapter-scoped features stay locked until

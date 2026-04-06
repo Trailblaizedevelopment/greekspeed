@@ -27,10 +27,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import {
   clearPendingMembershipFlowAcknowledged,
-  fetchHasPendingChapterMembershipRequest,
   hasPendingMembershipFlowAcknowledged,
   isAwaitingChapterMembershipApproval,
-  setPendingMembershipFlowAcknowledged,
 } from '@/lib/utils/marketingAlumniOnboarding';
 import { ChapterFeaturesProvider } from '@/lib/contexts/ChapterFeaturesContext';
 import { OneSignalDashboardLoader } from '@/components/features/dashboard/OneSignalDashboardLoader';
@@ -53,7 +51,7 @@ export default function DashboardLayoutClient({
   /** TRA-583: Do not render dashboard chrome while marketing alumni without chapter are being sent to pending/onboarding. */
   const [marketingDashboardGatePending, setMarketingDashboardGatePending] = useState(false);
 
-  // Guard: incomplete onboarding → onboarding entry or pending page (TRA-580/582: DB row works without localStorage).
+  // Guard: incomplete onboarding → wizard entry; pending page only after finishOnboarding sets LS ack.
   // TRA-583: Also gate when onboarding_completed is true but profile is still marketing_alumni without chapter_id (edge case).
   useEffect(() => {
     if (profileLoading || !profile) {
@@ -84,13 +82,6 @@ export default function DashboardLayoutClient({
         setMarketingDashboardGatePending(true);
         if (hasPendingMembershipFlowAcknowledged(profile.id)) {
           if (!cancelled) router.replace('/onboarding/pending-chapter-approval');
-          return;
-        }
-        const hasRow = await fetchHasPendingChapterMembershipRequest(profile.id);
-        if (cancelled) return;
-        if (hasRow) {
-          setPendingMembershipFlowAcknowledged(profile.id);
-          router.replace('/onboarding/pending-chapter-approval');
           return;
         }
         if (!cancelled) router.replace('/onboarding');

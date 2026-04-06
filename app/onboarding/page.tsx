@@ -11,12 +11,11 @@ import {
   fetchHasPendingChapterMembershipRequest,
   hasPendingMembershipFlowAcknowledged,
   isAwaitingChapterMembershipApproval,
-  setPendingMembershipFlowAcknowledged,
 } from '@/lib/utils/marketingAlumniOnboarding';
 
 /**
- * Onboarding entry: dashboard, sign-in, marketing pending (DB + LS), or first step.
- * TRA-582: marketing alumni with a pending chapter_membership_requests row skip role-chapter (refresh-safe).
+ * Onboarding entry: dashboard, sign-in, or first wizard step.
+ * Pending chapter approval is only after the full wizard — finishOnboarding sets LS ack (same as marketing alumni).
  */
 export default function OnboardingPage() {
   const router = useRouter();
@@ -55,12 +54,9 @@ export default function OnboardingPage() {
       if (isAwaitingChapterMembershipApproval(profile)) {
         const hasPendingRow = await fetchHasPendingChapterMembershipRequest(profile.id);
         if (cancelled) return;
-        if (hasPendingRow) {
-          setPendingMembershipFlowAcknowledged(profile.id);
-          router.replace('/onboarding/pending-chapter-approval');
-          return;
+        if (!hasPendingRow) {
+          clearPendingMembershipFlowAcknowledged(profile.id);
         }
-        clearPendingMembershipFlowAcknowledged(profile.id);
       }
 
       if (cancelled) return;

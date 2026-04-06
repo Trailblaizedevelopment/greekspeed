@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
+import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 
 // ============================================================================
 // Component
@@ -149,6 +150,15 @@ export default function RoleChapterPage() {
   const useMarketingMembershipRequestFlow =
     profile?.signup_channel === 'marketing_alumni' && !hasInvitation;
 
+  /**
+   * Do not persist profiles.chapter_id while exec approval is pending (marketing or invitation).
+   * Invitation pending already has chapter_membership_requests row from accept; do not duplicate marketing POST.
+   */
+  const omitProfileChapterId =
+    useMarketingMembershipRequestFlow ||
+    isAwaitingChapterMembershipApproval(profile) ||
+    (!!hasInvitation && !profile?.chapter_id);
+
   /** TRA-590: shared POST so confirmation mode (sign-up pre-filled chapter/role) also queues the row. */
   const postMarketingMembershipRequest = useCallback(
     async (chapterUuid: string): Promise<boolean> => {
@@ -241,8 +251,12 @@ export default function RoleChapterPage() {
         updated_at: new Date().toISOString(),
       };
 
-      if (!useMarketingMembershipRequestFlow) {
+      if (!omitProfileChapterId) {
         updateData.chapter_id = selectedChapter.id;
+      } else if (profile?.signup_channel === 'invitation') {
+        updateData.signup_channel = 'invitation';
+      } else if (profile?.signup_channel === 'marketing_alumni') {
+        updateData.signup_channel = 'marketing_alumni';
       }
 
       if (firstName.trim()) updateData.first_name = firstName;
