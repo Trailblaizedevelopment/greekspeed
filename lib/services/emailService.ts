@@ -501,6 +501,23 @@ export class EmailService {
       return true;
     } catch (error) {
       console.error('Failed to send new membership request admin email:', error);
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const sgError = error as { response?: { body?: unknown; headers?: unknown }};
+        console.error(
+          'SendGrid membership admin email response body:',
+          JSON.stringify(sgError.response?.body, null, 2)
+        );
+        console.error('SendGrid response headers:', sgError.response?.headers);
+      }
+
+      console.error('Membership admin email debug context:', {
+        to,
+        templateId: process.env.SENDGRID_MEMBERSHIP_REQUEST_ADMIN_TEMPLATE_ID,
+        fromEmail: this.fromEmail,
+        hasApiKey: !!process.env.SENDGRID_API_KEY
+      });
+      
       return false;
     }
   }
