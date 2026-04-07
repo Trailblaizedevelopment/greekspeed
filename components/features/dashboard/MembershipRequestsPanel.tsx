@@ -261,7 +261,7 @@ export function MembershipRequestsPanel({
           <Card key={group.chapterId} className="shadow-sm border-gray-200">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold text-gray-900 flex flex-wrap items-center gap-2">
-                {group.chapterName}
+                Membership Requests
                 <span className="text-sm font-normal text-gray-500">
                   ({visible.length} pending)
                 </span>
