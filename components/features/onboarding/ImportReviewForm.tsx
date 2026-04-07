@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectItem } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Briefcase,
@@ -31,7 +32,9 @@ import {
   UserRole,
   ExistingProfileData,
 } from '@/types/profile-import';
-import { industries, getGraduationYears } from '@/lib/alumniConstants';
+import { buildIndustrySelectOptions, getGraduationYears } from '@/lib/alumniConstants';
+
+const importReviewIndustryOptions = buildIndustrySelectOptions('Select industry...');
 
 // ============================================================================
 // Props Interface
@@ -446,22 +449,18 @@ export function ImportReviewForm({
                 Industry *
                 {renderConfidenceIndicator('industry')}
               </Label>
-              <Select
+              <SearchableSelect
                 value={formData.industry || ''}
                 onValueChange={(value) => handleChange('industry', value)}
+                options={importReviewIndustryOptions}
                 placeholder="Select your industry"
+                searchPlaceholder="Search industries..."
                 className={cn(
-                  errors.industry && '[&>button]:border-red-500',
-                  isLowConfidence(confidence, 'industry') && '[&>button]:border-amber-400'
+                  errors.industry && 'border-red-500',
+                  isLowConfidence(confidence, 'industry') && 'border-amber-400'
                 )}
-              >
-                <SelectItem value="">Select industry...</SelectItem>
-                {industries.map((industry) => (
-                  <SelectItem key={industry} value={industry}>
-                    {industry}
-                  </SelectItem>
-                ))}
-              </Select>
+                allowCustom
+              />
               {errors.industry && (
                 <p className="text-sm text-red-500">{errors.industry}</p>
               )}

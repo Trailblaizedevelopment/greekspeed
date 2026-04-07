@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { industries, getGraduationYears, majors, minors } from '@/lib/alumniConstants';
+import { buildIndustrySelectOptions, getGraduationYears, majors } from '@/lib/alumniConstants';
 import {
   User,
   Building2,
@@ -34,6 +34,8 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
+
+const profileBasicsIndustryOptions = buildIndustrySelectOptions('Select industry');
 
 // ============================================================================
 // Constants
@@ -673,6 +675,7 @@ export default function ProfileBasicsPage() {
                 placeholder="Select Major"
                 searchPlaceholder="Search majors..."
                 className={cn(errors.major && 'border-red-500')}
+                allowCustom
               />
               {errors.major && (
                 <p className="text-sm text-red-500">{errors.major}</p>
@@ -774,21 +777,15 @@ export default function ProfileBasicsPage() {
                   {/* Industry */}
                   <div className="space-y-2 mb-4">
                     <Label htmlFor="industry">Industry *</Label>
-                    <Select
+                    <SearchableSelect
                       value={formData.industry}
                       onValueChange={(value) => handleChange('industry', value)}
-                    >
-                      <SelectTrigger className={cn(errors.industry && 'border-red-500')}>
-                        <SelectValue placeholder="Select industry" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {industries.map((industry) => (
-                          <SelectItem key={industry} value={industry}>
-                            {industry}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={profileBasicsIndustryOptions}
+                      placeholder="Select industry"
+                      searchPlaceholder="Search industries..."
+                      className={cn(errors.industry && 'border-red-500')}
+                      allowCustom
+                    />
                     {errors.industry && (
                       <p className="text-sm text-red-500">{errors.industry}</p>
                     )}

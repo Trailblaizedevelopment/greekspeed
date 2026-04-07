@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectItem } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { AvatarService } from '@/lib/services/avatarService';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -20,7 +20,7 @@ import { useModal } from '@/lib/contexts/ModalContext';
 import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection';
 import type { DetectedChange } from './ProfileUpdatePromptModal';
 import { cn } from '@/lib/utils';
-import { getGraduationYears, industries, majors, minors } from '@/lib/alumniConstants';
+import { buildIndustrySelectOptions, getGraduationYears, majors, minors } from '@/lib/alumniConstants';
 import { UsernameInput } from './UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
@@ -28,6 +28,8 @@ import { ImageCropper, type CropType } from '@/components/features/common/ImageC
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
+
+const editProfileIndustryOptions = buildIndustrySelectOptions('Select Industry');
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -1036,22 +1038,15 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="industry">Industry</Label>
-                        <Select
+                        <SearchableSelect
                           value={formData.industry || ''}
                           onValueChange={(value) => handleInputChange('industry', value)}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">Select Industry</SelectItem>
-                            {industries.map((industry) => (
-                              <SelectItem key={industry} value={industry}>
-                                {industry}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={editProfileIndustryOptions}
+                          placeholder="Select Industry"
+                          searchPlaceholder="Search industries..."
+                          className="mt-1"
+                          allowCustom
+                        />
                       </div>
                       <div>
                         <Label htmlFor="company">Company</Label>
@@ -1206,6 +1201,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         placeholder="Select Major"
                         searchPlaceholder="Search majors..."
                         className="mt-1"
+                        allowCustom
                       />
                     </div>
                     <div>
@@ -1217,6 +1213,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         placeholder="Select Minor"
                         searchPlaceholder="Search minors..."
                         className="mt-1"
+                        allowCustom
                       />
                     </div>
                   </div>
