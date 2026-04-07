@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,8 +17,25 @@ import {
   MembershipRequestsPanel,
   type MembershipRequestDetailSelection,
 } from '@/components/features/dashboard/MembershipRequestsPanel';
+import { MembershipRequestsPanelSkeleton } from '@/components/features/dashboard/MembershipRequestsPanelSkeleton';
 import type { ProfileForPermission } from '@/lib/permissions';
 import { membershipRequestIdParamSchema } from '@/lib/validation/chapterMembershipRequests';
+
+/** Page chrome + panel skeleton while profile or search params hydrate. */
+function MembershipRequestsPageShellSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <div className="space-y-4">
+          <div className="h-9 w-24 rounded-md bg-gray-200 animate-pulse" aria-hidden />
+          <div className="h-8 w-64 max-w-full rounded-md bg-gray-200 animate-pulse" aria-hidden />
+          <div className="h-4 w-80 max-w-full rounded-md bg-gray-100 animate-pulse" aria-hidden />
+        </div>
+        <MembershipRequestsPanelSkeleton />
+      </div>
+    </div>
+  );
+}
 
 function MembershipRequestsPageInner() {
   const router = useRouter();
@@ -114,11 +131,7 @@ function MembershipRequestsPageInner() {
   } = useMembershipRequestsAdmin();
 
   if (profileLoading || !profile) {
-    return (
-      <div className="min-h-[50vh] flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-10 w-10 animate-spin text-brand-primary" />
-      </div>
-    );
+    return <MembershipRequestsPageShellSkeleton />;
   }
 
   const permissionProfile = profile as ProfileForPermission;
@@ -243,13 +256,7 @@ function MembershipRequestsPageInner() {
 
 export default function DashboardMembershipRequestsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-[50vh] flex items-center justify-center bg-gray-50">
-          <Loader2 className="h-10 w-10 animate-spin text-brand-primary" />
-        </div>
-      }
-    >
+    <Suspense fallback={<MembershipRequestsPageShellSkeleton />}>
       <MembershipRequestsPageInner />
     </Suspense>
   );

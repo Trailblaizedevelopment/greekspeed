@@ -27,6 +27,6 @@ export const approveMembershipRequestBodySchema = z.object({}).strict();
 /** POST /api/chapter-membership-requests/[id]/reject */
 export const rejectMembershipRequestBodySchema = z
   .object({
-    rejectionReason: z.string().trim().max(2000).optional(),
+    rejectionReason: z.string().trim().max(250).optional(),
   })
   .strict();

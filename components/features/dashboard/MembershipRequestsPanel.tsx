@@ -24,7 +24,11 @@ import {
 import type { ChapterMembershipRequest } from '@/types/chapterMembershipRequests';
 import type { MembershipRequestChapterGroup } from '@/lib/hooks/useMembershipRequestsAdmin';
 import { MembershipRequestDetailSheet } from '@/components/features/dashboard/MembershipRequestDetailSheet';
+import { MembershipRequestEmailMailtoButton } from '@/components/features/dashboard/MembershipRequestEmailMailtoButton';
+import { MembershipRequestsPanelSkeleton } from '@/components/features/dashboard/MembershipRequestsPanelSkeleton';
 import { cn } from '@/lib/utils';
+
+const REJECTION_REASON_MAX_LENGTH = 250;
 
 function sourceLabel(source: ChapterMembershipRequest['source']): string {
   if (source === 'marketing_alumni') return 'Marketing signup';
@@ -222,10 +226,9 @@ export function MembershipRequestsPanel({
 
   if (loading && groups.length === 0 && !error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-gray-600">
-        <Loader2 className="h-10 w-10 animate-spin text-brand-primary mb-3" />
-        <p className="text-sm">Loading requests…</p>
-      </div>
+      <MembershipRequestsPanelSkeleton
+        showSummaryBar={showMultiChapterSummary}
+      />
     );
   }
 
@@ -394,7 +397,15 @@ export function MembershipRequestsPanel({
                               {row.applicant_full_name ?? '—'}
                             </td>
                             <td className="py-3 pr-4 text-gray-600">
-                              {row.applicant_email ?? '—'}
+                              <div className="flex items-center gap-1 min-w-0 max-w-[200px] lg:max-w-[280px] xl:max-w-none">
+                                <span className="truncate min-w-0">
+                                  {row.applicant_email ?? '—'}
+                                </span>
+                                <MembershipRequestEmailMailtoButton
+                                  email={row.applicant_email}
+                                  className="shrink-0"
+                                />
+                              </div>
                             </td>
                             <td className="py-3 pr-4 text-gray-600">
                               {sourceLabel(row.source)}
@@ -463,39 +474,48 @@ export function MembershipRequestsPanel({
                         data-membership-request-row={row.id}
                         className="rounded-lg border border-gray-200 bg-gray-50/80 overflow-hidden"
                       >
-                        <button
-                          type="button"
-                          className="w-full text-left p-4 space-y-2 hover:bg-gray-100/60 transition-colors"
-                          onClick={() =>
-                            setSelectedDetail({
-                              row,
-                              chapterName: group.chapterName,
-                            })
-                          }
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {row.applicant_full_name ?? 'Unknown'}
-                              </p>
-                              <p className="text-sm text-gray-600 break-all">
-                                {row.applicant_email ?? '—'}
-                              </p>
+                        <div className="flex items-stretch">
+                          <button
+                            type="button"
+                            className="flex-1 min-w-0 text-left p-4 space-y-2 hover:bg-gray-100/60 transition-colors"
+                            onClick={() =>
+                              setSelectedDetail({
+                                row,
+                                chapterName: group.chapterName,
+                              })
+                            }
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900">
+                                  {row.applicant_full_name ?? 'Unknown'}
+                                </p>
+                                <p className="text-sm text-gray-600 break-all">
+                                  {row.applicant_email ?? '—'}
+                                </p>
+                              </div>
+                              <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />
                             </div>
-                            <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />
-                          </div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
-                            <span>{sourceLabel(row.source)}</span>
-                            <span>
-                              {formatDistanceToNow(new Date(row.created_at), {
-                                addSuffix: true,
-                              })}
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+                              <span>{sourceLabel(row.source)}</span>
+                              <span>
+                                {formatDistanceToNow(new Date(row.created_at), {
+                                  addSuffix: true,
+                                })}
+                              </span>
+                            </div>
+                            <span className="text-xs font-medium text-brand-primary">
+                              Tap for details & actions
                             </span>
-                          </div>
-                          <span className="text-xs font-medium text-brand-primary">
-                            Tap for details & actions
-                          </span>
-                        </button>
+                          </button>
+                          {row.applicant_email?.trim() ? (
+                            <div className="flex items-start pt-4 pr-3 shrink-0 border-l border-gray-200/70">
+                              <MembershipRequestEmailMailtoButton
+                                email={row.applicant_email}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
                         <div className="flex gap-2 px-4 pb-4">
                           <Button
                             type="button"
@@ -566,19 +586,42 @@ export function MembershipRequestsPanel({
           <p className="text-sm text-gray-600">
             Optional message for the applicant (stored with the request).
           </p>
-          <Textarea
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Reason (optional)"
-            rows={3}
-            className="resize-none"
-          />
-          <DialogFooter className="gap-2 sm:gap-0">
+          <div className="space-y-1.5">
+            <Textarea
+              id="membership-reject-reason"
+              value={rejectReason}
+              onChange={(e) =>
+                setRejectReason(
+                  e.target.value.slice(0, REJECTION_REASON_MAX_LENGTH)
+                )
+              }
+              placeholder="Reason (optional)"
+              rows={4}
+              maxLength={REJECTION_REASON_MAX_LENGTH}
+              aria-describedby="membership-reject-reason-count"
+              className="resize-none rounded-xl border-gray-200 focus-visible:ring-brand-primary/20"
+            />
+            <div className="flex justify-end">
+              <p
+                id="membership-reject-reason-count"
+                className={cn(
+                  'text-xs tabular-nums',
+                  rejectReason.length >= REJECTION_REASON_MAX_LENGTH
+                    ? 'text-amber-600 font-medium'
+                    : 'text-gray-500'
+                )}
+              >
+                {rejectReason.length} / {REJECTION_REASON_MAX_LENGTH}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:justify-end sm:gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => setRejectTarget(null)}
               disabled={!!processingId}
+              className="w-full sm:w-auto rounded-full bg-white text-brand-primary border-gray-200 hover:bg-brand-primary/10 transition-colors duration-200 hover:shadow-md hover:brightness-105 focus-visible:ring-2 focus-visible:ring-brand-primary/10 focus-visible:outline-none"
             >
               Cancel
             </Button>
@@ -587,6 +630,7 @@ export function MembershipRequestsPanel({
               variant="default"
               onClick={() => void handleRejectConfirm()}
               disabled={!!processingId}
+              className="w-full sm:w-auto rounded-full bg-brand-primary text-white transition-colors duration-200 hover:bg-brand-primary/90 hover:shadow-lg hover:brightness-105 focus-visible:ring-2 focus-visible:ring-brand-primary/70 focus-visible:outline-none"
             >
               {processingId ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
