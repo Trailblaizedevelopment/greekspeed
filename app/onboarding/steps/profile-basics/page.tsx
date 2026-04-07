@@ -529,23 +529,6 @@ export default function ProfileBasicsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Information Banner for non-invitation users */}
-      {!hasInvitation && !invitationLoading && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <h3 className="font-medium text-amber-900 text-sm mb-1">Alumni Profile Only</h3>
-                <p className="text-sm text-amber-800">
-                  This profile setup is for alumni only. Active members must be invited by chapter administrators.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -553,10 +536,14 @@ export default function ProfileBasicsPage() {
             Tell Us About Yourself
           </CardTitle>
           {omitProfileChapterId && (
-            <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
-              Request submitted for <span className="font-medium">{profile?.chapter}</span>. Your chapter membership is
-              pending administrator approval. Complete your profile below; chapter-scoped features stay locked until
-              you are approved.
+            <p
+              className={cn(
+                'mt-3 rounded-lg border border-brand-accent/20 px-3 py-2.5 text-sm text-slate-700',
+                'bg-gradient-to-r from-slate-50/90 to-brand-accent-light/50 shadow-sm'
+              )}
+            >
+              <span className="font-medium text-slate-900">{profile?.chapter ?? 'Your chapter'}</span>: membership
+              pending approval. Finish your profile & unlock more once you&apos;re approved.
             </p>
           )}
         </CardHeader>
