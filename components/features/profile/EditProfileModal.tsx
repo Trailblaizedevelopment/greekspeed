@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { AvatarService } from '@/lib/services/avatarService';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -28,6 +27,11 @@ import { ImageCropper, type CropType } from '@/components/features/common/ImageC
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
+
+const ALUMNI_INDUSTRY_OPTIONS = [
+  { value: '', label: 'Select Industry' },
+  ...industries.map((industry) => ({ value: industry, label: industry })),
+];
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -107,6 +111,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
   // Form ref for programmatic submission
   const formRef = useRef<HTMLFormElement>(null);
+  const drawerContentRef = useRef<HTMLDivElement>(null);
 
   // Add loading state to prevent modal flicker
   const [isModalReady, setIsModalReady] = useState(false);
@@ -772,6 +777,10 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
   const isMobile = variant === 'mobile';
 
   const graduationYears = profile?.role === 'alumni' ? getGraduationYears() : [];
+  const graduationYearOptions = graduationYears.map((year) => ({
+    value: String(year),
+    label: String(year),
+  }));
 
   // Keyboard-aware drawer sizing (mobile only)
   const keyboardOpen = isMobile && visualHeight < fullInnerHeight - 50;
@@ -796,6 +805,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[10002] bg-black/50 transition-opacity" />
         <Drawer.Content
+          ref={drawerContentRef}
           className={`
             bg-white flex flex-col z-[10003]
             fixed bottom-0 left-0 right-0
@@ -831,43 +841,45 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
             {/* Combined Profile Photo & Banner */}
             <div className={`relative ${isMobile ? 'h-32' : 'h-64'} overflow-hidden rounded-lg`}>
               {/* Banner Section - Make it clickable */}
-              <div 
-                className="absolute inset-0 flex items-center justify-center text-white cursor-pointer group rounded-lg overflow-hidden"
+              <div
+                className="absolute inset-0 cursor-pointer group overflow-hidden rounded-lg"
                 onClick={() => document.getElementById('banner-upload')?.click()}
               >
-                  <img 
-                    src={bannerPreview || profile?.banner_url || DEFAULT_BANNER_IMAGE} 
-                    alt="Profile banner" 
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                  
-                  {/* Banner Upload Overlay */}
-                  <div className={`absolute inset-0 flex flex-col items-center justify-start opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg ${isMobile ? 'pt-4' : 'pt-8'}`}>
-                    <div className="text-center">
-                      {bannerUploading ? (
-                        <div className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2`} />
-                      ) : (
-                        <Upload className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} mx-auto mb-2`} />
-                      )}
-                      <p className={isMobile ? 'text-sm font-medium' : 'text-lg font-medium'}>
-                        {bannerUploading ? 'Uploading...' : 'Upload Banner'}
-                      </p>
-                      {!isMobile && (
-                        <p className="text-sm">
-                          {bannerUploading ? 'Please wait...' : 'Click to upload banner image'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Default banner text (only show if no banner exists) */}
-                  {!bannerPreview && !profile?.banner_url && (
-                    <div className="text-center opacity-80 group-hover:opacity-0 transition-opacity">
+                <img
+                  src={bannerPreview || profile?.banner_url || DEFAULT_BANNER_IMAGE}
+                  alt="Profile banner"
+                  className="pointer-events-none absolute inset-0 h-full w-full rounded-lg object-cover"
+                />
+                {!bannerPreview && !profile?.banner_url && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center text-white opacity-80 transition-opacity group-hover:opacity-0">
+                    <div>
                       <p className={isMobile ? 'text-sm font-medium' : 'text-lg font-medium'}>Banner Image</p>
                       {!isMobile && <p className="text-sm">Click to upload your banner</p>}
                     </div>
-                  )}
+                  </div>
+                )}
+                <div
+                  className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-start rounded-lg bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 ${isMobile ? 'pt-4' : 'pt-8'}`}
+                >
+                  <div className="text-center text-white">
+                    {bannerUploading ? (
+                      <div
+                        className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} mx-auto mb-2 animate-spin rounded-full border-2 border-white border-t-transparent`}
+                      />
+                    ) : (
+                      <Upload className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} mx-auto mb-2`} />
+                    )}
+                    <p className={isMobile ? 'text-sm font-medium' : 'text-lg font-medium'}>
+                      {bannerUploading ? 'Uploading...' : 'Upload Banner'}
+                    </p>
+                    {!isMobile && (
+                      <p className="text-sm">
+                        {bannerUploading ? 'Please wait...' : 'Click to upload banner image'}
+                      </p>
+                    )}
+                  </div>
                 </div>
+              </div>
 
                 {/* Profile Photo Section - Positioned at bottom-left */}
                 <div className={`absolute ${isMobile ? 'bottom-2 left-2' : 'bottom-4 left-4'} z-10`}>
@@ -1003,17 +1015,15 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                   {profile?.role === 'alumni' && (
                     <div>
                       <Label htmlFor="grad_year">Graduation Year</Label>
-                      <Select
+                      <SearchableSelect
                         value={formData.grad_year || ''}
                         onValueChange={(value) => handleInputChange('grad_year', value)}
+                        options={graduationYearOptions}
                         placeholder="Select graduation year"
-                      >
-                        {graduationYears.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </Select>
+                        searchPlaceholder="Search years..."
+                        className="mt-1"
+                        portalContainerRef={drawerContentRef}
+                      />
                     </div>
                   )}
                 </div>
@@ -1036,22 +1046,15 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="industry">Industry</Label>
-                        <Select
+                        <SearchableSelect
                           value={formData.industry || ''}
                           onValueChange={(value) => handleInputChange('industry', value)}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">Select Industry</SelectItem>
-                            {industries.map((industry) => (
-                              <SelectItem key={industry} value={industry}>
-                                {industry}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={ALUMNI_INDUSTRY_OPTIONS}
+                          placeholder="Select Industry"
+                          searchPlaceholder="Search industries..."
+                          className="mt-1"
+                          portalContainerRef={drawerContentRef}
+                        />
                       </div>
                       <div>
                         <Label htmlFor="company">Company</Label>

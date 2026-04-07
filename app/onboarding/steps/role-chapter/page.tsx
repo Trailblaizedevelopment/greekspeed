@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -38,6 +38,9 @@ export default function RoleChapterPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const { profile, refreshProfile } = useProfile();
+  const profileChapter = profile?.chapter ?? '';
+  const profileRole = profile?.role ?? '';
+  const profileChapterId = profile?.chapter_id ?? '';
   const { completeStep } = useOnboarding();
   const { chapters, loading: chaptersLoading } = useChapters();
 
@@ -53,81 +56,126 @@ export default function RoleChapterPage() {
 
   // Check for invitation data in session storage
   const [hasInvitation, setHasInvitation] = useState(false);
-  const [invitationLoading, setInvitationLoading] = useState(false);
+
+  // Session + profile prefill before paint so Radix Select and labels don’t flash empty.
+  useLayoutEffect(() => {
+    const invitationType = sessionStorage.getItem('invitation_type');
+
+    if (invitationType) {
+      setHasInvitation(true);
+      if (invitationType === 'active_member') {
+        setFormData(prev =>
+          prev.role === 'active_member' ? prev : { ...prev, role: 'active_member' },
+        );
+      }
+    }
+
+    if (profileChapter || profileRole) {
+      const matchingChapter = chapters.find(c => c.name === profileChapter);
+      const nextChapter = profileChapter || undefined;
+      const nextChapterId =
+        matchingChapter?.id || profileChapterId || undefined;
+      const nextRole = (profileRole as 'alumni' | 'active_member') || undefined;
+
+      setFormData(prev => {
+        const chapter = nextChapter ?? prev.chapter;
+        const chapterId = nextChapterId ?? prev.chapterId;
+        const role = nextRole ?? prev.role;
+        if (
+          prev.chapter === chapter &&
+          prev.chapterId === chapterId &&
+          prev.role === role
+        ) {
+          return prev;
+        }
+        return { ...prev, chapter, chapterId, role };
+      });
+    }
+  }, [chapters, profileChapter, profileRole, profileChapterId]);
 
   useEffect(() => {
-    const loadInvitationData = async () => {
-      // Check if user came through invitation flow
-      const invitationType = sessionStorage.getItem('invitation_type');
-      const invitationToken = sessionStorage.getItem('invitation_token');
-  
-      if (invitationType) {
-        setHasInvitation(true);
-        // If invitation specifies role, use it
-        if (invitationType === 'active_member') {
-          setFormData(prev => ({ ...prev, role: 'active_member' }));
-        }
-      }
-  
-      // Pre-populate from profile if available (invitation flow already set these)
-      if (profile?.chapter || profile?.role) {
-        const matchingChapter = chapters.find(c => c.name === profile.chapter);
-        setFormData(prev => ({
-          ...prev,
-          chapter: profile.chapter || prev.chapter,
-          chapterId: matchingChapter?.id || profile.chapter_id || prev.chapterId,
-          role: (profile.role as 'alumni' | 'active_member') || prev.role,
-        }));
-        return; // Profile already has data, no need to fetch
-      }
-  
-      // Fallback: if profile doesn't have chapter/role but we have an invitation token,
-      // fetch invitation data to pre-populate (handles case where callback missed params)
-      if (invitationToken && (!profile?.chapter || !profile?.role)) {
-        setInvitationLoading(true);
-        try {
-          // Determine which API to call based on invitation type
-          const apiPath = invitationType === 'alumni'
+    const invitationType = sessionStorage.getItem('invitation_type');
+    const invitationToken = sessionStorage.getItem('invitation_token');
+
+    if (!invitationToken || (profileChapter && profileRole)) {
+      return;
+    }
+
+    const loadInvitationFromToken = async () => {
+      try {
+        const apiPath =
+          invitationType === 'alumni'
             ? `/api/alumni-join/${invitationToken}`
             : `/api/join/${invitationToken}`;
-          const response = await fetch(apiPath);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.valid && data.invitation) {
-              const roleValue = data.invitation.invitation_type === 'alumni' ? 'alumni' : 'active_member';
-              const matchingChapter = chapters.find(c => c.name === data.invitation.chapter_name);
-              setFormData(prev => ({
-                ...prev,
-                chapter: data.invitation.chapter_name || prev.chapter,
-                chapterId: matchingChapter?.id || data.invitation.chapter_id || prev.chapterId,
-                role: roleValue,
-              }));
-              setHasInvitation(true);
-            }
+        const response = await fetch(apiPath);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.valid && data.invitation) {
+            const roleValue =
+              data.invitation.invitation_type === 'alumni' ? 'alumni' : 'active_member';
+            const matchingChapter = chapters.find(c => c.name === data.invitation.chapter_name);
+            setFormData(prev => ({
+              ...prev,
+              chapter: data.invitation.chapter_name || prev.chapter,
+              chapterId: matchingChapter?.id || data.invitation.chapter_id || prev.chapterId,
+              role: roleValue,
+            }));
+            setHasInvitation(true);
           }
-        } catch (error) {
-          console.error('Error fetching invitation data for role-chapter:', error);
-        } finally {
-          setInvitationLoading(false);
         }
+      } catch (error) {
+        console.error('Error fetching invitation data for role-chapter:', error);
       }
     };
-  
-    loadInvitationData();
-  }, [profile, chapters]);
 
-  // Determine if this is confirmation mode (user already has role and chapter from invitation)
+    void loadInvitationFromToken();
+  }, [profileChapter, profileRole, chapters]);
+
+  /** Ensures Radix Select always has a SelectItem for the current value (API list may still be loading). */
+  const chapterSelectOptions = useMemo(() => {
+    const fromApi = chapters.map(c => ({ id: c.id, name: c.name }));
+    const namesToEnsure = new Set<string>();
+    const p = profile?.chapter?.trim();
+    if (p) namesToEnsure.add(p);
+    const f = formData.chapter?.trim();
+    if (f) namesToEnsure.add(f);
+
+    let result = fromApi;
+    for (const name of namesToEnsure) {
+      if (!result.some(c => c.name === name)) {
+        const id =
+          name === p && profile?.chapter_id
+            ? profile.chapter_id
+            : name === f && formData.chapterId
+              ? formData.chapterId
+              : `__prefill__:${name}`;
+        result = [{ id, name }, ...result];
+      }
+    }
+    return result;
+  }, [chapters, profile?.chapter, profile?.chapter_id, formData.chapter, formData.chapterId]);
+
+  const selectChapterValue =
+    formData.chapter || profile?.chapter?.trim() || '';
+
+  // Invitation / callback users: already have chapter + role on profile. Marketing alumni must
+  // still complete the form to POST a membership request (email sign-up may prefill chapter name).
   const isConfirmationMode = useMemo(() => {
+    if (profile?.signup_channel === 'marketing_alumni') return false;
     return !!(profile?.role && profile?.chapter);
-  }, [profile?.role, profile?.chapter]);
+  }, [profile?.role, profile?.chapter, profile?.signup_channel]);
 
   // Handle chapter selection
   const handleChapterChange = (chapterName: string) => {
     const selectedChapter = chapters.find(c => c.name === chapterName);
+    const resolvedId =
+      selectedChapter?.id ||
+      (chapterName === profile?.chapter ? profile.chapter_id || '' : '') ||
+      '';
     setFormData(prev => ({
       ...prev,
       chapter: chapterName,
-      chapterId: selectedChapter?.id || '',
+      chapterId: resolvedId || prev.chapterId,
     }));
     if (errors.chapter) {
       setErrors(prev => {
@@ -142,7 +190,9 @@ export default function RoleChapterPage() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.chapter) newErrors.chapter = 'Please select your chapter';
+    if (!formData.chapter && !profile?.chapter?.trim()) {
+      newErrors.chapter = 'Please select your chapter';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -226,7 +276,10 @@ export default function RoleChapterPage() {
     setLoading(true);
 
     try {
-      const selectedChapter = chapters.find(c => c.name === formData.chapter);
+      const chapterNameForSubmit =
+        formData.chapter || profile?.chapter?.trim() || '';
+      // Ensure chapterId is set correctly (requires loaded chapter list for real UUID)
+      const selectedChapter = chapters.find(c => c.name === chapterNameForSubmit);
       if (!selectedChapter) {
         throw new Error('Selected chapter not found. Please try again.');
       }
@@ -250,7 +303,7 @@ export default function RoleChapterPage() {
       }
 
       const updateData: Record<string, unknown> = {
-        chapter: formData.chapter,
+        chapter: chapterNameForSubmit,
         role: formData.role,
         member_status: formData.role === 'alumni' ? 'graduated' : 'active',
         updated_at: new Date().toISOString(),
@@ -305,7 +358,7 @@ export default function RoleChapterPage() {
               first_name: firstName,
               last_name: lastName,
               full_name: `${firstName} ${lastName}`,
-              chapter: formData.chapter,
+              chapter: chapterNameForSubmit,
               chapter_id: selectedChapter.id,
               email: user.email || profile?.email || '',
               industry: 'Not specified',
@@ -313,7 +366,7 @@ export default function RoleChapterPage() {
               company: 'Not specified',
               job_title: 'Not specified',
               location: 'Not specified',
-              description: `Alumni from ${formData.chapter}`,
+              description: `Alumni from ${chapterNameForSubmit}`,
               verified: false,
               is_actively_hiring: false,
               updated_at: new Date().toISOString(),
@@ -529,7 +582,7 @@ export default function RoleChapterPage() {
                 Your Chapter *
               </Label>
               <Select
-                value={formData.chapter}
+                value={selectChapterValue}
                 onValueChange={handleChapterChange}
                 disabled={chaptersLoading}
               >
@@ -537,7 +590,7 @@ export default function RoleChapterPage() {
                   <SelectValue placeholder="Select your chapter" />
                 </SelectTrigger>
                 <SelectContent>
-                  {chapters.map((chapter) => (
+                  {chapterSelectOptions.map((chapter) => (
                     <SelectItem key={chapter.id} value={chapter.name}>
                       {chapter.name}
                     </SelectItem>
@@ -561,7 +614,7 @@ export default function RoleChapterPage() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Alumni</p>
-                    <p className="text-sm text-gray-500">Connect with your fraternity network</p>
+                    <p className="text-sm text-gray-500">Connect with your organization's network</p>
                   </div>
                 </div>
               </div>

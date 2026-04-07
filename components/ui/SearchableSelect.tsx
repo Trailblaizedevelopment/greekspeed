@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  type RefObject,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,6 +35,12 @@ interface SearchableSelectProps {
   className?: string;
   disabled?: boolean;
   maxHeight?: string;
+  /**
+   * When set, the desktop dropdown is portaled inside this node (e.g. Vaul Drawer.Content)
+   * so Radix focus trap allows the search input to stay focused. Uses absolute positioning
+   * relative to the container. Omit to keep portaling to document.body.
+   */
+  portalContainerRef?: RefObject<HTMLElement | null>;
 }
 
 export function SearchableSelect({
@@ -39,6 +52,7 @@ export function SearchableSelect({
   className,
   disabled = false,
   maxHeight = '280px',
+  portalContainerRef,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -166,6 +180,22 @@ export function SearchableSelect({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const margin = 12;
+    const container = portalContainerRef?.current ?? null;
+
+    if (container) {
+      const cRect = container.getBoundingClientRect();
+      const top = rect.bottom - cRect.top + 4;
+      const left = Math.max(margin, rect.left - cRect.left);
+      const maxW = Math.max(0, cRect.width - left - margin);
+      const desiredMin = Math.max(rect.width, 280);
+      const width = Math.min(desiredMin, maxW);
+      setDropdownRect((prev) => {
+        if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
+        return { top, left, width };
+      });
+      return;
+    }
+
     const vw = window.innerWidth;
     const desiredMin = Math.max(rect.width, 280);
     const maxWidthFromLeft = vw - rect.left - margin;
@@ -176,7 +206,7 @@ export function SearchableSelect({
       if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
       return { top, left, width };
     });
-  }, []);
+  }, [portalContainerRef]);
 
   useLayoutEffect(() => {
     if (isMobile || !isOpen) {
@@ -330,7 +360,11 @@ export function SearchableSelect({
     );
   }
 
-  // ── Desktop: fixed portal dropdown ──
+  // ── Desktop: portal dropdown (body or modal/drawer container for focus trap) ──
+
+  const portalParent = portalContainerRef?.current ?? null;
+  const portalTarget = portalParent ?? document.body;
+  const useDrawerRelativePosition = portalParent !== null;
 
   return (
     <>
@@ -361,7 +395,10 @@ export function SearchableSelect({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[100100] max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto"
+            className={cn(
+              'z-[100100] max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
+              useDrawerRelativePosition ? 'absolute' : 'fixed'
+            )}
             style={{
               top: dropdownRect.top,
               left: dropdownRect.left,
@@ -370,7 +407,7 @@ export function SearchableSelect({
           >
             {dropdownContent}
           </div>,
-          document.body
+          portalTarget
         )}
     </>
   );
