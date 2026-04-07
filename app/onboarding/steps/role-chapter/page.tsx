@@ -303,7 +303,7 @@ export default function RoleChapterPage() {
       }
 
       const updateData: Record<string, unknown> = {
-        chapter: formData.chapter,
+        chapter: chapterNameForSubmit,
         role: formData.role,
         member_status: formData.role === 'alumni' ? 'graduated' : 'active',
         updated_at: new Date().toISOString(),
@@ -358,7 +358,7 @@ export default function RoleChapterPage() {
               first_name: firstName,
               last_name: lastName,
               full_name: `${firstName} ${lastName}`,
-              chapter: formData.chapter,
+              chapter: chapterNameForSubmit,
               chapter_id: selectedChapter.id,
               email: user.email || profile?.email || '',
               industry: 'Not specified',
@@ -366,7 +366,7 @@ export default function RoleChapterPage() {
               company: 'Not specified',
               job_title: 'Not specified',
               location: 'Not specified',
-              description: `Alumni from ${formData.chapter}`,
+              description: `Alumni from ${chapterNameForSubmit}`,
               verified: false,
               is_actively_hiring: false,
               updated_at: new Date().toISOString(),
