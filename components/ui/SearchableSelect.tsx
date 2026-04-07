@@ -8,6 +8,7 @@ import {
   useCallback,
   useMemo,
   type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X } from 'lucide-react';
@@ -46,6 +47,13 @@ interface SearchableSelectProps {
   allowCustom?: boolean;
   /** Max length for a custom committed value (defaults to PROFILE_SELECT_FIELD_MAX_LENGTH). */
   customMaxLength?: number;
+  /**
+   * When set (desktop only), the dropdown is portaled into this element instead of `document.body`.
+   * Use inside modal/drawer focus traps (e.g. Vaul) so the search input stays focusable.
+   * Prefer a `position: relative` wrapper **without** `overflow: hidden|auto|scroll` so the panel is not clipped;
+   * put `overflow-y-auto` on an inner child that wraps the form.
+   */
+  portalContainerRef?: RefObject<HTMLElement | null>;
 }
 
 export function SearchableSelect({
@@ -59,6 +67,7 @@ export function SearchableSelect({
   maxHeight = '280px',
   allowCustom = false,
   customMaxLength = PROFILE_SELECT_FIELD_MAX_LENGTH,
+  portalContainerRef,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -257,6 +266,23 @@ export function SearchableSelect({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const margin = 12;
+    const portalEl = portalContainerRef?.current ?? null;
+
+    if (portalEl) {
+      const cr = portalEl.getBoundingClientRect();
+      // Viewport deltas: portal host is a positioned ancestor (e.g. drawer body), not necessarily the scroll node.
+      const top = rect.bottom - cr.top + 4;
+      const left = rect.left - cr.left;
+      const maxWidthRight = portalEl.clientWidth - left - margin;
+      const desiredMin = Math.max(rect.width, 280);
+      const width = Math.min(desiredMin, Math.max(120, maxWidthRight));
+      setDropdownRect((prev) => {
+        if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
+        return { top, left, width };
+      });
+      return;
+    }
+
     const vw = window.innerWidth;
     const desiredMin = Math.max(rect.width, 280);
     const maxWidthFromLeft = vw - rect.left - margin;
@@ -267,7 +293,7 @@ export function SearchableSelect({
       if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
       return { top, left, width };
     });
-  }, []);
+  }, [portalContainerRef]);
 
   useLayoutEffect(() => {
     if (isMobile || !isOpen) {
@@ -472,7 +498,10 @@ export function SearchableSelect({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[100100] max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto"
+            className={cn(
+              'max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
+              portalContainerRef != null ? 'absolute z-[80]' : 'fixed z-[100100]'
+            )}
             style={{
               top: dropdownRect.top,
               left: dropdownRect.left,
@@ -481,7 +510,7 @@ export function SearchableSelect({
           >
             {dropdownContent}
           </div>,
-          document.body
+          portalContainerRef?.current ?? document.body
         )}
     </>
   );

@@ -109,6 +109,8 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
   // Form ref for programmatic submission
   const formRef = useRef<HTMLFormElement>(null);
+  /** Portals SearchableSelect dropdown inside the drawer so Vaul modal focus trap does not block the search input. */
+  const selectDropdownPortalRef = useRef<HTMLDivElement>(null);
 
   // Add loading state to prevent modal flicker
   const [isModalReady, setIsModalReady] = useState(false);
@@ -827,8 +829,9 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
           </button>
         </div>
 
-        {/* Scrollable Content Area */}
-        <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
+        {/* Outer host for portaled selects (must not use overflow-hidden clipping); inner div scrolls. */}
+        <div ref={selectDropdownPortalRef} className="relative flex min-h-0 flex-1 flex-col">
+          <div className={`min-h-0 flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
           <form ref={formRef} onSubmit={handleSubmit} className={isMobile ? 'space-y-4' : 'space-y-6'}>
             {/* Combined Profile Photo & Banner */}
             <div className={`relative ${isMobile ? 'h-32' : 'h-64'} overflow-hidden rounded-lg`}>
@@ -1046,6 +1049,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                           searchPlaceholder="Search industries..."
                           className="mt-1"
                           allowCustom
+                          portalContainerRef={selectDropdownPortalRef}
                         />
                       </div>
                       <div>
@@ -1202,6 +1206,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         searchPlaceholder="Search majors..."
                         className="mt-1"
                         allowCustom
+                        portalContainerRef={selectDropdownPortalRef}
                       />
                     </div>
                     <div>
@@ -1214,6 +1219,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         searchPlaceholder="Search minors..."
                         className="mt-1"
                         allowCustom
+                        portalContainerRef={selectDropdownPortalRef}
                       />
                     </div>
                   </div>
@@ -1323,6 +1329,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
             {/* Remove the old alumni-specific sections that were at the bottom */}
           </form>
+          </div>
         </div>
 
         {/* Enhanced Footer with Save Options */}

@@ -97,6 +97,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
 
   // Form ref for programmatic submission
   const formRef = useRef<HTMLFormElement>(null);
+  const selectDropdownPortalRef = useRef<HTMLDivElement>(null);
 
   // SessionStorage persistence functions
   const saveFormDataToStorage = useCallback((data: typeof formData) => {
@@ -706,8 +707,8 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
           </button>
         </div>
 
-        {/* Scrollable Content Area - exact same structure as original */}
-        <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
+        <div ref={selectDropdownPortalRef} className="relative flex min-h-0 flex-1 flex-col">
+          <div className={`min-h-0 flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
           <form ref={formRef} onSubmit={handleSubmit} className={isMobile ? 'space-y-4' : 'space-y-6'}>
             {/* Combined Profile Photo & Banner Card - exact same as original */}
             <Card className="p-0">
@@ -908,6 +909,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                       placeholder="Select Industry"
                       searchPlaceholder="Search industries..."
                       allowCustom
+                      portalContainerRef={selectDropdownPortalRef}
                     />
                   </div>
                   <div>
@@ -1143,6 +1145,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
               </div>
             </div>
           </form>
+          </div>
         </div>
 
         {/* Footer - moved OUTSIDE scrollable area and form */}
