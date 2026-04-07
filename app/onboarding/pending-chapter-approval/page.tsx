@@ -28,10 +28,12 @@ import { cn } from '@/lib/utils';
  */
 export default function PendingChapterApprovalPage() {
   const router = useRouter();
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, getAuthHeaders } = useAuth();
   const { profile, loading: profileLoading, refreshProfile } = useProfile();
   const [checking, setChecking] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  /** When set, inline “reminder sent” copy shows under Refresh until timeout. */
+  const [resendSuccessAt, setResendSuccessAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (authLoading || profileLoading) return;
@@ -58,6 +60,12 @@ export default function PendingChapterApprovalPage() {
     }
   }, [user, profile, authLoading, profileLoading, router]);
 
+  useEffect(() => {
+    if (resendSuccessAt === null) return;
+    const t = setTimeout(() => setResendSuccessAt(null), 4000);
+    return () => clearTimeout(t);
+  }, [resendSuccessAt]);
+
   const handleRefresh = async () => {
     if (!profile?.id) return;
     setChecking(true);
@@ -78,7 +86,32 @@ export default function PendingChapterApprovalPage() {
         router.replace('/dashboard');
         return;
       }
-      toast.info('Your request is still pending chapter approval.');
+
+      // Still pending: resend admin email/SMS only (no push). Cooldown enforced server-side (TRA).
+      const res = await fetch('/api/chapter-membership-requests/resend-admin-notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+
+      if (res.ok) {
+        setResendSuccessAt(Date.now());
+      } else if (res.status === 429) {
+        toast.info(
+          typeof body.error === 'string'
+            ? body.error
+            : 'Please wait a few minutes before sending another reminder.'
+        );
+      } else {
+        toast.error(
+          typeof body.error === 'string'
+            ? body.error
+            : 'Could not send a reminder. Your request is still pending — try again later.'
+        );
+      }
     } catch (e) {
       console.error(e);
       toast.error('Could not refresh status. Try again.');
@@ -180,45 +213,55 @@ export default function PendingChapterApprovalPage() {
               </span>
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              type="button"
-              onClick={handleRefresh}
-              disabled={checking}
-              className="flex-1 bg-brand-primary hover:bg-brand-primary-hover rounded-full"
-            >
-              {checking ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Checking…
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh status
-                </>
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={checking}
+                  className="flex-1 bg-brand-primary hover:bg-brand-primary-hover rounded-full"
+                >
+                  {checking ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Checking…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Refresh status
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  className="flex-1 rounded-full border-gray-200 text-slate-800 hover:bg-slate-50"
+                >
+                  {signingOut ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing out…
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign out
+                    </>
+                  )}
+                </Button>
+              </div>
+              {resendSuccessAt !== null && (
+                <p
+                  role="status"
+                  className="text-center text-sm text-emerald-800 sm:text-left"
+                >
+                  We notified your chapter admins again about your request.
+                </p>
               )}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSignOut}
-              disabled={signingOut}
-              className="flex-1 rounded-full border-gray-200 text-slate-800 hover:bg-slate-50"
-            >
-              {signingOut ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing out…
-                </>
-              ) : (
-                <>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
-                </>
-              )}
-            </Button>
-          </div>
+            </div>
 
           <p
             className={cn(

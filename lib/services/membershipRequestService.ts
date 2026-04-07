@@ -587,3 +587,28 @@ export async function rejectMembershipRequest(
 
   return { ok: true, data: data as ChapterMembershipRequest };
 }
+
+/**
+ * Most recent pending request for the user (e.g. onboarding refresh / admin reminder resend).
+ * If multiple chapters ever queue pending rows, the newest wins.
+ */
+export async function getPendingMembershipRequestForUser(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<ChapterMembershipRequest | null> {
+  const { data, error } = await supabase
+    .from('chapter_membership_requests')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('getPendingMembershipRequestForUser:', error);
+    return null;
+  }
+
+  return data as ChapterMembershipRequest | null;
+}

@@ -1,5 +1,6 @@
 /**
  * `public.chapter_membership_requests` — see supabase/migrations/20260404221457_chapter_membership_requests_tra567.sql
+ * and `20260406120000_chapter_membership_requests_last_admin_reminder.sql` (reminder cooldown).
  */
 
 export type ChapterMembershipRequestStatus =
@@ -25,6 +26,8 @@ export interface ChapterMembershipRequest {
   applicant_full_name: string | null;
   created_at: string;
   updated_at: string;
+  /** Cooldown anchor for applicant-triggered admin reminder resends (email/SMS). */
+  last_admin_reminder_sent_at?: string | null;
 }
 
 /** Fields accepted when creating a request (server may set snapshots). */
@@ -44,4 +47,5 @@ export interface ChapterMembershipRequestUpdate {
   resolved_at?: string | null;
   resolved_by?: string | null;
   rejection_reason?: string | null;
+  last_admin_reminder_sent_at?: string | null;
 }

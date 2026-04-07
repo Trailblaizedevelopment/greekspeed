@@ -118,6 +118,131 @@ export async function fetchMembershipRequestAdminRecipients(
   return [...byId.values()];
 }
 
+interface MembershipRequestAdminNotifyPayload {
+  requestId: string;
+  chapterId: string;
+  applicantUserId: string;
+  chapterName: string;
+  applicantName: string;
+  reviewUrl: string;
+  recipients: MembershipRequestAdminRecipient[];
+}
+
+async function loadMembershipRequestAdminNotificationPayload(
+  supabase: SupabaseClient,
+  params: { requestId: string; chapterId: string; applicantUserId: string }
+): Promise<MembershipRequestAdminNotifyPayload> {
+  const { requestId, chapterId, applicantUserId } = params;
+
+  const [chapterResult, applicantResult, recipients] = await Promise.all([
+    supabase.from('chapters').select('name').eq('id', chapterId).maybeSingle(),
+    supabase
+      .from('profiles')
+      .select('email, first_name, last_name, full_name')
+      .eq('id', applicantUserId)
+      .maybeSingle(),
+    fetchMembershipRequestAdminRecipients(supabase, chapterId, applicantUserId),
+  ]);
+
+  const chapterName = chapterResult.data?.name ?? 'Your chapter';
+  const applicant = applicantResult.data;
+  const nameFromParts = [applicant?.first_name, applicant?.last_name]
+    .map((s) => s?.trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  const applicantName =
+    applicant?.full_name?.trim() ||
+    nameFromParts ||
+    applicant?.first_name?.trim() ||
+    applicant?.email?.split('@')[0] ||
+    'A member';
+
+  const baseUrl = getEmailBaseUrl().replace(/\/$/, '');
+  const reviewUrl = `${baseUrl}/dashboard/requests?request=${encodeURIComponent(requestId)}`;
+
+  return {
+    requestId,
+    chapterId,
+    applicantUserId,
+    chapterName,
+    applicantName,
+    reviewUrl,
+    recipients,
+  };
+}
+
+async function sendMembershipRequestAdminEmailAndSms(
+  payload: MembershipRequestAdminNotifyPayload
+): Promise<void> {
+  const { chapterName, applicantName, reviewUrl, recipients, chapterId } = payload;
+
+  const emailTasks = recipients
+    .filter((r) => r.email.length > 0)
+    .map((r) =>
+      EmailService.sendNewMembershipRequestAdminEmail({
+        to: r.email,
+        adminFirstName: r.firstName,
+        chapterName,
+        applicantName,
+        reviewUrl,
+      }).catch((err) =>
+        console.error('New membership request admin email failed:', { to: r.email, err })
+      )
+    );
+
+  const smsTasks = recipients
+    .filter((r) => r.smsConsent && r.phone)
+    .filter((r) => SMSService.isValidPhoneNumber(r.phone!))
+    .map((r) =>
+      SMSNotificationService.sendNewMembershipRequestAdminNotification(
+        r.phone!,
+        r.firstName,
+        chapterName,
+        applicantName,
+        r.id,
+        chapterId,
+        { link: reviewUrl }
+      ).catch((err) =>
+        console.error('New membership request admin SMS failed:', { userId: r.id, err })
+      )
+    );
+
+  await Promise.all([...emailTasks, ...smsTasks]);
+}
+
+async function sendMembershipRequestAdminPushOnly(
+  payload: MembershipRequestAdminNotifyPayload
+): Promise<void> {
+  const { requestId, applicantName, chapterName, recipients } = payload;
+
+  const pushPayload = buildPushPayload('membership_request_admin', {
+    membershipRequestId: requestId,
+    membershipApplicantName: applicantName,
+    chapterName,
+  });
+
+  const pushTasks = recipients.map((r) =>
+    sendPushToUser(r.id, pushPayload).catch((err) =>
+      console.error('New membership request admin push failed:', { userId: r.id, err })
+    )
+  );
+
+  await Promise.all(pushTasks);
+}
+
+/**
+ * Resend TRA-590 / TRA-591 templates to the same admin/governance recipients as new-request notify,
+ * without OneSignal push (used from “Refresh status” when still pending). Awaited by API route.
+ */
+export async function notifyChapterAdminsOfMembershipRequestReminderEmailSmsOnly(
+  supabase: SupabaseClient,
+  params: { requestId: string; chapterId: string; applicantUserId: string }
+): Promise<void> {
+  const payload = await loadMembershipRequestAdminNotificationPayload(supabase, params);
+  await sendMembershipRequestAdminEmailAndSms(payload);
+}
+
 /**
  * Notify platform admins / governance when a new pending request is created
  * (TRA-590 email, TRA-591 SMS, TRA-593 OneSignal push when configured). Fire-and-forget.
@@ -130,81 +255,11 @@ export function notifyChapterAdminsOfNewMembershipRequest(
     applicantUserId: string;
   }
 ): void {
-  const { requestId, chapterId, applicantUserId } = params;
-
   void (async () => {
     try {
-      const [chapterResult, applicantResult, recipients] = await Promise.all([
-        supabase.from('chapters').select('name').eq('id', chapterId).maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('email, first_name, last_name, full_name')
-          .eq('id', applicantUserId)
-          .maybeSingle(),
-        fetchMembershipRequestAdminRecipients(supabase, chapterId, applicantUserId),
-      ]);
-
-      const chapterName = chapterResult.data?.name ?? 'Your chapter';
-      const applicant = applicantResult.data;
-      const nameFromParts = [applicant?.first_name, applicant?.last_name]
-        .map((s) => s?.trim())
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-      const applicantName =
-        applicant?.full_name?.trim() ||
-        nameFromParts ||
-        applicant?.first_name?.trim() ||
-        applicant?.email?.split('@')[0] ||
-        'A member';
-
-      const baseUrl = getEmailBaseUrl().replace(/\/$/, '');
-      const reviewUrl = `${baseUrl}/dashboard/requests?request=${encodeURIComponent(requestId)}`;
-
-      const emailTasks = recipients
-        .filter((r) => r.email.length > 0)
-        .map((r) =>
-          EmailService.sendNewMembershipRequestAdminEmail({
-            to: r.email,
-            adminFirstName: r.firstName,
-            chapterName,
-            applicantName,
-            reviewUrl,
-          }).catch((err) =>
-            console.error('New membership request admin email failed:', { to: r.email, err })
-          )
-        );
-
-      const smsTasks = recipients
-        .filter((r) => r.smsConsent && r.phone)
-        .filter((r) => SMSService.isValidPhoneNumber(r.phone!))
-        .map((r) =>
-          SMSNotificationService.sendNewMembershipRequestAdminNotification(
-            r.phone!,
-            r.firstName,
-            chapterName,
-            applicantName,
-            r.id,
-            chapterId,
-            { link: reviewUrl }
-          ).catch((err) =>
-            console.error('New membership request admin SMS failed:', { userId: r.id, err })
-          )
-        );
-
-      const pushPayload = buildPushPayload('membership_request_admin', {
-        membershipRequestId: requestId,
-        membershipApplicantName: applicantName,
-        chapterName,
-      });
-
-      const pushTasks = recipients.map((r) =>
-        sendPushToUser(r.id, pushPayload).catch((err) =>
-          console.error('New membership request admin push failed:', { userId: r.id, err })
-        )
-      );
-
-      await Promise.all([...emailTasks, ...smsTasks, ...pushTasks]);
+      const payload = await loadMembershipRequestAdminNotificationPayload(supabase, params);
+      await sendMembershipRequestAdminEmailAndSms(payload);
+      await sendMembershipRequestAdminPushOnly(payload);
     } catch (err) {
       console.error('notifyChapterAdminsOfNewMembershipRequest:', err);
     }
