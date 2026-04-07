@@ -466,64 +466,69 @@ export function MembershipRequestsPanel({
                     </table>
                   </div>
 
-                  {/* Mobile cards */}
+                  {/* Mobile cards — full-width content; actions stacked below (no side column vs email) */}
                   <ul className="md:hidden space-y-3">
                     {sorted.map((row) => (
                       <li
                         key={row.id}
                         data-membership-request-row={row.id}
-                        className="rounded-lg border border-gray-200 bg-gray-50/80 overflow-hidden"
+                        className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"
                       >
-                        <div className="flex items-stretch">
-                          <button
-                            type="button"
-                            className="flex-1 min-w-0 text-left p-4 space-y-2 hover:bg-gray-100/60 transition-colors"
-                            onClick={() =>
-                              setSelectedDetail({
-                                row,
-                                chapterName: group.chapterName,
-                              })
-                            }
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="min-w-0">
-                                <p className="font-medium text-gray-900">
-                                  {row.applicant_full_name ?? 'Unknown'}
-                                </p>
-                                <p className="text-sm text-gray-600 break-all">
+                        <button
+                          type="button"
+                          className="w-full text-left p-4 space-y-3 hover:bg-gray-50/90 transition-colors"
+                          onClick={() =>
+                            setSelectedDetail({
+                              row,
+                              chapterName: group.chapterName,
+                            })
+                          }
+                        >
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-gray-900 leading-snug">
+                                {row.applicant_full_name ?? 'Unknown'}
+                              </p>
+                              <div className="mt-2 flex items-start gap-2">
+                                <p className="text-sm text-gray-600 break-all min-w-0 flex-1">
                                   {row.applicant_email ?? '—'}
                                 </p>
+                                {row.applicant_email?.trim() ? (
+                                  <MembershipRequestEmailMailtoButton
+                                    email={row.applicant_email}
+                                    className="shrink-0 mt-0.5"
+                                  />
+                                ) : null}
                               </div>
-                              <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />
                             </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
-                              <span>{sourceLabel(row.source)}</span>
-                              <span>
-                                {formatDistanceToNow(new Date(row.created_at), {
-                                  addSuffix: true,
-                                })}
-                              </span>
-                            </div>
-                            <span className="text-xs font-medium text-brand-primary">
-                              Tap for details & actions
+                            <ChevronRight
+                              className="h-5 w-5 text-gray-400 shrink-0 mt-0.5"
+                              aria-hidden
+                            />
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+                            <span>{sourceLabel(row.source)}</span>
+                            <span>
+                              {formatDistanceToNow(new Date(row.created_at), {
+                                addSuffix: true,
+                              })}
                             </span>
-                          </button>
-                          {row.applicant_email?.trim() ? (
-                            <div className="flex items-start pt-4 pr-3 shrink-0 border-l border-gray-200/70">
-                              <MembershipRequestEmailMailtoButton
-                                email={row.applicant_email}
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="flex gap-2 px-4 pb-4">
+                          </div>
+                          <p className="text-xs font-medium text-brand-primary">
+                            Tap for details & actions
+                          </p>
+                        </button>
+                        <div className="flex flex-col gap-2 px-4 pb-4 pt-0 border-t border-gray-100 bg-gray-50/50">
                           <Button
                             type="button"
                             size="sm"
                             variant="default"
-                            className="flex-1"
+                            className="w-full h-10 rounded-full bg-brand-primary text-white shadow-md transition-all duration-200 hover:bg-brand-primary/90 hover:shadow-lg hover:brightness-105 focus-visible:ring-2 focus-visible:ring-brand-primary/70 focus-visible:outline-none"
                             disabled={!!processingId}
-                            onClick={() => void runApprove(row.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void runApprove(row.id);
+                            }}
                           >
                             Approve
                           </Button>
@@ -531,9 +536,12 @@ export function MembershipRequestsPanel({
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="flex-1"
+                            className="w-full h-10 rounded-full border-gray-200 bg-white text-brand-primary shadow-sm transition-all duration-200 hover:bg-brand-primary/10 hover:shadow-md hover:brightness-105 focus-visible:ring-2 focus-visible:ring-brand-primary/10 focus-visible:outline-none"
                             disabled={!!processingId}
-                            onClick={() => openRejectFlow(row)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRejectFlow(row);
+                            }}
                           >
                             Reject
                           </Button>

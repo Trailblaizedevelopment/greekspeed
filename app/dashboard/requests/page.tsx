@@ -18,6 +18,7 @@ import {
   type MembershipRequestDetailSelection,
 } from '@/components/features/dashboard/MembershipRequestsPanel';
 import { MembershipRequestsPanelSkeleton } from '@/components/features/dashboard/MembershipRequestsPanelSkeleton';
+import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
 import type { ProfileForPermission } from '@/lib/permissions';
 import { membershipRequestIdParamSchema } from '@/lib/validation/chapterMembershipRequests';
 
@@ -200,41 +201,31 @@ function MembershipRequestsPageInner() {
     );
   }
 
-  const showMultiSummary =
-    profile.role === 'governance' && governanceChapterCount > 1;
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
-          <div>
-            <Link
-              href={
-                profile.role === 'governance'
-                  ? '/dashboard/governance'
-                  : '/dashboard'
-              }
-              className={cn(
-                buttonVariants({ variant: 'outline', size: 'sm' }),
-                'inline-flex items-center'
-              )}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Link>
-            <h1 className="text-2xl font-bold text-gray-900 mt-4">
-              Membership requests
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Approve or reject pending chapter access requests.
-            </p>
-          </div>
-          {!showMultiSummary && totalPending > 0 && (
-            <div className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm">
-              <span className="font-semibold text-gray-900">{totalPending}</span>{' '}
-              pending
-            </div>
-          )}
+    <div className="min-h-screen bg-gray-50 pb-24 sm:pb-0">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        <div>
+          <Link
+            href={
+              profile.role === 'governance'
+                ? '/dashboard/governance'
+                : '/dashboard'
+            }
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-gray-600',
+              'border border-gray-200/80 bg-white/60 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300',
+              'transition-colors duration-200 shadow-sm sm:shadow-none sm:border-transparent sm:bg-transparent sm:px-0 sm:py-0 sm:hover:bg-transparent'
+            )}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" />
+            Back
+          </Link>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-3 sm:mt-4">
+            Membership requests
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Approve or reject pending chapter access requests.
+          </p>
         </div>
 
         <MembershipRequestsPanel
@@ -242,13 +233,17 @@ function MembershipRequestsPageInner() {
           totalPending={totalPending}
           loading={loading}
           error={error}
-          showMultiChapterSummary={showMultiSummary}
+          showMultiChapterSummary={false}
           showNoChapterCard={profile.role !== 'governance'}
           deepLinkDetail={deepLinkDetail}
           onDeepLinkConsumed={clearDeepLink}
           approve={approve}
           reject={reject}
         />
+      </div>
+
+      <div className="sm:hidden">
+        <MobileBottomNavigation />
       </div>
     </div>
   );
