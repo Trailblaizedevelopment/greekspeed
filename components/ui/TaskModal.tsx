@@ -20,6 +20,14 @@ interface TaskModalProps {
   creating: boolean;
 }
 
+/** Shared with native `<select>` (mobile) and custom Select (desktop). */
+const TASK_PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'urgent', label: 'Urgent' },
+];
+
 export function TaskModal({ isOpen, onClose, onSubmit, chapterMembers, creating }: TaskModalProps) {
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
@@ -342,21 +350,49 @@ export function TaskModal({ isOpen, onClose, onSubmit, chapterMembers, creating 
                     <Label htmlFor="priority" className="block text-base sm:text-sm font-medium text-gray-700 mb-2 sm:mb-1">
                       Priority *
                     </Label>
-                    <Select
-                      className="mt-1 w-full"
-                      value={newTask.priority}
-                      onValueChange={(value) => setNewTask((prev) => ({ ...prev, priority: value as TaskPriority }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {isMobile ? (
+                      <select
+                        id="priority"
+                        value={newTask.priority}
+                        onChange={(e) =>
+                          setNewTask((prev) => ({
+                            ...prev,
+                            priority: e.target.value as TaskPriority,
+                          }))
+                        }
+                        className={cn(
+                          'mt-1 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm',
+                          'focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary',
+                          'disabled:cursor-not-allowed disabled:opacity-50'
+                        )}
+                      >
+                        {TASK_PRIORITY_OPTIONS.map(({ value, label }) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Select
+                        className="mt-1 w-full"
+                        disableDynamicPositioning
+                        value={newTask.priority}
+                        onValueChange={(value) =>
+                          setNewTask((prev) => ({ ...prev, priority: value as TaskPriority }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_PRIORITY_OPTIONS.map(({ value, label }) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
               </div>
@@ -392,7 +428,7 @@ export function TaskModal({ isOpen, onClose, onSubmit, chapterMembers, creating 
                   {creating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                   {Array.isArray(newTask.assignee_id) && newTask.assignee_id.length > 1
                     ? `Create ${newTask.assignee_id.length} Tasks`
-                    : 'Create'}
+                    : 'Create Task'}
                 </Button>
               </div>
             </div>
