@@ -30,6 +30,13 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithLinkedIn: () => Promise<void>;
   getAuthHeaders: () => Record<string, string>;
+  /**
+   * When React state lags storage (e.g. SSR-hydrated dashboard), reads session from the
+   * browser client and syncs context. Use before authenticated API calls from the feed.
+   */
+  refreshClientSessionIfNeeded: () => Promise<boolean>;
+  /** Bearer headers for fetch; falls back to supabase.auth.getSession() when context has no token. */
+  getAuthHeadersAsync: () => Promise<Record<string, string>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -406,6 +413,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session?.access_token]);
 
+  const refreshClientSessionIfNeeded = useCallback(async (): Promise<boolean> => {
+    try {
+      if (session?.access_token) return true;
+      const {
+        data: { session: s },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError || !s?.access_token) return false;
+      setSession(s);
+      setUser(s.user);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [session?.access_token]);
+
+  const getAuthHeadersAsync = useCallback(async (): Promise<Record<string, string>> => {
+    if (session?.access_token) {
+      return { Authorization: `Bearer ${session.access_token}` };
+    }
+    const {
+      data: { session: s },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+    if (sessionError || !s?.access_token) {
+      throw new Error('AUTH_REQUIRED');
+    }
+    setSession(s);
+    setUser(s.user);
+    return { Authorization: `Bearer ${s.access_token}` };
+  }, [session?.access_token]);
+
   const value = useMemo(
     () => ({
       user,
@@ -418,8 +457,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signInWithLinkedIn,
       getAuthHeaders,
+      refreshClientSessionIfNeeded,
+      getAuthHeadersAsync,
     }),
-    [error, getAuthHeaders, loading, session, signIn, signInWithGoogle, signInWithLinkedIn, signOut, signUp, user],
+    [
+      error,
+      getAuthHeaders,
+      getAuthHeadersAsync,
+      loading,
+      refreshClientSessionIfNeeded,
+      session,
+      signIn,
+      signInWithGoogle,
+      signInWithLinkedIn,
+      signOut,
+      signUp,
+      user,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -6,12 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, AlertTriangle, Lock, CheckCircle, Calendar } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from '@/lib/supabase/client';
 
 interface DuesAssignment {
   id: string;
