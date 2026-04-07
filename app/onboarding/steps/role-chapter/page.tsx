@@ -22,6 +22,11 @@ import {
   Shield,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import {
+  ONBOARDING_BANNER_AMBER_CARD_CLASS,
+  ONBOARDING_BANNER_GREEN_CARD_CLASS,
+  ONBOARDING_MAIN_CARD_CLASS,
+} from '@/lib/constants/onboardingUi';
 import { cn } from '@/lib/utils';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 
@@ -398,7 +403,7 @@ export default function RoleChapterPage() {
     return (
       <div className="space-y-6">
         {/* Welcome Banner */}
-        <Card className="border-green-200 bg-green-50">
+        <Card className={ONBOARDING_BANNER_GREEN_CARD_CLASS}>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
@@ -412,7 +417,7 @@ export default function RoleChapterPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={ONBOARDING_MAIN_CARD_CLASS}>
           <CardHeader className="pb-0">
             <CardTitle className="flex items-center gap-2">
               You&apos;re All Set!
@@ -492,7 +497,7 @@ export default function RoleChapterPage() {
   return (
     <div className="space-y-6">
       {/* Information Banner */}
-      <Card className="border-amber-200 bg-amber-50">
+      <Card className={ONBOARDING_BANNER_AMBER_CARD_CLASS}>
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -506,7 +511,7 @@ export default function RoleChapterPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={ONBOARDING_MAIN_CARD_CLASS}>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-brand-primary" />

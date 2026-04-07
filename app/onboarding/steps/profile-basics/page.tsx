@@ -32,6 +32,7 @@ import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 
 // ============================================================================
@@ -529,7 +530,7 @@ export default function ProfileBasicsPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className={ONBOARDING_MAIN_CARD_CLASS}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-brand-primary" />

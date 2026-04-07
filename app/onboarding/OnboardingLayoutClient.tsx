@@ -114,7 +114,7 @@ function ProgressBar({ currentPath }: ProgressBarProps) {
     : 0;
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4">
+    <div className="w-full">
       <div className="relative flex items-center justify-between">
         {/* Connector lines */}
         <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-200" />
@@ -190,7 +190,7 @@ export default function OnboardingLayoutClient({ children }: OnboardingLayoutCli
           {/* Header with progress */}
           {showProgressBar && (
             <header className="py-6 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
-              <div className="container mx-auto">
+              <div className="w-full max-w-none sm:max-w-2xl sm:mx-auto px-3 sm:px-6">
                 <div className="text-center mb-4">
                   <h1 className="text-lg font-semibold text-gray-900">
                     Complete Your Profile
@@ -204,9 +204,9 @@ export default function OnboardingLayoutClient({ children }: OnboardingLayoutCli
             </header>
           )}
 
-          {/* Main content */}
-          <main className="py-8 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-2xl mx-auto">
+          {/* Main: full width on mobile, centered max-w-2xl from sm up */}
+          <main className="py-6 sm:py-8 px-3 sm:px-6 lg:px-8">
+            <div className="w-full max-w-none sm:max-w-2xl sm:mx-auto">
               {children}
             </div>
           </main>
