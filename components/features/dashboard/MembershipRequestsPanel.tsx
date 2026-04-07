@@ -253,7 +253,7 @@ export function MembershipRequestsPanel({
                                 type="button"
                                 size="sm"
                                 variant="ghost"
-                                className="text-brand-primary"
+                                className="text-brand-primary transition-colors duration-200 hover:text-brand-primary/90 hover:shadow-sm hover:brightness-105 focus-visible:ring-2 focus-visible:ring-brand-primary/10 focus-visible:outline-none rounded-full"
                                 disabled={!!processingId}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -270,6 +270,7 @@ export function MembershipRequestsPanel({
                                 type="button"
                                 size="sm"
                                 variant="default"
+                                className="bg-brand-primary text-white rounded-full transition-colors duration-200 hover:bg-brand-primary/90 hover:shadow-lg hover:brightness-105 focus-visible:ring-2 focus-visible:ring-brand-primary/70 focus-visible:outline-none"
                                 disabled={!!processingId}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -282,6 +283,7 @@ export function MembershipRequestsPanel({
                                 type="button"
                                 size="sm"
                                 variant="outline"
+                                className="bg-white text-brand-primary hover:bg-brand-primary/10 rounded-full transition-colors duration-200 hover:shadow-lg hover:brightness-105 focus-visible:ring-2 focus-visible:ring-brand-primary/10 focus-visible:outline-none"
                                 disabled={!!processingId}
                                 onClick={(e) => {
                                   e.stopPropagation();
