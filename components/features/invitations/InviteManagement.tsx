@@ -628,7 +628,6 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
         {/* Mobile Header */}
         <div className="px-4 pb-4 border-b border-gray-200">
           <div className="flex items-center space-x-3 mb-3">
-            <Users className="h-6 w-6 text-brand-accent flex-shrink-0" />
             <h2 className="text-lg font-semibold text-primary-900 whitespace-nowrap overflow-hidden text-ellipsis">
               Invitation Management
             </h2>
@@ -770,13 +769,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
         />
       )}
 
-      {/* Settings Modal */}
-      {showSettings && (
-        <InviteSettings
-          chapterId={chapterId}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
+      <InviteSettings open={showSettings} onOpenChange={setShowSettings} />
     </div>
   );
 }

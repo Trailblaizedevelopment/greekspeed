@@ -1,120 +1,75 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { X, Info, AlertTriangle, Loader2 } from 'lucide-react';
+
+import { useEffect, useState } from 'react';
+import { Drawer } from 'vaul';
+import { X, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { InvitationStats } from '@/types/invitations';
-import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
-interface InviteSettingsProps {
-  chapterId: string;
-  onClose: () => void;
+export interface InviteSettingsProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-/** Above DashboardHeader (z-[100]); below app toast (zIndex 10004). */
-const MODAL_OVERLAY_Z = 10000;
-const MODAL_LAYER_Z = 10001;
-
-export function InviteSettings({ chapterId, onClose }: InviteSettingsProps) {
-  const [stats, setStats] = useState<InvitationStats | null>(null);
-  const [loading, setLoading] = useState(true);
+export function InviteSettings({ open, onOpenChange }: InviteSettingsProps) {
   const [isMobile, setIsMobile] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [mounted]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
-  // Mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`/api/invitations/stats?chapter_id=${chapterId}`);
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch stats');
-        }
-
-        const statsData = await response.json();
-        setStats(statsData);
-      } catch (error) {
-        console.error('Error fetching invitation stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, [chapterId]);
-
-  // Content component (shared between mobile and desktop)
-  const content = (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Header - Fixed */}
-      <div className="flex items-center justify-between p-4 md:p-6 border-b flex-shrink-0 bg-white">
-        <h2 className="text-lg md:text-xl font-semibold flex items-center space-x-2">
-          <span>Invitation Settings & Statistics</span>
-        </h2>
-        <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-          <X className="h-4 w-4" />
-        </Button>
+  const drawerContent = (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex items-start justify-between gap-3 px-4 pt-2 sm:pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+        <div className="flex-1 min-w-0 text-left space-y-1">
+          <Drawer.Title className="text-lg font-semibold text-gray-900">
+            Invitation Settings & Statistics
+          </Drawer.Title>
+          <Drawer.Description className="text-sm font-normal text-gray-500">
+            How invitations work and security practices for your chapter.
+          </Drawer.Description>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="p-1.5 hover:bg-gray-100 rounded-full transition-colors shrink-0"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5 text-gray-500" />
+        </button>
       </div>
 
-      {/* Full-width, cardless, divider-separated layout */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
-        {/* Section: How Invitations Work */}
+      <div
+        className={cn(
+          'flex-1 min-h-0 overflow-y-auto px-4 py-5',
+          isMobile ? 'max-h-[50dvh]' : 'max-h-[min(50vh,420px)]'
+        )}
+      >
         <section>
           <div className="flex items-center space-x-2 mb-2">
-            <Info className="h-4 w-4 text-brand-accent" />
+            <Info className="h-4 w-4 text-brand-accent shrink-0" />
             <span className="text-base font-semibold">How Invitations Work</span>
           </div>
           <div className="space-y-3">
             <div className="space-y-1">
               <h4 className="font-medium text-sm">Single-Use Per Email</h4>
-              <p className="text-xs md:text-sm text-gray-600">
+              <p className="text-xs sm:text-sm text-gray-600">
                 Each email address can only use each invitation link once. This prevents duplicate signups while
                 allowing multiple people to use the same invitation with different emails.
               </p>
             </div>
             <div className="space-y-1">
               <h4 className="font-medium text-sm">Auto-Approval</h4>
-              <p className="text-xs md:text-sm text-gray-600">
+              <p className="text-xs sm:text-sm text-gray-600">
                 All invitations use auto-approval. New members gain immediate access after signup.
               </p>
             </div>
             <div className="space-y-1">
               <h4 className="font-medium text-sm">Open Email Access</h4>
-              <p className="text-xs md:text-sm text-gray-600">
+              <p className="text-xs sm:text-sm text-gray-600">
                 All invitations accept any email address from any domain. This allows maximum flexibility for chapter
                 members to join using their preferred email address.
               </p>
@@ -124,16 +79,15 @@ export function InviteSettings({ chapterId, onClose }: InviteSettingsProps) {
 
         <div className="my-6 border-t border-gray-200" />
 
-        {/* Section: Security Best Practices */}
         <section>
           <div className="flex items-center space-x-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0" />
             <span className="text-base font-semibold">Security Best Practices</span>
           </div>
           <div className="space-y-3">
             <div className="space-y-1">
               <h4 className="font-medium text-sm">Invitation Security</h4>
-              <ul className="text-xs md:text-sm text-gray-600 space-y-1 list-disc list-inside">
+              <ul className="text-xs sm:text-sm text-gray-600 space-y-1 list-disc list-inside">
                 <li>Each invitation generates a unique, secure token</li>
                 <li>Invitations can be deactivated at any time</li>
                 <li>Usage is tracked to prevent abuse</li>
@@ -142,7 +96,7 @@ export function InviteSettings({ chapterId, onClose }: InviteSettingsProps) {
             </div>
             <div className="space-y-1">
               <h4 className="font-medium text-sm">Recommendations</h4>
-              <ul className="text-xs md:text-sm text-gray-600 space-y-1 list-disc list-inside">
+              <ul className="text-xs sm:text-sm text-gray-600 space-y-1 list-disc list-inside">
                 <li>Set reasonable expiration dates for invitations</li>
                 <li>Monitor invitation usage regularly</li>
                 <li>Deactivate unused invitations periodically</li>
@@ -154,16 +108,15 @@ export function InviteSettings({ chapterId, onClose }: InviteSettingsProps) {
 
         <div className="my-6 border-t border-gray-200" />
 
-        {/* Section: Workflow Summary */}
         <section>
           <div className="flex items-center space-x-2 mb-2">
-            <Info className="h-4 w-4 text-green-600" />
+            <Info className="h-4 w-4 text-green-600 shrink-0" />
             <span className="text-base font-semibold">Workflow Summary</span>
           </div>
           <div className="space-y-3">
             <div className="space-y-1">
               <h4 className="font-medium text-sm">Step-by-Step Process</h4>
-              <ol className="text-xs md:text-sm text-gray-600 space-y-1 list-decimal list-inside">
+              <ol className="text-xs sm:text-sm text-gray-600 space-y-1 list-decimal list-inside">
                 <li>Admin creates an invitation with desired settings</li>
                 <li>System generates a secure invitation link</li>
                 <li>Admin shares the same link with multiple chapter members</li>
@@ -172,8 +125,8 @@ export function InviteSettings({ chapterId, onClose }: InviteSettingsProps) {
                 <li>Member is assigned to the chapter with appropriate role and status</li>
               </ol>
             </div>
-            <div className="bg-accent-50 p-2 md:p-3 rounded-lg">
-              <p className="text-xs md:text-sm text-accent-800">
+            <div className="bg-accent-50 p-2 sm:p-3 rounded-lg">
+              <p className="text-xs sm:text-sm text-accent-800">
                 <strong>Key Point:</strong> One invitation link can be used by multiple people with different email
                 addresses, but each email can only use each invitation once.
               </p>
@@ -182,11 +135,16 @@ export function InviteSettings({ chapterId, onClose }: InviteSettingsProps) {
         </section>
       </div>
 
-      {/* Footer - Fixed */}
-      <div className="flex-shrink-0 border-t bg-white p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+      <div
+        className={cn(
+          'flex-shrink-0 border-t border-gray-200 bg-white px-4 py-4',
+          isMobile && 'pb-[calc(1rem+env(safe-area-inset-bottom))]'
+        )}
+      >
         <Button
-          onClick={onClose}
-          className="w-full rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 disabled:opacity-50 disabled:cursor-not-allowed"
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="w-full rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12"
         >
           Close
         </Button>
@@ -194,54 +152,24 @@ export function InviteSettings({ chapterId, onClose }: InviteSettingsProps) {
     </div>
   );
 
-  if (!mounted || typeof document === 'undefined') {
-    return null;
-  }
-
-  return createPortal(
-    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: MODAL_OVERLAY_Z }}>
-      <div
-        role="presentation"
-        aria-hidden
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity pointer-events-auto"
-        style={{ zIndex: MODAL_OVERLAY_Z }}
-        onClick={onClose}
-      />
-
-      {isMobile ? (
-        <div
-          className="fixed inset-0 flex items-end justify-center pointer-events-none p-0"
-          style={{ zIndex: MODAL_LAYER_Z }}
+  return (
+    <Drawer.Root open={open} onOpenChange={onOpenChange} direction="bottom" modal dismissible>
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 z-[9999] bg-black/40 transition-opacity" />
+        <Drawer.Content
+          className={cn(
+            'bg-white flex flex-col z-[10000] fixed bottom-0 left-0 right-0 shadow-2xl border border-gray-200 outline-none',
+            isMobile
+              ? 'max-h-[85dvh] rounded-t-[20px]'
+              : 'max-h-[80vh] max-w-lg mx-auto rounded-t-[20px]'
+          )}
         >
-          <div
-            className={cn(
-              'pointer-events-auto w-full flex flex-col min-h-0 rounded-t-2xl bg-white shadow-xl',
-              'max-h-[min(92dvh,100svh)] h-[min(92dvh,100svh)]'
-            )}
-          >
-            {content}
-          </div>
-        </div>
-      ) : (
-        <div
-          className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
-          style={{ zIndex: MODAL_LAYER_Z }}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className={cn(
-              'pointer-events-auto bg-white rounded-lg max-w-2xl w-full flex flex-col min-h-0 overflow-hidden',
-              'max-h-[min(90dvh,100svh)] h-[min(90dvh,100svh)]'
-            )}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {content}
-          </motion.div>
-        </div>
-      )}
-    </div>,
-    document.body
+          {isMobile && (
+            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-1" aria-hidden />
+          )}
+          {drawerContent}
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   );
 }
