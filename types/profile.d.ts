@@ -32,7 +32,7 @@ export type DeveloperPermission =
 
 export type AccessLevel = 'standard' | 'elevated' | 'admin';
 
-/** How the user signed up; null/undefined = legacy or unknown. */
+/** Set at account creation; null means legacy or unknown (pre–TRA-568). */
 export type SignupChannel = 'marketing_alumni' | 'invitation' | 'chapter_slug';
 
 export interface Profile {

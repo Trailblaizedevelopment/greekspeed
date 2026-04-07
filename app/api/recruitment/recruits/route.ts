@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role, chapter_id, chapter_role, is_developer')
+      .select('role, chapter_id, chapter_role, is_developer, signup_channel')
       .eq('id', user.id)
       .single();
 
@@ -122,6 +122,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (!effectiveChapterId) {
+      if (
+        profile.signup_channel === 'marketing_alumni' &&
+        !profile.chapter_id &&
+        !isDeveloper
+      ) {
+        return NextResponse.json(
+          { error: 'Chapter membership is pending approval' },
+          { status: 403 }
+        );
+      }
       return NextResponse.json({ error: 'User must belong to a chapter' }, { status: 400 });
     }
 

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getManagedChapterIds } from '@/lib/services/governanceService';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
+import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 
 /**
  * GET /api/posts/[id]
@@ -36,7 +38,7 @@ export async function GET(
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id, is_developer')
+      .select('chapter_id, is_developer, signup_channel')
       .eq('id', user.id)
       .single();
 
@@ -76,16 +78,18 @@ export async function GET(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const isDeveloper = profile.is_developer === true;
-    const isOwnChapter = profile.chapter_id === post.chapter_id;
-    if (!isDeveloper && !isOwnChapter) {
-      const managedIds = await getManagedChapterIds(supabase, user.id);
-      if (!managedIds.length || !managedIds.includes(post.chapter_id)) {
-        return NextResponse.json(
-          { error: 'Insufficient permissions to view this post' },
-          { status: 403 }
-        );
-      }
+    const access = await assertAuthenticatedChapterReadAccess(
+      supabase,
+      user.id,
+      {
+        chapter_id: profile.chapter_id,
+        signup_channel: profile.signup_channel,
+        is_developer: profile.is_developer,
+      },
+      post.chapter_id as string
+    );
+    if (!access.ok) {
+      return access.response;
     }
 
     const [userLikeResult, userBookmarkResult] = await Promise.all([
@@ -246,10 +250,36 @@ export async function PATCH(
       return NextResponse.json({ error: 'Content cannot be empty' }, { status: 400 });
     }
 
+    // Recalculate mentions for the updated content
+    const mentionUsernames = parseMentions(trimmed);
+    const resolvedMentions = mentionUsernames.length > 0
+      ? await resolveMentions(supabase, mentionUsernames, existing.chapter_id)
+      : [];
+
+    // Read current metadata to preserve link_previews / image_urls / etc.
+    const { data: fullPost } = await supabase
+      .from('posts')
+      .select('metadata')
+      .eq('id', postId)
+      .single();
+
+    const currentMetadata = (fullPost?.metadata as Record<string, unknown>) ?? {};
+    const previousMentions: Array<{ user_id: string }> = (currentMetadata.mentions as Array<{ user_id: string }>) ?? [];
+    const previousMentionIds = new Set(previousMentions.map((m) => m.user_id));
+
+    const updatedMetadata = {
+      ...currentMetadata,
+      mentions: resolvedMentions.length > 0 ? resolvedMentions : undefined,
+    };
+    if (!resolvedMentions.length) {
+      delete updatedMetadata.mentions;
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from('posts')
       .update({
         content: trimmed,
+        metadata: updatedMetadata,
         updated_at: new Date().toISOString(),
       })
       .eq('id', postId)
@@ -259,6 +289,20 @@ export async function PATCH(
     if (updateError) {
       console.error('Post PATCH error:', updateError);
       return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+    }
+
+    // Notify only newly-added mentions (not previously mentioned users)
+    const newMentions = resolvedMentions.filter((m) => !previousMentionIds.has(m.user_id));
+    if (newMentions.length > 0) {
+      sendMentionNotifications({
+        mentionedUsers: newMentions,
+        actorUserId: user.id,
+        contentType: 'post',
+        contentId: postId,
+        postId: postId,
+        contentPreview: trimmed.slice(0, 80),
+        supabase,
+      }).catch((err) => console.error('Failed to send edit mention notifications:', err));
     }
 
     return NextResponse.json(updated);

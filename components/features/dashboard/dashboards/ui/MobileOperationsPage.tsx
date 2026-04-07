@@ -330,10 +330,9 @@ export function MobileOperationsPage() {
   const endIndex = Math.min(currentPage * membersPerPage, totalUsers);
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-0 pb-20 px-4">
-      <div className="max-w-md mx-auto">
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+    <div className="min-h-screen w-full max-w-none bg-gray-50 pt-0 pb-20 px-0">
+      {/* Full width of parent padded column (AdminOverview); no max-w-md gutter */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className={`grid w-full mb-2 h-11 bg-transparent p-0 rounded-none border-b border-gray-200 ${financialToolsEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="members" className="text-sm font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-brand-primary data-[state=active]:text-brand-primary data-[state=active]:shadow-none text-gray-500 data-[state=active]:bg-transparent bg-transparent">Members</TabsTrigger>
             {/* Budget is always available for chapter-level planning */}
@@ -846,7 +845,6 @@ export function MobileOperationsPage() {
           />,
           document.body
         )}
-      </div>
     </div>
   );
 }

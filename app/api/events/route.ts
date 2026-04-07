@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { compareEventsByStartAsc, normalizeEventTimeField } from '@/lib/utils/eventScheduleDisplay';
+import { authenticateApiRequest } from '@/lib/api/authenticateApiRequest';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -16,6 +18,35 @@ export async function GET(request: NextRequest) {
 
     if (!chapterId) {
       return NextResponse.json({ error: 'Chapter ID is required' }, { status: 400 });
+    }
+
+    // TRA-584: Logged-in users must pass the same chapter access rules as the feed (marketing pending → 403).
+    // Unauthenticated callers keep prior behavior (e.g. public profile upcoming events).
+    const auth = await authenticateApiRequest(request);
+    if (auth) {
+      const { data: accessProfile, error: accessProfileError } = await auth.supabase
+        .from('profiles')
+        .select('chapter_id, signup_channel, is_developer')
+        .eq('id', auth.user.id)
+        .single();
+
+      if (accessProfileError || !accessProfile) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+
+      const access = await assertAuthenticatedChapterReadAccess(
+        auth.supabase,
+        auth.user.id,
+        {
+          chapter_id: accessProfile.chapter_id,
+          signup_channel: accessProfile.signup_channel,
+          is_developer: accessProfile.is_developer,
+        },
+        chapterId
+      );
+      if (!access.ok) {
+        return access.response;
+      }
     }
 
     let query = supabase

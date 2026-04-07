@@ -783,6 +783,8 @@ export async function GET(request: NextRequest) {
             chapter: null,
             role: isPublicAlumniSignup ? 'alumni' : null,
             member_status: isPublicAlumniSignup ? 'alumni' : null,
+            // TRA-577: OAuth from /sign-up (oauth_signup_role cookie) — enables membership request API
+            signup_channel: isPublicAlumniSignup ? 'marketing_alumni' : null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
@@ -870,6 +872,11 @@ export async function GET(request: NextRequest) {
           if (isPublicAlumniSignup && !existingProfile.role) {
             updateData.role = 'alumni';
             updateData.member_status = 'alumni';
+          }
+
+          // TRA-577: backfill channel for legacy/trigger-created rows; never overwrite invitation/chapter_slug
+          if (isPublicAlumniSignup && existingProfile.signup_channel == null) {
+            updateData.signup_channel = 'marketing_alumni';
           }
 
           if (Object.keys(updateData).length > 0) {

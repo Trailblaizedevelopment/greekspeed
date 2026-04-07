@@ -1,12 +1,17 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Copy, Calendar, Users, CheckCircle, Loader2 } from 'lucide-react';
+import { X, Copy, Calendar, Users, CheckCircle, Loader2, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { InvitationWithUsage, CreateInvitationData, UpdateInvitationData } from '@/types/invitations';
+import {
+  type ApprovalMode,
+  InvitationWithUsage,
+  CreateInvitationData,
+  UpdateInvitationData
+} from '@/types/invitations';
 import { generateInvitationUrl } from '@/lib/utils/invitationUtils';
 import { toast } from 'react-toastify';
 import { createPortal } from 'react-dom';
@@ -55,6 +60,18 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
+
+  /** Keep form in sync when switching which invitation is being edited (same modal instance). */
+  useEffect(() => {
+    setFormData({
+      email_domain_allowlist: [],
+      approval_mode: invitation?.approval_mode || 'auto',
+      expires_at: invitation?.expires_at ? new Date(invitation.expires_at).toISOString().slice(0, 16) : '',
+      max_uses: invitation?.max_uses?.toString() || '',
+      is_active: invitation?.is_active ?? true,
+      invitation_type: invitation?.invitation_type || 'active_member'
+    });
+  }, [invitation?.id]);
 
   // Mobile detection
   useEffect(() => {
@@ -164,6 +181,58 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
           </p>
         </div>
 
+        {/* Membership approval — maps to invitations.approval_mode (API already persists it). */}
+        <div className="space-y-2">
+          <Label className="flex items-center space-x-2">
+            <Shield className="h-4 w-4 text-gray-600" />
+            <span>Membership approval</span>
+          </Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-start space-x-2 rounded-lg border border-gray-200 p-3 has-[:checked]:border-brand-accent/60 has-[:checked]:bg-accent-50/40">
+              <input
+                type="radio"
+                id="approval_auto"
+                name="approval_mode"
+                value="auto"
+                checked={formData.approval_mode === 'auto'}
+                onChange={() =>
+                  setFormData((prev) => ({ ...prev, approval_mode: 'auto' as ApprovalMode }))
+                }
+                className="text-brand-accent mt-1"
+              />
+              <div>
+                <Label htmlFor="approval_auto" className="text-sm font-medium cursor-pointer">
+                  Auto-approve
+                </Label>
+                <p className="text-xs text-gray-600 mt-1">
+                  Member gets instant chapter access after they complete signup through this link.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-2 rounded-lg border border-gray-200 p-3 has-[:checked]:border-brand-accent/60 has-[:checked]:bg-accent-50/40">
+              <input
+                type="radio"
+                id="approval_pending"
+                name="approval_mode"
+                value="pending"
+                checked={formData.approval_mode === 'pending'}
+                onChange={() =>
+                  setFormData((prev) => ({ ...prev, approval_mode: 'pending' as ApprovalMode }))
+                }
+                className="text-brand-accent mt-1"
+              />
+              <div>
+                <Label htmlFor="approval_pending" className="text-sm font-medium cursor-pointer">
+                  Requires chapter approval
+                </Label>
+                <p className="text-xs text-gray-600 mt-1">
+                  Manually approve all incoming membership requests from this link.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Usage Limits */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -198,25 +267,6 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
             <p className="text-sm text-gray-500">
               When this invitation expires. Leave empty for no expiration.
             </p>
-          </div>
-        </div>
-
-        {/* Email Uniqueness Info */}
-        <div className="space-y-2">
-          <Label className="flex items-center space-x-2">
-            <CheckCircle className="h-4 w-4 text-brand-accent" />
-            <span>Email Uniqueness</span>
-          </Label>
-          <div className="bg-accent-50 border border-accent-200 rounded-lg p-4">
-            <div className="flex items-start space-x-2">
-              <CheckCircle className="h-5 w-5 text-brand-accent mt-0.5" />
-              <div>
-                <h4 className="font-medium text-accent-900">One Account Per Email</h4>
-                <p className="text-sm text-accent-800 mt-1">
-                  Each email address can only create one account across the entire system. If someone tries to use an email that already has an account, they'll be prompted to sign in instead.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
 

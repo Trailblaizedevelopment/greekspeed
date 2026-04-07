@@ -363,6 +363,7 @@ function buildEmailPayloadForType(type: NotificationType): DryRunResult['email']
 }
 
 function hasEmail(type: NotificationType): boolean {
+  if (type === 'membership_request_admin') return false;
   return true;
 }
 

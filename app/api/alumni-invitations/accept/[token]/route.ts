@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { validateInvitationToken, validateEmailDomain, hasEmailUsedInvitation, recordInvitationUsage } from '@/lib/utils/invitationUtils';
+import { createPendingMembershipRequest } from '@/lib/services/membershipRequestService';
+import { notifyChapterAdminsOfNewMembershipRequest } from '@/lib/services/membershipRequestNotificationService';
 import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
+import {
+  ensureProfileChapterIdNullForPendingInvite,
+  findProfileByEmailForInviteAccept,
+} from '@/lib/services/invitationAcceptPendingProfile';
 
 // New interface for alumni form data (simplified - most fields collected during onboarding)
 interface AlumniJoinFormData {
@@ -89,6 +95,7 @@ export async function POST(
     }
 
     const invitation = validation.invitation!;
+    const pendingExecApproval = invitation.approval_mode === 'pending';
 
     // Ensure this is an alumni invitation
     if (invitation.invitation_type !== 'alumni') {
@@ -110,6 +117,17 @@ export async function POST(
       return NextResponse.json({ 
         error: 'This email has already been used with this invitation' 
       }, { status: 400 });
+    }
+
+    const existingProfile = await findProfileByEmailForInviteAccept(supabase, normalizedEmail);
+    if (existingProfile) {
+      return NextResponse.json(
+        {
+          error:
+            'This email already has an account. Sign in to continue, or use a different email to accept this invitation.',
+        },
+        { status: 409 }
+      );
     }
 
     // Create the user account
@@ -139,7 +157,118 @@ export async function POST(
     const username = await generateUniqueUsername(supabase, normalizedFirstName, normalizedLastName, authData.user.id);
     const profileSlug = generateProfileSlug(username);
 
-    // Create the profile with alumni role
+    if (pendingExecApproval) {
+      const { error: pendingProfileError } = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: authData.user.id,
+            email: normalizedEmail,
+            full_name: normalizedFullName,
+            first_name: normalizedFirstName,
+            last_name: normalizedLastName,
+            username,
+            profile_slug: profileSlug,
+            phone: phoneDigits || null,
+            sms_consent: body.sms_consent || false,
+            chapter_id: null,
+            chapter: validation.chapter_name ?? null,
+            signup_channel: 'invitation',
+            role: 'alumni',
+            member_status: 'active',
+            access_level: 'standard',
+            is_developer: false,
+            bio: null,
+            onboarding_completed: false,
+            created_at: nowIso,
+            updated_at: nowIso,
+          },
+          { onConflict: 'id', ignoreDuplicates: false }
+        );
+
+      if (pendingProfileError) {
+        console.error('❌ Alumni Invitation Accept (pending): Profile error:', pendingProfileError);
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+        } catch (deleteError) {
+          console.error('❌ Alumni Invitation Accept: Failed to clean up auth user:', deleteError);
+        }
+        return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 });
+      }
+
+      const cleared = await ensureProfileChapterIdNullForPendingInvite(supabase, authData.user.id);
+      if (!cleared.ok) {
+        console.error(
+          '❌ Alumni Invitation Accept (pending): chapter_id could not be cleared; last chapter_id=',
+          cleared.chapter_id
+        );
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+        } catch (deleteError) {
+          console.error('❌ Alumni Invitation Accept: Failed to clean up auth user:', deleteError);
+        }
+        return NextResponse.json(
+          {
+            error:
+              'We could not finish signup for pending approval (profile still tied to a chapter). Please contact support or try again.',
+          },
+          { status: 500 }
+        );
+      }
+
+      const queueResult = await createPendingMembershipRequest(supabase, {
+        userId: authData.user.id,
+        chapterId: invitation.chapter_id,
+        source: 'invitation',
+        invitationId: invitation.id,
+      });
+
+      if (!queueResult.ok) {
+        console.error('❌ Alumni Invitation Accept (pending):', queueResult.code, queueResult.message);
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+        } catch (deleteError) {
+          console.error('❌ Alumni Invitation Accept: Failed to clean up auth user:', deleteError);
+        }
+        const status =
+          queueResult.code === 'ALREADY_MEMBER' || queueResult.code === 'WRONG_CHAPTER'
+            ? 409
+            : queueResult.code === 'DUPLICATE_PENDING'
+              ? 400
+              : 500;
+        return NextResponse.json({ error: queueResult.message }, { status });
+      }
+
+      notifyChapterAdminsOfNewMembershipRequest(supabase, {
+        requestId: queueResult.data.id,
+        chapterId: invitation.chapter_id,
+        applicantUserId: authData.user.id,
+      });
+
+      const { error: pendingSignInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (pendingSignInError) {
+        console.error('❌ Alumni Invitation Accept: Auto sign-in failed:', pendingSignInError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: authData.user.id,
+          email: authData.user.email,
+          full_name: normalizedFullName,
+          chapter_id: null,
+          chapter: validation.chapter_name,
+          role: 'alumni',
+          member_status: 'active',
+          needs_approval: true,
+        },
+      });
+    }
+
+    // Create the profile with alumni role (auto approval)
     const { error: profileError } = await supabase
       .from('profiles')
       .upsert({
