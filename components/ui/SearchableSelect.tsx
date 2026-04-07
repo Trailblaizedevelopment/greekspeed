@@ -1,9 +1,19 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PROFILE_SELECT_FIELD_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { clampProfileSelectValue } from '@/lib/utils/profileFieldStrings';
 
 function getScrollParents(node: HTMLElement | null): HTMLElement[] {
   const parents: HTMLElement[] = [];
@@ -19,6 +29,10 @@ function getScrollParents(node: HTMLElement | null): HTMLElement[] {
   return parents;
 }
 
+type ListItem =
+  | { type: 'custom'; value: string }
+  | { type: 'option'; option: { value: string; label: string } };
+
 interface SearchableSelectProps {
   value?: string;
   onValueChange?: (value: string) => void;
@@ -28,6 +42,10 @@ interface SearchableSelectProps {
   className?: string;
   disabled?: boolean;
   maxHeight?: string;
+  /** When true, user can commit text that is not in `options` (Enter or "Use …" row). */
+  allowCustom?: boolean;
+  /** Max length for a custom committed value (defaults to PROFILE_SELECT_FIELD_MAX_LENGTH). */
+  customMaxLength?: number;
 }
 
 export function SearchableSelect({
@@ -39,6 +57,8 @@ export function SearchableSelect({
   className,
   disabled = false,
   maxHeight = '280px',
+  allowCustom = false,
+  customMaxLength = PROFILE_SELECT_FIELD_MAX_LENGTH,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,6 +77,66 @@ export function SearchableSelect({
     left: number;
     width: number;
   } | null>(null);
+
+  const effectiveOptions = useMemo(() => {
+    if (!allowCustom) return options;
+    const v = value?.trim();
+    if (!v) return options;
+    const exists = options.some(
+      (o) => o.value === v || o.label.toLowerCase() === v.toLowerCase()
+    );
+    if (exists) return options;
+    return [...options, { value: v, label: v }];
+  }, [options, value, allowCustom]);
+
+  const selectedOption = effectiveOptions.find((opt) => opt.value === value);
+  const displayLabel =
+    value !== undefined && value !== null && value !== '' && !selectedOption
+      ? value
+      : selectedOption
+        ? selectedOption.label
+        : placeholder;
+
+  const filteredOptions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return effectiveOptions;
+    return effectiveOptions.filter((option) => option.label.toLowerCase().includes(q));
+  }, [effectiveOptions, searchQuery]);
+
+  const trimmedQueryRaw = searchQuery.trim();
+  const customCommitValue = clampProfileSelectValue(trimmedQueryRaw, customMaxLength);
+
+  const hasExactInPreset = useMemo(() => {
+    const tq = trimmedQueryRaw.toLowerCase();
+    if (!tq) return true;
+    return effectiveOptions.some(
+      (o) => o.value.toLowerCase() === tq || o.label.toLowerCase() === tq
+    );
+  }, [effectiveOptions, trimmedQueryRaw]);
+
+  const showCustomRow =
+    allowCustom && trimmedQueryRaw.length > 0 && !hasExactInPreset && customCommitValue.length > 0;
+
+  const listItems: ListItem[] = useMemo(() => {
+    const items: ListItem[] = [];
+    if (showCustomRow) {
+      items.push({ type: 'custom', value: customCommitValue });
+    }
+    for (const option of filteredOptions) {
+      items.push({ type: 'option', option });
+    }
+    return items;
+  }, [showCustomRow, customCommitValue, filteredOptions]);
+
+  const handleSelect = useCallback(
+    (optionValue: string) => {
+      onValueChange?.(optionValue);
+      setIsOpen(false);
+      setSearchQuery('');
+      setHighlightedIndex(-1);
+    },
+    [onValueChange]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -104,20 +184,14 @@ export function SearchableSelect({
     }
   }, [isOpen, isMobile]);
 
-  const filteredOptions = options.filter((option) => {
-    if (!searchQuery.trim()) return true;
-    return option.label.toLowerCase().includes(searchQuery.toLowerCase());
-  });
-
-  const selectedOption = options.find((opt) => opt.value === value);
-  const displayLabel = selectedOption ? selectedOption.label : placeholder;
-
-  const handleSelect = (optionValue: string) => {
-    onValueChange?.(optionValue);
-    setIsOpen(false);
-    setSearchQuery('');
-    setHighlightedIndex(-1);
-  };
+  useEffect(() => {
+    if (!isOpen) return;
+    if (showCustomRow) {
+      setHighlightedIndex(0);
+    } else {
+      setHighlightedIndex(-1);
+    }
+  }, [searchQuery, showCustomRow, isOpen]);
 
   // Keyboard navigation (desktop)
   useEffect(() => {
@@ -127,14 +201,19 @@ export function SearchableSelect({
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setHighlightedIndex((prev) =>
-          prev < filteredOptions.length - 1 ? prev + 1 : prev
+          prev < listItems.length - 1 ? prev + 1 : prev
         );
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1));
       } else if (e.key === 'Enter' && highlightedIndex >= 0) {
         e.preventDefault();
-        handleSelect(filteredOptions[highlightedIndex].value);
+        const item = listItems[highlightedIndex];
+        if (item.type === 'custom') {
+          handleSelect(item.value);
+        } else {
+          handleSelect(item.option.value);
+        }
       } else if (e.key === 'Escape') {
         setIsOpen(false);
         setSearchQuery('');
@@ -144,11 +223,7 @@ export function SearchableSelect({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isMobile, filteredOptions, highlightedIndex]);
-
-  useEffect(() => {
-    setHighlightedIndex(-1);
-  }, [searchQuery]);
+  }, [isOpen, isMobile, listItems, highlightedIndex, handleSelect]);
 
   useEffect(() => {
     if (highlightedIndex >= 0 && listRef.current) {
@@ -158,6 +233,22 @@ export function SearchableSelect({
       }
     }
   }, [highlightedIndex]);
+
+  const handleSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (highlightedIndex >= 0 && listItems[highlightedIndex]) {
+      const item = listItems[highlightedIndex];
+      if (item.type === 'custom') {
+        handleSelect(item.value);
+      } else {
+        handleSelect(item.option.value);
+      }
+    } else if (showCustomRow && customCommitValue) {
+      handleSelect(customCommitValue);
+    }
+  };
 
   // ── Desktop-only: portal position sync + scroll lock ──
 
@@ -223,7 +314,10 @@ export function SearchableSelect({
     const onWheel = (e: WheelEvent) => {
       e.stopPropagation();
       const max = Math.max(0, list.scrollHeight - list.clientHeight);
-      if (max <= 0) { e.preventDefault(); return; }
+      if (max <= 0) {
+        e.preventDefault();
+        return;
+      }
       list.scrollTop = Math.min(max, Math.max(0, list.scrollTop + e.deltaY));
       e.preventDefault();
     };
@@ -245,7 +339,9 @@ export function SearchableSelect({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
             placeholder={searchPlaceholder}
+            maxLength={allowCustom ? customMaxLength + 32 : undefined}
             className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
           />
           {searchQuery && (
@@ -266,27 +362,42 @@ export function SearchableSelect({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
         style={{ maxHeight }}
       >
-        {filteredOptions.length === 0 ? (
+        {listItems.length === 0 ? (
           <div className="px-3 py-4 text-center text-sm text-gray-500">
             No options found
           </div>
         ) : (
-          filteredOptions.map((option, index) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => handleSelect(option.value)}
-              className={cn(
-                'w-full flex items-center px-3 py-2 text-sm text-left transition-colors',
-                value === option.value
-                  ? 'bg-brand-primary/5 text-brand-primary font-medium'
-                  : 'text-gray-700 hover:bg-gray-50',
-                highlightedIndex === index && 'bg-gray-100'
-              )}
-            >
-              {option.label}
-            </button>
-          ))
+          listItems.map((item, index) =>
+            item.type === 'custom' ? (
+              <button
+                key={`custom-${item.value}`}
+                type="button"
+                onClick={() => handleSelect(item.value)}
+                className={cn(
+                  'w-full flex items-center px-3 py-2 text-sm text-left transition-colors border-b border-gray-100',
+                  'text-brand-primary font-medium bg-brand-primary/5 hover:bg-brand-primary/10',
+                  highlightedIndex === index && 'ring-1 ring-inset ring-brand-primary/30'
+                )}
+              >
+                Use &quot;{item.value}&quot;
+              </button>
+            ) : (
+              <button
+                key={item.option.value === '' ? '__empty__' : item.option.value}
+                type="button"
+                onClick={() => handleSelect(item.option.value)}
+                className={cn(
+                  'w-full flex items-center px-3 py-2 text-sm text-left transition-colors',
+                  value === item.option.value
+                    ? 'bg-brand-primary/5 text-brand-primary font-medium'
+                    : 'text-gray-700 hover:bg-gray-50',
+                  highlightedIndex === index && 'bg-gray-100'
+                )}
+              >
+                {item.option.label}
+              </button>
+            )
+          )
         )}
       </div>
     </>
@@ -310,7 +421,7 @@ export function SearchableSelect({
             className
           )}
         >
-          <span className={cn(value ? 'text-gray-900' : 'text-gray-500', 'truncate')}>
+          <span className={cn(selectedOption ? 'text-gray-900' : 'text-gray-500', 'truncate')}>
             {displayLabel}
           </span>
           <ChevronDown
@@ -347,7 +458,7 @@ export function SearchableSelect({
           className
         )}
       >
-        <span className={cn(value ? 'text-gray-900' : 'text-gray-500', 'truncate')}>
+        <span className={cn(selectedOption ? 'text-gray-900' : 'text-gray-500', 'truncate')}>
           {displayLabel}
         </span>
         <ChevronDown

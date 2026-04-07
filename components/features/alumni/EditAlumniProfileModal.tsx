@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase/client';
 import { trackActivity, ActivityTypes } from '@/lib/utils/activityUtils';
 import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection';
 import type { DetectedChange } from '@/components/features/profile/ProfileUpdatePromptModal';
-import { getGraduationYears, industries } from '@/lib/alumniConstants';
+import { buildIndustrySelectOptions, getGraduationYears } from '@/lib/alumniConstants';
 import { queueProfileUpdatePrompt } from '@/lib/utils/profileUpdatePromptQueue';
 import { Select, SelectItem } from '@/components/ui/select';
 import { UsernameInput } from '@/components/features/profile/UsernameInput';
@@ -26,6 +26,9 @@ import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+
+const editAlumniIndustryOptions = buildIndustrySelectOptions('Select Industry');
 
 interface EditAlumniProfileModalProps {
   isOpen: boolean;
@@ -898,17 +901,14 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="industry">Industry</Label>
-                    <Select
+                    <SearchableSelect
                       value={formData.industry || ''}
                       onValueChange={(value) => handleInputChange('industry', value)}
-                    >
-                      <SelectItem value="">Select Industry</SelectItem>
-                      {industries.map((industry) => (
-                        <SelectItem key={industry} value={industry}>
-                          {industry}
-                        </SelectItem>
-                      ))}
-                    </Select>
+                      options={editAlumniIndustryOptions}
+                      placeholder="Select Industry"
+                      searchPlaceholder="Search industries..."
+                      allowCustom
+                    />
                   </div>
                   <div>
                     <Label htmlFor="company">Company</Label>

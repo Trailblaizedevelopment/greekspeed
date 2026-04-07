@@ -3,7 +3,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectItem } from "@/components/ui/select";
-import { graduationYears, industries, chapters, locations, getEarlierCutoffYear } from "@/lib/alumniConstants";
+import {
+  graduationYears,
+  alumniDirectoryIndustryFilterOptions,
+  getEarlierCutoffYear,
+} from "@/lib/alumniConstants";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { US_STATES, getStateNameByCode } from "@/lib/usStates";
 import { motion } from "framer-motion";
 
@@ -89,15 +94,14 @@ export function AlumniFilterBar({ filters, onFiltersChange, onClearFilters, isSi
         {/* Industry Filter */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">Industry</label>
-          <Select 
-            value={filters.industry} 
+          <SearchableSelect
+            value={filters.industry}
             onValueChange={(value) => handleFilterChange('industry', value)}
-          >
-            <SelectItem value="">All Industries</SelectItem>
-            {industries.map((industry) => (
-              <SelectItem key={industry} value={industry}>{industry}</SelectItem>
-            ))}
-          </Select>
+            options={alumniDirectoryIndustryFilterOptions}
+            placeholder="All Industries"
+            searchPlaceholder="Search industries..."
+            allowCustom
+          />
         </div>
 
         {/* State Filter */}
@@ -249,18 +253,16 @@ export function AlumniFilterBar({ filters, onFiltersChange, onClearFilters, isSi
             </div>
 
             {/* Industry Filter */}
-            <div className="relative">
-              <Select 
-                value={filters.industry} 
+            <div className="relative w-36 min-w-[9rem]">
+              <SearchableSelect
+                value={filters.industry}
                 onValueChange={(value) => handleFilterChange('industry', value)}
+                options={alumniDirectoryIndustryFilterOptions}
                 placeholder="All Industries"
-                className="w-36"
-              >
-                <SelectItem value="">All Industries</SelectItem>
-                {industries.map((industry) => (
-                  <SelectItem key={industry} value={industry}>{industry}</SelectItem>
-                ))}
-              </Select>
+                searchPlaceholder="Search industries..."
+                className="w-full"
+                allowCustom
+              />
             </div>
 
             {/* Clear Filters Button */}
