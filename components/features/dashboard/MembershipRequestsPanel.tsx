@@ -13,7 +13,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, UserPlus, ChevronRight } from 'lucide-react';
+import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Loader2,
+  UserPlus,
+} from 'lucide-react';
 import type { ChapterMembershipRequest } from '@/types/chapterMembershipRequests';
 import type { MembershipRequestChapterGroup } from '@/lib/hooks/useMembershipRequestsAdmin';
 import { MembershipRequestDetailSheet } from '@/components/features/dashboard/MembershipRequestDetailSheet';
@@ -22,6 +29,58 @@ import { cn } from '@/lib/utils';
 function sourceLabel(source: ChapterMembershipRequest['source']): string {
   if (source === 'marketing_alumni') return 'Marketing signup';
   return 'Invitation';
+}
+
+type SortColumn = 'name' | 'email' | 'source' | 'requested' | null;
+type SortDirection = 'asc' | 'desc';
+
+/**
+ * Client-side sort for one chapter’s visible rows. `sortColumn === null` preserves input order.
+ */
+function sortMembershipRequests(
+  rows: ChapterMembershipRequest[],
+  sortColumn: SortColumn,
+  sortDirection: SortDirection
+): ChapterMembershipRequest[] {
+  if (!sortColumn || rows.length <= 1) {
+    return [...rows];
+  }
+  const copy = [...rows];
+  const mul = sortDirection === 'asc' ? 1 : -1;
+  const nameOf = (r: ChapterMembershipRequest) => r.applicant_full_name ?? '';
+  const emailOf = (r: ChapterMembershipRequest) => r.applicant_email ?? '';
+
+  copy.sort((a, b) => {
+    let cmp = 0;
+    switch (sortColumn) {
+      case 'name':
+        cmp = nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' });
+        break;
+      case 'email':
+        cmp = emailOf(a).localeCompare(emailOf(b), undefined, { sensitivity: 'base' });
+        break;
+      case 'source':
+        cmp = a.source.localeCompare(b.source);
+        break;
+      case 'requested':
+        cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        break;
+      default:
+        return 0;
+    }
+    if (cmp !== 0) return cmp * mul;
+    return a.id.localeCompare(b.id);
+  });
+  return copy;
+}
+
+function ariaSortForColumn(
+  column: Exclude<SortColumn, null>,
+  sortColumn: SortColumn,
+  sortDirection: SortDirection
+): 'ascending' | 'descending' | 'none' {
+  if (sortColumn !== column) return 'none';
+  return sortDirection === 'asc' ? 'ascending' : 'descending';
 }
 
 export type MembershipRequestDetailSelection = {
@@ -64,6 +123,17 @@ export function MembershipRequestsPanel({
   const [selectedDetail, setSelectedDetail] = useState<DetailSelection | null>(null);
   const [rejectTarget, setRejectTarget] = useState<ChapterMembershipRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const handleSort = useCallback((column: Exclude<SortColumn, null>) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  }, [sortColumn]);
 
   const hideOptimistic = useCallback((id: string) => {
     setHiddenIds((prev) => new Set(prev).add(id));
@@ -127,6 +197,17 @@ export function MembershipRequestsPanel({
     [hiddenIds]
   );
 
+  const SortIcon = ({ column }: { column: Exclude<SortColumn, null> }) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />;
+    }
+    return sortDirection === 'asc' ? (
+      <ChevronUp className="h-4 w-4 shrink-0 text-brand-primary" aria-hidden />
+    ) : (
+      <ChevronDown className="h-4 w-4 shrink-0 text-brand-primary" aria-hidden />
+    );
+  };
+
   useLayoutEffect(() => {
     if (!deepLinkDetail) return;
     setSelectedDetail(deepLinkDetail);
@@ -172,6 +253,7 @@ export function MembershipRequestsPanel({
 
       {groups.map((group) => {
         const visible = visibleInGroup(group.requests);
+        const sorted = sortMembershipRequests(visible, sortColumn, sortDirection);
         return (
           <Card key={group.chapterId} className="shadow-sm border-gray-200">
             <CardHeader className="pb-2">
@@ -203,15 +285,89 @@ export function MembershipRequestsPanel({
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 text-left text-gray-600">
-                          <th className="pb-2 pr-4 font-medium">Name</th>
-                          <th className="pb-2 pr-4 font-medium">Email</th>
-                          <th className="pb-2 pr-4 font-medium">Source</th>
-                          <th className="pb-2 pr-4 font-medium">Requested</th>
-                          <th className="pb-2 font-medium text-right">Actions</th>
+                          <th
+                            scope="col"
+                            className="pb-2 pr-4 font-medium align-bottom"
+                            aria-sort={ariaSortForColumn('name', sortColumn, sortDirection)}
+                          >
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded font-medium text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20"
+                              onClick={() => handleSort('name')}
+                              aria-label={
+                                sortColumn === 'name'
+                                  ? `Name, sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}. Click to reverse.`
+                                  : 'Sort by name'
+                              }
+                            >
+                              <span>Name</span>
+                              <SortIcon column="name" />
+                            </button>
+                          </th>
+                          <th
+                            scope="col"
+                            className="pb-2 pr-4 font-medium align-bottom"
+                            aria-sort={ariaSortForColumn('email', sortColumn, sortDirection)}
+                          >
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded font-medium text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20"
+                              onClick={() => handleSort('email')}
+                              aria-label={
+                                sortColumn === 'email'
+                                  ? `Email, sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}. Click to reverse.`
+                                  : 'Sort by email'
+                              }
+                            >
+                              <span>Email</span>
+                              <SortIcon column="email" />
+                            </button>
+                          </th>
+                          <th
+                            scope="col"
+                            className="pb-2 pr-4 font-medium align-bottom"
+                            aria-sort={ariaSortForColumn('source', sortColumn, sortDirection)}
+                          >
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded font-medium text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20"
+                              onClick={() => handleSort('source')}
+                              aria-label={
+                                sortColumn === 'source'
+                                  ? `Source, sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}. Click to reverse.`
+                                  : 'Sort by source'
+                              }
+                            >
+                              <span>Source</span>
+                              <SortIcon column="source" />
+                            </button>
+                          </th>
+                          <th
+                            scope="col"
+                            className="pb-2 pr-4 font-medium align-bottom"
+                            aria-sort={ariaSortForColumn('requested', sortColumn, sortDirection)}
+                          >
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded font-medium text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20"
+                              onClick={() => handleSort('requested')}
+                              aria-label={
+                                sortColumn === 'requested'
+                                  ? `Requested, sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}. Click to reverse.`
+                                  : 'Sort by date requested'
+                              }
+                            >
+                              <span>Requested</span>
+                              <SortIcon column="requested" />
+                            </button>
+                          </th>
+                          <th scope="col" className="pb-2 font-medium text-right align-bottom">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {visible.map((row) => (
+                        {sorted.map((row) => (
                           <tr
                             key={row.id}
                             data-membership-request-row={row.id}
@@ -301,7 +457,7 @@ export function MembershipRequestsPanel({
 
                   {/* Mobile cards */}
                   <ul className="md:hidden space-y-3">
-                    {visible.map((row) => (
+                    {sorted.map((row) => (
                       <li
                         key={row.id}
                         data-membership-request-row={row.id}
