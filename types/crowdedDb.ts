@@ -6,6 +6,7 @@
 export interface CrowdedAccountRow {
   id: string;
   chapter_id: string;
+  /** Crowded’s opaque account id from the API (numeric string or UUID); not necessarily a UUID. */
   crowded_account_id: string;
   display_name: string | null;
   status: string | null;
@@ -22,6 +23,7 @@ export interface CrowdedAccountRow {
 export interface CrowdedTransactionRow {
   id: string;
   chapter_id: string;
+  /** Same opaque id as `crowded_accounts.crowded_account_id` (composite FK). */
   crowded_account_id: string;
   crowded_transaction_id: string;
   amount_minor: number | null;

@@ -64,7 +64,15 @@ export interface CrowdedContact {
 
 /** Chapter-scoped banking account (GET …/chapters/:chapterId/accounts). @see docs/development/features/crowded_cursor_postman_session.md */
 export interface CrowdedAccount {
-  id: string;
+  /**
+   * Crowded’s canonical account id (opaque string: often numeric, e.g. `"12832675"`, or a UUID in some envs).
+   * May also appear as **`accountId`**, snake_case, **`uuid`**, JSON:API **`attributes`**, or nested **`account`**;
+   * {@link normalizeCrowdedAccountListElement} / {@link mapCrowdedAccountToSyncFields} resolve it.
+   */
+  id?: string;
+  accountId?: string;
+  /** Some list payloads use `uuid` instead of `id`. */
+  uuid?: string;
   name: string;
   status: string;
   /** Masked or last-four style; treat as sensitive in logs/UI */
@@ -76,14 +84,17 @@ export interface CrowdedAccount {
   hold?: number;
   available?: number;
   contactId?: string;
+  contact_id?: string;
+  /** e.g. `checking` when returned by the API */
+  product?: string;
   createdAt: string;
 }
 
-/** Crowded error JSON body (non-2xx) */
+/** Crowded error JSON body (non-2xx). `details` shape varies by endpoint (string, string[], object). */
 export interface CrowdedErrorBody {
   type?: string;
   statusCode?: number;
   message?: string;
-  details?: string[];
+  details?: unknown;
   requestId?: string;
 }

@@ -11,6 +11,7 @@
  * Optional:
  *   CROWDED_TEST_CHAPTER_ID=<uuid> — Crowded chapter UUID for contact calls (direct API; not Trailblaize DB id)
  *   CROWDED_TEST_CONTACT_ID=<uuid> — if set with chapter id, calls GET single contact
+ *   CROWDED_TEST_ACCOUNT_ID=<id> — if set, calls GET single account (otherwise uses first list account id)
  *
  * Optional DB → Crowded mapping smoke (TRA-561):
  *   CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID=<Trailblaize chapters.id> — requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
@@ -18,6 +19,8 @@
  *
  * Accounts (TRA-412):
  *   GET …/accounts may return 400 `NO_CUSTOMER` until banking setup in Crowded portal — script logs a warning and continues.
+ *   GET …/accounts/:id is **best-effort**: Crowded may reject the list `id` in the path (e.g. 400 “chapterId must be a positive integer”) while list still works — script warns and continues.
+ *   When `CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID` is set and listAccounts returns 200, runs `syncCrowdedAccountsForTrailblaizeChapter` (upsert `public.crowded_accounts`).
  */
 
 import path from 'path';
@@ -32,6 +35,8 @@ import {
   isCrowdedNoCustomerError,
 } from '../lib/services/crowded/crowded-client';
 import { getCrowdedIdsForTrailblaizeChapter } from '../lib/services/crowded/chapterCrowdedMapping';
+import { resolveCrowdedAccountApiId } from '../lib/services/crowded/crowdedAccountMapping';
+import { upsertCrowdedAccountsFromList } from '../lib/services/crowded/syncCrowdedAccounts';
 
 /** Service-role client for scripts only — avoids importing `lib/supabase/client` (browser client breaks in Node). */
 function createServiceSupabaseOrNull(): SupabaseClient | null {
@@ -79,6 +84,20 @@ async function runMappingSmokeTest(): Promise<void> {
   try {
     const accounts = await client.listAccounts(mapping.crowdedChapterId);
     console.log(`[crowded] listAccounts via DB mapping OK — ${accounts.data.length} account(s)`);
+
+    const persist = await upsertCrowdedAccountsFromList(
+      supabase,
+      trailblaizeChapterId,
+      accounts.data
+    );
+    if (persist.ok) {
+      console.log(
+        `[crowded] TRA-412: crowded_accounts upsert OK — ${persist.syncedCount} row(s) (last_synced_at set)`
+      );
+    } else {
+      console.error('[crowded] crowded_accounts upsert failed:', persist.message);
+      throw new Error(persist.message);
+    }
   } catch (e) {
     if (e instanceof CrowdedApiError && isCrowdedNoCustomerError(e)) {
       console.warn(
@@ -128,12 +147,36 @@ async function main(): Promise<void> {
       try {
         const accounts = await client.listAccounts(chapterId);
         console.log(`[crowded] GET /chapters/…/accounts OK — ${accounts.data.length} account(s)`);
+        const firstAcc = accounts.data[0];
         const accountId =
-          process.env.CROWDED_TEST_ACCOUNT_ID?.trim() || accounts.data[0]?.id;
+          process.env.CROWDED_TEST_ACCOUNT_ID?.trim() ||
+          (firstAcc ? resolveCrowdedAccountApiId(firstAcc) : undefined);
         if (accountId) {
-          const acc = await client.getAccount(chapterId, accountId);
-          console.log('[crowded] GET /chapters/…/accounts/… OK');
-          console.log(`  account: ${acc.data.name} (${acc.data.id})`);
+          try {
+            const acc = await client.getAccount(chapterId, accountId);
+            console.log('[crowded] GET /chapters/…/accounts/… OK');
+            const aid = resolveCrowdedAccountApiId(acc.data);
+            console.log(`  account: ${acc.data.name} (${aid ?? 'unknown id'})`);
+          } catch (singleAccErr) {
+            if (
+              singleAccErr instanceof CrowdedApiError &&
+              isCrowdedNoCustomerError(singleAccErr)
+            ) {
+              console.warn(
+                '[crowded] GET /chapters/…/accounts/:id — NO_CUSTOMER (expected until banking setup in Crowded portal).'
+              );
+            } else if (singleAccErr instanceof CrowdedApiError) {
+              console.warn(
+                '[crowded] GET /chapters/…/accounts/:id skipped (Crowded error; list still OK):',
+                singleAccErr.message
+              );
+              if (singleAccErr.requestId) {
+                console.warn('  requestId:', singleAccErr.requestId);
+              }
+            } else {
+              throw singleAccErr;
+            }
+          }
         }
       } catch (accErr) {
         if (accErr instanceof CrowdedApiError && isCrowdedNoCustomerError(accErr)) {

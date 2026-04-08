@@ -3,6 +3,9 @@
  */
 import { z } from 'zod';
 
+/** Crowded account ids may be UUIDs or numeric strings (e.g. `"12832675"`). */
+const crowdedAccountApiIdString = z.string().min(1);
+
 export const crowdedPaginationMetaSchema = z.object({
   total: z.number(),
   limit: z.number(),
@@ -64,19 +67,51 @@ export const crowdedContactSingleResponseSchema = z.object({
   data: crowdedContactSchema,
 });
 
-export const crowdedAccountSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  status: z.string(),
-  accountNumber: z.string().optional(),
-  routingNumber: z.string().optional(),
-  currency: z.string(),
-  balance: z.number().optional(),
-  hold: z.number().optional(),
-  available: z.number().optional(),
-  contactId: z.string().optional(),
-  createdAt: z.string(),
-});
+/** List/single account: Crowded may send `accountId`, snake_case, `uuid`, JSON:API `attributes`, or nested `account` (normalized before parse in the client). */
+export const crowdedAccountSchema = z
+  .object({
+    id: crowdedAccountApiIdString.optional(),
+    accountId: crowdedAccountApiIdString.optional(),
+    account_id: crowdedAccountApiIdString.optional(),
+    uuid: crowdedAccountApiIdString.optional(),
+    accountUuid: crowdedAccountApiIdString.optional(),
+    account_uuid: crowdedAccountApiIdString.optional(),
+    name: z.string(),
+    status: z.string(),
+    accountNumber: z.string().optional(),
+    routingNumber: z.string().optional(),
+    currency: z.string(),
+    balance: z.number().optional(),
+    hold: z.number().optional(),
+    available: z.number().optional(),
+    contactId: z.string().optional(),
+    product: z.string().optional(),
+    createdAt: z.string(),
+  })
+  .refine(
+    (d) =>
+      !!(
+        d.id ??
+        d.accountId ??
+        d.account_id ??
+        d.uuid ??
+        d.accountUuid ??
+        d.account_uuid
+      ),
+    {
+      message:
+        'Crowded account requires id, accountId, account_id, uuid, accountUuid, or account_uuid',
+    }
+  )
+  .transform((d) => ({
+    ...d,
+    id: (d.id ??
+      d.accountId ??
+      d.account_id ??
+      d.uuid ??
+      d.accountUuid ??
+      d.account_uuid) as string,
+  }));
 
 export const crowdedAccountListResponseSchema = z.object({
   data: z.array(crowdedAccountSchema),

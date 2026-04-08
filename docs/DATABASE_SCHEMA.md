@@ -79,7 +79,7 @@ Synced Crowded banking accounts per chapter (TRA-410). **RLS:** authenticated us
 **Key Columns:**
 - `id` (UUID, Primary Key)
 - `chapter_id` (UUID, Foreign Key → `chapters.id`, ON DELETE CASCADE)
-- `crowded_account_id` (UUID) — Crowded API account id; unique per chapter with `chapter_id`
+- `crowded_account_id` (TEXT) — Crowded API account id (opaque string, often numeric); unique per chapter with `chapter_id`
 - `display_name`, `status`, `currency` (TEXT, nullable) — optional cache from API
 - `crowded_contact_id` (UUID, nullable)
 - `balance_minor`, `hold_minor`, `available_minor` (BIGINT, nullable) — minor units (e.g. cents); **routing/account numbers are not stored**
@@ -93,7 +93,7 @@ Transactions synced from Crowded, deduped by `crowded_transaction_id` per `(chap
 
 **Key Columns:**
 - `id` (UUID, Primary Key)
-- `chapter_id` (UUID) + `crowded_account_id` (UUID) — composite FK to `crowded_accounts`
+- `chapter_id` (UUID) + `crowded_account_id` (TEXT) — composite FK to `crowded_accounts`
 - `crowded_transaction_id` (TEXT) — Crowded’s stable id for upserts
 - `amount_minor` (BIGINT, nullable), `currency`, `description`, `status` (TEXT, nullable)
 - `occurred_at`, `posted_at`, `synced_at` (TIMESTAMPTZ)

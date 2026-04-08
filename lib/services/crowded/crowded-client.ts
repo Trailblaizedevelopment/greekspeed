@@ -19,12 +19,49 @@ import {
   crowdedContactSingleResponseSchema,
   crowdedOrganizationListResponseSchema,
 } from './crowded-schemas';
+import { normalizeCrowdedAccountListElement } from './crowdedAccountMapping';
 
 const API_PREFIX = '/api/v1';
+
+/**
+ * Normalize Crowded `details` for {@link CrowdedApiError}: API may send a string, string[], or other shapes.
+ */
+export function normalizeCrowdedErrorDetails(raw: unknown): string[] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    return t.length > 0 ? [t] : undefined;
+  }
+  if (Array.isArray(raw)) {
+    const out: string[] = [];
+    for (const item of raw) {
+      if (typeof item === 'string') {
+        const s = item.trim();
+        if (s.length > 0) out.push(s);
+      } else if (typeof item === 'number' && Number.isFinite(item)) {
+        out.push(String(item));
+      }
+    }
+    return out.length > 0 ? out : undefined;
+  }
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    for (const key of ['code', 'detail', 'message', 'reason'] as const) {
+      const v = o[key];
+      if (typeof v === 'string' && v.trim().length > 0) {
+        return [v.trim()];
+      }
+    }
+  }
+  return undefined;
+}
 
 export class CrowdedApiError extends Error {
   readonly statusCode: number;
   readonly type?: string;
+  /** Normalized detail strings (see {@link normalizeCrowdedErrorDetails}). */
   readonly details?: string[];
   readonly requestId?: string;
   readonly body?: CrowdedErrorBody;
@@ -34,7 +71,7 @@ export class CrowdedApiError extends Error {
     options: {
       statusCode: number;
       type?: string;
-      details?: string[];
+      details?: unknown;
       requestId?: string;
       body?: CrowdedErrorBody;
     }
@@ -43,14 +80,18 @@ export class CrowdedApiError extends Error {
     this.name = 'CrowdedApiError';
     this.statusCode = options.statusCode;
     this.type = options.type;
-    this.details = options.details;
+    this.details = normalizeCrowdedErrorDetails(options.details);
     this.requestId = options.requestId;
     this.body = options.body;
   }
 
   /** Known Crowded business codes in `details`, e.g. NO_CUSTOMER */
   hasDetail(code: string): boolean {
-    return this.details?.includes(code) ?? false;
+    const d = this.details;
+    if (!Array.isArray(d)) {
+      return false;
+    }
+    return d.includes(code);
   }
 }
 
@@ -109,6 +150,84 @@ function appendSearchParams(
   }
   const q = params.toString();
   return q ? `${path}?${q}` : path;
+}
+
+/**
+ * Crowded accounts list sometimes nests the real payload: `{ data: { data: T[], meta } }`
+ * instead of `{ data: T[], meta }`. Unwrap so downstream normalization sees a list of accounts.
+ */
+export function unwrapCrowdedAccountsListPayload(raw: unknown): unknown {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return raw;
+  }
+  const o = raw as Record<string, unknown>;
+  const outer = o.data;
+  if (outer === null || typeof outer !== 'object' || Array.isArray(outer)) {
+    return raw;
+  }
+  const inner = outer as Record<string, unknown>;
+  if (Array.isArray(inner.data)) {
+    return {
+      data: inner.data,
+      meta: inner.meta ?? o.meta,
+    };
+  }
+  return raw;
+}
+
+/** Single-account GET may use the same extra `data` wrapper as list. */
+function unwrapCrowdedAccountSinglePayload(raw: unknown): unknown {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return raw;
+  }
+  const o = raw as Record<string, unknown>;
+  const outer = o.data;
+  if (outer === null || typeof outer !== 'object' || Array.isArray(outer)) {
+    return raw;
+  }
+  const inner = outer as Record<string, unknown>;
+  const innerData = inner.data;
+  if (
+    innerData !== null &&
+    typeof innerData === 'object' &&
+    !Array.isArray(innerData)
+  ) {
+    return { ...o, data: innerData };
+  }
+  return raw;
+}
+
+/**
+ * Crowded may return `data` as a single object for GET …/accounts when one account exists.
+ * Our contract and Zod list schema expect `data: T[]`.
+ */
+function normalizeCrowdedListBody(raw: unknown): unknown {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return raw;
+  }
+  const o = raw as Record<string, unknown>;
+  const d = o.data;
+  if (Array.isArray(d)) {
+    return raw;
+  }
+  if (d !== null && typeof d === 'object') {
+    return { ...o, data: [d] };
+  }
+  return { ...o, data: [] };
+}
+
+/** Single-account GET: same shape variants as list (`accountId`, JSON:API `attributes`, nested `account`). */
+function normalizeCrowdedAccountSingleBody(raw: unknown): unknown {
+  const unwrapped = unwrapCrowdedAccountSinglePayload(raw);
+  if (unwrapped === null || typeof unwrapped !== 'object' || Array.isArray(unwrapped)) {
+    return unwrapped;
+  }
+  const o = unwrapped as Record<string, unknown>;
+  const d = o.data;
+  if (d === null || typeof d !== 'object' || Array.isArray(d)) {
+    return unwrapped;
+  }
+  return { ...o, data: normalizeCrowdedAccountListElement(d) };
 }
 
 export class CrowdedClient {
@@ -218,7 +337,15 @@ export class CrowdedClient {
       query
     );
     const raw = await this.getJson<unknown>(path);
-    return maybeParse(crowdedAccountListResponseSchema, raw) as CrowdedListResponse<CrowdedAccount>;
+    const normalized = normalizeCrowdedListBody(unwrapCrowdedAccountsListPayload(raw));
+    const body = normalized as { data?: unknown[]; meta?: unknown };
+    const data = Array.isArray(body.data)
+      ? body.data.map((item) => normalizeCrowdedAccountListElement(item))
+      : [];
+    return maybeParse(crowdedAccountListResponseSchema, {
+      ...body,
+      data,
+    }) as CrowdedListResponse<CrowdedAccount>;
   }
 
   /** GET /api/v1/chapters/:chapterId/accounts/:accountId */
@@ -226,7 +353,11 @@ export class CrowdedClient {
     const raw = await this.getJson<unknown>(
       `/chapters/${encodeURIComponent(chapterId)}/accounts/${encodeURIComponent(accountId)}`
     );
-    return maybeParse(crowdedAccountSingleResponseSchema, raw) as CrowdedSingleResponse<CrowdedAccount>;
+    const normalized = normalizeCrowdedAccountSingleBody(raw);
+    return maybeParse(
+      crowdedAccountSingleResponseSchema,
+      normalized
+    ) as CrowdedSingleResponse<CrowdedAccount>;
   }
 }
 
