@@ -25,6 +25,17 @@ import Link from 'next/link';
 import ImageWithFallback from '@/components/figma/ImageWithFallback';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
+import { ProfileCompletenessCard } from '@/components/features/profile/ProfileCompletenessCard';
+import { RecentActivityCard } from '@/components/features/profile/RecentActivityCard';
+import { EventAttendanceCard } from '@/components/features/profile/EventAttendanceCard';
+import { Users } from 'lucide-react';
+
+interface EventRsvp {
+  id: string;
+  title: string;
+  start_time: string;
+  location?: string | null;
+}
 
 interface PublicProfileClientProps {
   slug: string;
@@ -63,6 +74,9 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
   const [selectedUserForConnection, setSelectedUserForConnection] = useState<{ id: string; full_name?: string } | null>(null);
   const [connectionLoadingUserId, setConnectionLoadingUserId] = useState<string | null>(null);
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [connectionCount, setConnectionCount] = useState(0);
+  const [sharedChapter, setSharedChapter] = useState<string | null>(null);
+  const [userEventRsvps, setUserEventRsvps] = useState<EventRsvp[]>([]);
 
   const { posts: userPosts, loading: postsLoading, deletePost, likePost, refetch: refetchPosts } = useUserPosts(profile?.id || '');
   const { members: chapterMembers } = useChapterMembers(profile?.chapter_id || undefined);
@@ -77,6 +91,11 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
           const data = await response.json();
           setProfile(data.profile);
           setConnectionStatus(data.viewer.connectionStatus);
+          if (data.enrichment) {
+            setConnectionCount(data.enrichment.connectionCount ?? 0);
+            setSharedChapter(data.enrichment.sharedChapter ?? null);
+            setUserEventRsvps(data.enrichment.eventRsvps ?? []);
+          }
         }
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -361,6 +380,54 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
         {/* Profile Summary Section */}
         <ProfileSummary profile={profile} onClose={handleClose} />
 
+        {/* Mobile: Connection Count + Mutual Connections + Shared Chapter */}
+        <div className="px-4 pb-3 space-y-2">
+          {/* Connection Count */}
+          <div className="flex items-center justify-center gap-1.5 text-sm text-gray-600">
+            <Users className="w-4 h-4" />
+            <span className="font-medium">{connectionCount}</span>
+            <span>{connectionCount === 1 ? 'connection' : 'connections'}</span>
+          </div>
+
+          {/* Mutual Connections */}
+          {isLoggedIn && !isOwnProfile && mutualCount > 0 && (
+            <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1 bg-accent-50 rounded-full border border-accent-200">
+                <div className="flex -space-x-1">
+                  {mutualConnections.slice(0, 3).map((conn, i) => (
+                    <div key={conn.id || `mob-mutual-${i}`} className="w-5 h-5 rounded-full border-2 border-white overflow-hidden bg-gray-200 relative" style={{ zIndex: 10 - i }} title={conn.name || ''}>
+                      {conn.avatar ? (
+                        <ImageWithFallback src={conn.avatar} alt={conn.name || 'Mutual'} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gray-500 flex items-center justify-center">
+                          <span className="text-white text-[8px] font-medium">
+                            {conn.name?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <span className="text-xs text-gray-700 font-medium">
+                  {mutualCount === 1 ? '1 mutual' : `${mutualCount} mutual`}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Shared Chapter Badge */}
+          {isLoggedIn && !isOwnProfile && sharedChapter && (
+            <div className="flex justify-center">
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-primary-50 rounded-full border border-primary-200">
+                <Building className="w-3.5 h-3.5 text-brand-primary" />
+                <span className="text-xs text-brand-primary font-medium">
+                  Same chapter: {sharedChapter}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Sign-up CTA for non-logged-in users */}
         {!isLoggedIn && (
           <div className="px-4 py-3 bg-accent-50 border-b border-accent-100">
@@ -413,6 +480,21 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
             isLoggedIn={isLoggedIn}
             canSeeFullProfile={isOwnProfile || isConnected}
           />
+        )}
+
+        {/* Mobile enrichment cards below tab content */}
+        {isLoggedIn && (
+          <div className="px-4 py-4 space-y-4">
+            {isOwnProfile && (
+              <ProfileCompletenessCard profile={profile} />
+            )}
+            {isLoggedIn && userEventRsvps.length > 0 && (
+              <EventAttendanceCard
+                events={userEventRsvps}
+                profileName={isOwnProfile ? 'Your' : (profile.first_name || profile.full_name)}
+              />
+            )}
+          </div>
         )}
       </div>
 
@@ -629,7 +711,7 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
                     </button>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-500 text-sm mb-4">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-500 text-sm mb-3">
                     {profile.location && (
                       <div className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
@@ -648,7 +730,22 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
                         <span>Joined {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
                       </div>
                     )}
+                    <div className="flex items-center gap-1">
+                      <Users className="w-4 h-4" />
+                      <span className="font-medium">{connectionCount}</span>
+                      <span>{connectionCount === 1 ? 'connection' : 'connections'}</span>
+                    </div>
                   </div>
+
+                  {/* Shared Chapter Badge - Desktop */}
+                  {isLoggedIn && !isOwnProfile && sharedChapter && (
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-primary-50 rounded-full border border-primary-200 w-fit mb-4">
+                      <Building className="w-3.5 h-3.5 text-brand-primary" />
+                      <span className="text-xs text-brand-primary font-medium">
+                        Same chapter: {sharedChapter}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tabs - same underline style as dashboard */}
@@ -734,8 +831,30 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
               </div>
             </div>
 
-            {/* Right Sidebar (1/3) - People You May Know + Upcoming Events */}
+            {/* Right Sidebar (1/3) */}
             <div className="lg:col-span-1 space-y-4">
+              {/* Profile Completeness - own profile only */}
+              {isOwnProfile && (
+                <ProfileCompletenessCard profile={profile} />
+              )}
+
+              {/* Recent Activity */}
+              {isLoggedIn && (
+                <RecentActivityCard
+                  posts={userPosts}
+                  loading={postsLoading}
+                  profileName={isOwnProfile ? undefined : (profile.first_name || profile.full_name)}
+                />
+              )}
+
+              {/* Event Attendance - user's RSVPs */}
+              {isLoggedIn && userEventRsvps.length > 0 && (
+                <EventAttendanceCard
+                  events={userEventRsvps}
+                  profileName={isOwnProfile ? 'Your' : (profile.first_name || profile.full_name)}
+                />
+              )}
+
               {isLoggedIn && suggestedUsers.length > 0 && (
                 <Card className="bg-white rounded-xl shadow-sm">
                   <CardHeader className="pb-3">
