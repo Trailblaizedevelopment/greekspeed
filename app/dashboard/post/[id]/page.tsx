@@ -19,7 +19,7 @@ import { toast } from 'react-toastify';
 export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { getAuthHeaders } = useAuth();
+  const { getAuthHeaders, getAuthHeadersAsync } = useAuth();
   const queryClient = useQueryClient();
   const { mutateAsync: togglePostLike } = useTogglePostLikeMutation();
   const postId = typeof params.id === 'string' ? params.id : null;
@@ -42,7 +42,7 @@ export default function PostDetailPage() {
       if (!postId) {
         throw new Error('Post not found');
       }
-      const headers = getAuthHeaders();
+      const headers = await getAuthHeadersAsync();
       const res = await fetch(`/api/posts/${postId}`, { headers });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -66,7 +66,10 @@ export default function PostDetailPage() {
           updateDetailCache: true,
         });
       } catch (err) {
-        if (err instanceof Error && err.message === 'AUTH_REQUIRED') {
+        if (
+          err instanceof Error &&
+          (err.message === 'AUTH_REQUIRED' || err.message === 'Authentication required')
+        ) {
           toast.error('Sign in to like posts');
           return;
         }

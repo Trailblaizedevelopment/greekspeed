@@ -48,10 +48,10 @@ interface SearchableSelectProps {
   /** Max length for a custom committed value (defaults to PROFILE_SELECT_FIELD_MAX_LENGTH). */
   customMaxLength?: number;
   /**
-   * When set (desktop only), the dropdown is portaled into this element instead of `document.body`.
-   * Use inside modal/drawer focus traps (e.g. Vaul) so the search input stays focusable.
-   * Prefer a `position: relative` wrapper **without** `overflow: hidden|auto|scroll` so the panel is not clipped;
-   * put `overflow-y-auto` on an inner child that wraps the form.
+   * When set (desktop only), the dropdown is portaled into this node (e.g. Vaul Drawer.Content)
+   * instead of `document.body`, so the search input stays focusable inside modal focus traps.
+   * Uses absolute positioning relative to the container. Prefer a `position: relative` host
+   * without `overflow: hidden|clip` on the same node; put `overflow-y-auto` on an inner child.
    */
   portalContainerRef?: RefObject<HTMLElement | null>;
 }
@@ -266,16 +266,15 @@ export function SearchableSelect({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const margin = 12;
-    const portalEl = portalContainerRef?.current ?? null;
+    const container = portalContainerRef?.current ?? null;
 
-    if (portalEl) {
-      const cr = portalEl.getBoundingClientRect();
-      // Viewport deltas: portal host is a positioned ancestor (e.g. drawer body), not necessarily the scroll node.
-      const top = rect.bottom - cr.top + 4;
-      const left = rect.left - cr.left;
-      const maxWidthRight = portalEl.clientWidth - left - margin;
+    if (container) {
+      const cRect = container.getBoundingClientRect();
+      const top = rect.bottom - cRect.top + 4;
+      const left = Math.max(margin, rect.left - cRect.left);
+      const maxW = Math.max(0, cRect.width - left - margin);
       const desiredMin = Math.max(rect.width, 280);
-      const width = Math.min(desiredMin, Math.max(120, maxWidthRight));
+      const width = Math.min(desiredMin, maxW);
       setDropdownRect((prev) => {
         if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
         return { top, left, width };
@@ -467,7 +466,11 @@ export function SearchableSelect({
     );
   }
 
-  // ── Desktop: fixed portal dropdown ──
+  // ── Desktop: portal dropdown (body or modal/drawer container for focus trap) ──
+
+  const portalParent = portalContainerRef?.current ?? null;
+  const portalTarget = portalParent ?? document.body;
+  const useDrawerRelativePosition = portalParent !== null;
 
   return (
     <>
@@ -499,8 +502,8 @@ export function SearchableSelect({
           <div
             ref={dropdownRef}
             className={cn(
-              'max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
-              portalContainerRef != null ? 'absolute z-[80]' : 'fixed z-[100100]'
+              'z-[100100] max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
+              useDrawerRelativePosition ? 'absolute' : 'fixed'
             )}
             style={{
               top: dropdownRect.top,
@@ -510,7 +513,7 @@ export function SearchableSelect({
           >
             {dropdownContent}
           </div>,
-          portalContainerRef?.current ?? document.body
+          portalTarget
         )}
     </>
   );

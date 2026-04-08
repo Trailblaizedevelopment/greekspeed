@@ -3,14 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Activity, AlertCircle, CheckCircle, Clock, Users, DollarSign, Calendar, FileText, Megaphone } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase/client';
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // Use the same interface as OperationsFeed
 interface ActivityItem {

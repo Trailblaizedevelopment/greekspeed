@@ -82,12 +82,13 @@ function findPostInCaches(
 
 export function useTogglePostLikeMutation() {
   const queryClient = useQueryClient();
-  const { user, session, getAuthHeaders } = useAuth();
+  const { refreshClientSessionIfNeeded, getAuthHeadersAsync } = useAuth();
 
   return useMutation<{ liked: boolean }, Error, TogglePostLikeVariables, MutationContext | undefined>({
-    mutationFn: async (vars) => togglePostLikeRequest(vars.postId, getAuthHeaders),
+    mutationFn: async (vars) => togglePostLikeRequest(vars.postId, getAuthHeadersAsync),
     onMutate: async (vars) => {
-      if (!user || !session) {
+      const hasSession = await refreshClientSessionIfNeeded();
+      if (!hasSession) {
         throw new Error('AUTH_REQUIRED');
       }
 
