@@ -168,6 +168,9 @@ export interface CrowdedCreateCollectIntentRequest {
     requestedAmount: number;
     payerIp: string;
     userConsented: boolean;
+    /** Optional return URLs after Crowded checkout (if supported by API). */
+    successUrl?: string;
+    failureUrl?: string;
   };
 }
 

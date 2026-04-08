@@ -6,7 +6,8 @@ import { canManageChapterForContext, type ProfileForPermission } from '@/lib/per
 import { getManagedChapterIds } from '@/lib/services/governanceService';
 import { isFeatureEnabled } from '@/types/featureFlags';
 
-async function authenticateRequest(request: NextRequest): Promise<{
+/** Shared for Crowded API routes: Bearer or cookies + service-role client for DB checks. */
+export async function authenticateCrowdedApiRequest(request: NextRequest): Promise<{
   user: { id: string };
   supabase: SupabaseClient;
 } | null> {
@@ -71,7 +72,7 @@ export async function resolveCrowdedChapterApiContext(
   | { ok: true; crowdedChapterId: string }
   | { ok: false; response: NextResponse }
 > {
-  const auth = await authenticateRequest(request);
+  const auth = await authenticateCrowdedApiRequest(request);
   if (!auth) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }

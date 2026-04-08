@@ -25,6 +25,8 @@ import {
 import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
 import { Progress } from "../../../components/ui/progress";
+import { Checkbox } from "../../../components/ui/checkbox";
+import { Label } from "../../../components/ui/label";
 import { useProfile } from "@/lib/contexts/ProfileContext";
 import { createClient } from '@supabase/supabase-js';
 import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
@@ -74,10 +76,12 @@ interface DuesAssignment {
   amount_due: number;
   amount_paid: number;
   cycle: {
+    id?: string;
     name: string;
     due_date: string;
     allow_payment_plans: boolean;
     plan_options: any[];
+    crowded_collection_id?: string | null;
   };
 }
 
@@ -92,6 +96,8 @@ export default function DuesClient() {
 
   // Add success state
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [crowdedPayConsent, setCrowdedPayConsent] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.id) {
@@ -132,10 +138,12 @@ export default function DuesClient() {
         .select(`
           *,
           cycle:dues_cycles!dues_assignments_dues_cycle_id_fkey(
+            id,
             name,
             due_date,
             allow_payment_plans,
-            plan_options
+            plan_options,
+            crowded_collection_id
           )
         `)
         .eq('user_id', profile?.id)
@@ -188,6 +196,34 @@ export default function DuesClient() {
       setPaymentHistory(data || []);
     } catch (error) {
       console.error('Error loading payment history:', error);
+    }
+  };
+
+  const handleCrowdedPay = async (assignmentId: string) => {
+    setPayError(null);
+    if (!crowdedPayConsent) {
+      setPayError('Please confirm payment authorization below.');
+      return;
+    }
+    setProcessingPayment(true);
+    try {
+      const res = await fetch('/api/dues/pay', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duesAssignmentId: assignmentId, userConsented: true }),
+      });
+      const body = (await res.json()) as { paymentUrl?: string; error?: string };
+      if (!res.ok || !body.paymentUrl) {
+        setPayError(body.error || 'Could not start checkout. Try again or contact your treasurer.');
+        return;
+      }
+      window.location.href = body.paymentUrl;
+    } catch (e) {
+      console.error(e);
+      setPayError('Network error. Try again.');
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -309,17 +345,55 @@ export default function DuesClient() {
               </CardHeader>
               <CardContent>
                 {currentAssignment ? (
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-2xl font-semibold text-primary-900">
-                        ${(currentAssignment.amount_due - currentAssignment.amount_paid).toFixed(2)}
-                      </p>
-                      <p className="text-brand-primary">Due on {new Date(currentAssignment.cycle.due_date).toLocaleDateString()}</p>
-                      {currentAssignment.cycle.allow_payment_plans && (
-                        <p className="text-sm text-gray-600">Payment plans available</p>
-                      )}
+                  <>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-2xl font-semibold text-primary-900">
+                          ${(currentAssignment.amount_due - currentAssignment.amount_paid).toFixed(2)}
+                        </p>
+                        <p className="text-brand-primary">Due on {new Date(currentAssignment.cycle.due_date).toLocaleDateString()}</p>
+                        {currentAssignment.cycle.allow_payment_plans && (
+                          <p className="text-sm text-gray-600">Payment plans available</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                    {currentAssignment.amount_due - currentAssignment.amount_paid > 0 && (
+                      <div className="border-t border-primary-200/60 pt-4 space-y-3">
+                        {payError ? <p className="text-sm text-red-600">{payError}</p> : null}
+                        {currentAssignment.cycle.crowded_collection_id ? (
+                          <>
+                            <div className="flex items-start gap-3">
+                              <Checkbox
+                                id="crowded-pay-consent-desktop"
+                                checked={crowdedPayConsent}
+                                onCheckedChange={(c) => setCrowdedPayConsent(Boolean(c))}
+                                aria-labelledby="crowded-pay-consent-label-desktop"
+                              />
+                              <Label
+                                id="crowded-pay-consent-label-desktop"
+                                htmlFor="crowded-pay-consent-desktop"
+                                className="text-sm text-gray-700 font-normal leading-snug cursor-pointer"
+                              >
+                                I authorize payment for this chapter dues balance and agree to proceed to our
+                                payment partner (Crowded) to complete checkout.
+                              </Label>
+                            </div>
+                            <Button
+                              className="w-full sm:w-auto"
+                              disabled={processingPayment}
+                              onClick={() => handleCrowdedPay(currentAssignment.id)}
+                            >
+                              {processingPayment ? 'Starting checkout…' : 'Pay online'}
+                            </Button>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-600">
+                            Online payment will be available once your treasurer links this dues cycle to Crowded.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center text-green-600">
                     <CheckCircle className="h-12 w-12 mx-auto mb-2" />
@@ -509,17 +583,55 @@ export default function DuesClient() {
           </CardHeader>
           <CardContent>
             {currentAssignment ? (
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-2xl font-semibold text-primary-900">
-                    ${(currentAssignment.amount_due - currentAssignment.amount_paid).toFixed(2)}
-                  </p>
-                  <p className="text-brand-primary">Due on {new Date(currentAssignment.cycle.due_date).toLocaleDateString()}</p>
-                  {currentAssignment.cycle.allow_payment_plans && (
-                    <p className="text-sm text-gray-600">Payment plans available</p>
-                  )}
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-2xl font-semibold text-primary-900">
+                      ${(currentAssignment.amount_due - currentAssignment.amount_paid).toFixed(2)}
+                    </p>
+                    <p className="text-brand-primary">Due on {new Date(currentAssignment.cycle.due_date).toLocaleDateString()}</p>
+                    {currentAssignment.cycle.allow_payment_plans && (
+                      <p className="text-sm text-gray-600">Payment plans available</p>
+                    )}
+                  </div>
                 </div>
-              </div>
+                {currentAssignment.amount_due - currentAssignment.amount_paid > 0 && (
+                  <div className="border-t border-primary-200/60 pt-4 space-y-3">
+                    {payError ? <p className="text-sm text-red-600">{payError}</p> : null}
+                    {currentAssignment.cycle.crowded_collection_id ? (
+                      <>
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id="crowded-pay-consent-mobile"
+                            checked={crowdedPayConsent}
+                            onCheckedChange={(c) => setCrowdedPayConsent(Boolean(c))}
+                            aria-labelledby="crowded-pay-consent-label-mobile"
+                          />
+                          <Label
+                            id="crowded-pay-consent-label-mobile"
+                            htmlFor="crowded-pay-consent-mobile"
+                            className="text-sm text-gray-700 font-normal leading-snug cursor-pointer"
+                          >
+                            I authorize payment for this chapter dues balance and agree to proceed to our
+                            payment partner (Crowded) to complete checkout.
+                          </Label>
+                        </div>
+                        <Button
+                          className="w-full"
+                          disabled={processingPayment}
+                          onClick={() => handleCrowdedPay(currentAssignment.id)}
+                        >
+                          {processingPayment ? 'Starting checkout…' : 'Pay online'}
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-600">
+                        Online payment will be available once your treasurer links this dues cycle to Crowded.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center text-green-600">
                 <CheckCircle className="h-12 w-12 mx-auto mb-2" />

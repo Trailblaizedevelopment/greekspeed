@@ -1,0 +1,255 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import {
+  CrowdedApiError,
+  createCrowdedClientFromEnv,
+  getCrowdedIntentPaymentUrl,
+} from '@/lib/services/crowded/crowded-client';
+import { authenticateCrowdedApiRequest } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
+import { matchCrowdedContactForProfile } from '@/lib/services/crowded/matchCrowdedContactByProfile';
+import { isFeatureEnabled } from '@/types/featureFlags';
+import { getBaseUrl } from '@/lib/utils/urlUtils';
+
+const duesPayBodySchema = z.object({
+  duesAssignmentId: z.string().uuid(),
+  userConsented: z.literal(true),
+});
+
+function clientIpFromRequest(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim();
+    if (first) return first.slice(0, 100);
+  }
+  const real = request.headers.get('x-real-ip')?.trim();
+  if (real) return real.slice(0, 100);
+  return '0.0.0.0';
+}
+
+function dollarsToCents(amountDue: unknown, amountPaid: unknown): number | null {
+  const due = Number(amountDue);
+  const paid = Number(amountPaid);
+  if (!Number.isFinite(due) || !Number.isFinite(paid)) {
+    return null;
+  }
+  const usd = due - paid;
+  if (usd <= 0) return null;
+  const cents = Math.round(usd * 100);
+  return cents >= 1 ? cents : null;
+}
+
+const NON_PAYABLE_STATUSES = new Set(['paid', 'exempt', 'waived']);
+
+/**
+ * Member dues checkout: Crowded intent when chapter flag + `crowded_chapter_id` + `dues_cycles.crowded_collection_id` are set.
+ * Stripe fallback is not implemented in-repo yet — returns 503 with `code` when Crowded path is unavailable.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const auth = await authenticateCrowdedApiRequest(request);
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { user, supabase } = auth;
+
+    let json: unknown;
+    try {
+      json = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const parsed = duesPayBodySchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request', issues: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, chapter_id, email, first_name, last_name, full_name')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    if (!profile.chapter_id?.trim()) {
+      return NextResponse.json(
+        { error: 'Your profile is not linked to a chapter for online dues payment.' },
+        { status: 403 }
+      );
+    }
+
+    const { data: assignment, error: assignError } = await supabase
+      .from('dues_assignments')
+      .select(
+        `
+        id,
+        user_id,
+        status,
+        amount_due,
+        amount_paid,
+        dues_cycle_id,
+        cycle:dues_cycles!dues_assignments_dues_cycle_id_fkey (
+          id,
+          chapter_id,
+          crowded_collection_id,
+          name
+        )
+      `
+      )
+      .eq('id', parsed.data.duesAssignmentId)
+      .maybeSingle();
+
+    if (assignError || !assignment) {
+      return NextResponse.json({ error: 'Dues assignment not found' }, { status: 404 });
+    }
+
+    if (assignment.user_id !== user.id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const cycleRaw = assignment.cycle;
+    const cycle = (Array.isArray(cycleRaw) ? cycleRaw[0] : cycleRaw) as {
+      id: string;
+      chapter_id: string;
+      crowded_collection_id: string | null;
+      name: string | null;
+    } | null;
+
+    if (!cycle?.chapter_id) {
+      return NextResponse.json({ error: 'Dues cycle not found' }, { status: 404 });
+    }
+
+    if (profile.chapter_id.trim() !== cycle.chapter_id.trim()) {
+      return NextResponse.json({ error: 'This dues assignment does not belong to your chapter.' }, { status: 403 });
+    }
+
+    const status = typeof assignment.status === 'string' ? assignment.status : '';
+    if (NON_PAYABLE_STATUSES.has(status)) {
+      return NextResponse.json({ error: 'This dues assignment is not payable online.' }, { status: 409 });
+    }
+
+    const requestedAmount = dollarsToCents(assignment.amount_due, assignment.amount_paid);
+    if (requestedAmount == null) {
+      return NextResponse.json({ error: 'No outstanding balance for this assignment.' }, { status: 409 });
+    }
+
+    const { data: chapter, error: chapterError } = await supabase
+      .from('chapters')
+      .select('id, feature_flags, crowded_chapter_id')
+      .eq('id', cycle.chapter_id)
+      .maybeSingle();
+
+    if (chapterError || !chapter) {
+      return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
+    }
+
+    const crowdedEnabled = isFeatureEnabled(chapter.feature_flags, 'crowded_integration_enabled');
+    const crowdedChapterId = (chapter.crowded_chapter_id as string | null)?.trim() ?? '';
+    const crowdedCollectionId = (cycle.crowded_collection_id as string | null)?.trim() ?? '';
+
+    const crowdedReady = crowdedEnabled && crowdedChapterId.length > 0 && crowdedCollectionId.length > 0;
+
+    if (!crowdedReady) {
+      return NextResponse.json(
+        {
+          error:
+            'Online dues checkout is not configured for your chapter. Contact your treasurer, or try again later.',
+          code: 'ONLINE_DUES_UNAVAILABLE',
+        },
+        { status: 503 }
+      );
+    }
+
+    let crowdedClient;
+    try {
+      crowdedClient = createCrowdedClientFromEnv();
+    } catch (e) {
+      console.error('Crowded client config error:', e);
+      return NextResponse.json(
+        { error: 'Crowded API is not configured on the server' },
+        { status: 503 }
+      );
+    }
+
+    const contactsResponse = await crowdedClient.listContacts(crowdedChapterId);
+    const match = matchCrowdedContactForProfile(contactsResponse.data, {
+      email: profile.email,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      full_name: profile.full_name,
+    });
+
+    if (!match.ok) {
+      if (match.reason === 'no_profile_email') {
+        return NextResponse.json(
+          { error: 'Add an email to your profile to pay dues online.' },
+          { status: 400 }
+        );
+      }
+      if (match.reason === 'no_match') {
+        return NextResponse.json(
+          {
+            error:
+              'No Crowded contact matches your email. Ask your treasurer to add you as a contact in Crowded.',
+            code: 'CROWDED_CONTACT_NOT_FOUND',
+          },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        {
+          error:
+            'Multiple Crowded contacts match your email. Ask your treasurer to remove duplicates in Crowded.',
+          code: 'CROWDED_CONTACT_AMBIGUOUS',
+        },
+        { status: 409 }
+      );
+    }
+
+    const baseUrl = getBaseUrl().replace(/\/$/, '');
+    const successUrl = `${baseUrl}/dashboard/dues?success=true`;
+    const failureUrl = `${baseUrl}/dashboard/dues?canceled=true`;
+
+    const intentResult = await crowdedClient.createIntent(crowdedChapterId, crowdedCollectionId, {
+      data: {
+        contactId: match.contactId,
+        requestedAmount,
+        payerIp: clientIpFromRequest(request),
+        userConsented: true,
+        successUrl,
+        failureUrl,
+      },
+    });
+
+    const paymentUrl = getCrowdedIntentPaymentUrl(intentResult);
+    if (!paymentUrl) {
+      return NextResponse.json(
+        { error: 'Crowded did not return a payment URL. Try again or contact support.' },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      paymentUrl,
+      provider: 'crowded' as const,
+      duesAssignmentId: assignment.id,
+      duesCycleId: cycle.id,
+    });
+  } catch (error) {
+    if (error instanceof CrowdedApiError) {
+      return NextResponse.json(
+        { error: error.message, code: 'CROWDED_API_ERROR' },
+        { status: error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 502 }
+      );
+    }
+    console.error('Dues pay error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

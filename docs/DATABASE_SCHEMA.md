@@ -286,21 +286,27 @@ RSVPs for events.
 - Belongs to `events` via `event_id`
 - Belongs to `profiles` via `user_id`
 
+### `dues_cycles`
+Chapter dues periods (semester, annual, etc.).
+
+**Key Columns:**
+- `id` (UUID, Primary Key)
+- `chapter_id` (UUID, Foreign Key → `chapters.id`)
+- `name`, `due_date`, `base_amount`, and other cycle fields (see app/API usage)
+- `crowded_collection_id` (TEXT, nullable) — Crowded Collect **collection** id for member checkout (**TRA-415**); set when treasurer links the cycle to a Crowded collection
+
 ### `dues_assignments`
 Dues/payment assignments.
 
 **Key Columns:**
 - `id` (UUID, Primary Key)
 - `user_id` (UUID, Foreign Key → `profiles.id`)
-- `chapter_id` (UUID, Foreign Key → `chapters.id`)
-- `amount` (DECIMAL)
-- `due_date` (DATE)
-- `status` (TEXT) - "pending", "paid", "overdue"
-- `created_at` (TIMESTAMPTZ)
+- `dues_cycle_id` (UUID, Foreign Key → `dues_cycles.id`) — primary chapter scoping is via the cycle’s `chapter_id`
+- `amount_assessed`, `amount_due`, `amount_paid`, `status` (e.g. required, paid, waived), `notes`, `updated_at`
 
 **Relationships:**
 - Belongs to `profiles` via `user_id`
-- Belongs to `chapters` via `chapter_id`
+- Belongs to `dues_cycles` via `dues_cycle_id`
 
 ### `messages`
 Direct messages between users.
