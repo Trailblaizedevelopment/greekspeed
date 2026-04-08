@@ -29,17 +29,21 @@ export function invalidateProfileCache(userId?: string, slug?: string) {
 }
 
 /**
- * Get chapter name from chapter ID
+ * Resolve a human-readable chapter name from a chapter UUID.
+ * Queries the chapters table; returns null if not found.
  */
-const getChapterName = (chapterId: string): string => {
-  const chapterMap: Record<string, string> = {
-    "404e65ab-1123-44a0-81c7-e8e75118e741": "Sigma Chi Eta (Ole Miss)",
-    "8ede10e8-b848-427d-8f4a-aacf74cea2c2": "Phi Gamma Delta Omega Chi (Chapman)",
-    "b25a4acf-59f0-46d4-bb5c-d41fda5b3252": "Phi Delta Theta Mississippi Alpha (Ole Miss)",
-    "ff740e3f-c45c-4728-a5d5-22088c19d847": "Kappa Sigma Delta-Xi (Ole Miss)"
-  };
-  return chapterMap[chapterId] || chapterId;
-};
+async function resolveChapterName(chapterId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('chapters')
+      .select('name')
+      .eq('id', chapterId)
+      .single();
+    return data?.name ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Fetch user profile by ID
@@ -78,7 +82,14 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       .single();
 
     if (alumniData && !alumniError) {
-      // User is an alumni
+      // Resolve chapter name: prefer the profile's chapter field (human-readable),
+      // then look up from chapters table, never show raw UUID
+      const chapterId = alumniData.chapter || alumniData.profile?.chapter_id || null;
+      let chapterName: string | null = alumniData.profile?.chapter || null;
+      if (!chapterName && chapterId) {
+        chapterName = await resolveChapterName(chapterId);
+      }
+
       const profile: UnifiedUserProfile = {
         id: userId,
         type: 'alumni',
@@ -89,8 +100,8 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
         banner_url: alumniData.profile?.banner_url || null,
         email: alumniData.email,
         phone: alumniData.phone,
-        chapter: alumniData.chapter ? getChapterName(alumniData.chapter) : null,
-        chapter_id: alumniData.chapter,
+        chapter: chapterName,
+        chapter_id: chapterId,
       bio: alumniData.description || alumniData.profile?.bio || null,
       location: alumniData.location || alumniData.profile?.location || null,
       username: alumniData.profile?.username || null,
@@ -128,6 +139,12 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       return null;
     }
 
+    // Ensure chapter name is human-readable; fall back to chapters table lookup
+    let chapterName: string | null = profileData.chapter || null;
+    if (!chapterName && profileData.chapter_id) {
+      chapterName = await resolveChapterName(profileData.chapter_id);
+    }
+
     const profile: UnifiedUserProfile = {
       id: userId,
       type: 'user',
@@ -138,7 +155,7 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       banner_url: profileData.banner_url || null,
       email: profileData.email,
       phone: profileData.phone,
-      chapter: profileData.chapter,
+      chapter: chapterName,
       chapter_id: profileData.chapter_id,
       bio: profileData.bio,
       location: profileData.location,
@@ -166,7 +183,9 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
 }
 
 /**
- * Convert Alumni object to UnifiedUserProfile
+ * Convert Alumni object to UnifiedUserProfile.
+ * Note: alumni.chapter may be a UUID; callers that need a guaranteed
+ * human-readable name should await resolveChapterNameForAlumni() afterwards.
  */
 export function alumniToUnifiedProfile(alumni: Alumni): UnifiedUserProfile {
   return {
@@ -178,7 +197,7 @@ export function alumniToUnifiedProfile(alumni: Alumni): UnifiedUserProfile {
     avatar_url: alumni.avatar || null,
     email: alumni.email || null,
     phone: alumni.phone || null,
-    chapter: alumni.chapter ? getChapterName(alumni.chapter) : null,
+    chapter: alumni.chapter || null,
     chapter_id: alumni.chapter,
     bio: alumni.description,
     location: alumni.location,
@@ -253,7 +272,14 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
       .single();
 
     if (alumniData && !alumniError) {
-      // User is an alumni
+      // Resolve chapter name: prefer the profile's chapter field (human-readable),
+      // then look up from chapters table, never show raw UUID
+      const chapterId = alumniData.chapter || alumniData.profile?.chapter_id || null;
+      let chapterName: string | null = alumniData.profile?.chapter || null;
+      if (!chapterName && chapterId) {
+        chapterName = await resolveChapterName(chapterId);
+      }
+
       const profile: UnifiedUserProfile = {
         id: userId,
         type: 'alumni',
@@ -264,8 +290,8 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
         banner_url: alumniData.profile?.banner_url || null,
         email: alumniData.email,
         phone: alumniData.phone,
-        chapter: alumniData.chapter ? getChapterName(alumniData.chapter) : null,
-        chapter_id: alumniData.chapter,
+        chapter: chapterName,
+        chapter_id: chapterId,
       bio: alumniData.description || alumniData.profile?.bio || null,
       location: alumniData.location || alumniData.profile?.location || null,
       username: alumniData.profile?.username || null,
@@ -293,6 +319,12 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
     }
 
     // If not alumni, use regular profile
+    // Ensure chapter name is human-readable; fall back to chapters table lookup
+    let chapterName: string | null = profileData.chapter || null;
+    if (!chapterName && profileData.chapter_id) {
+      chapterName = await resolveChapterName(profileData.chapter_id);
+    }
+
     const profile: UnifiedUserProfile = {
       id: userId,
       type: 'user',
@@ -303,7 +335,7 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
       banner_url: profileData.banner_url || null,
       email: profileData.email,
       phone: profileData.phone,
-      chapter: profileData.chapter,
+      chapter: chapterName,
       chapter_id: profileData.chapter_id,
       bio: profileData.bio,
       location: profileData.location,
