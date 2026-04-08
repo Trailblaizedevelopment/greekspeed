@@ -48,8 +48,9 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 | **Sync path** | `listAccounts` + `upsertCrowdedAccountsFromList` / mapping smoke → **`TRA-412: crowded_accounts upsert OK — N row(s)`**. |
 | **Error bodies** | `CrowdedApiError` normalizes `details` (string / array / object) so `isCrowdedNoCustomerError` and smoke catches never throw on odd shapes. |
 | **GET single account** | **Best-effort in smoke only:** Crowded may return **400** `chapterId must be a positive integer` when using list `id` in `GET …/chapters/{uuid}/accounts/{id}` while **list** still returns **200**. Script logs a warning and continues; product sync should rely on **list**, not single GET, until Crowded confirms path/id rules. |
+| **Bulk create** | **POST** `…/chapters/:chapterId/accounts` — sandbox **200** + **repo:** `CrowdedClient.bulkCreateAccounts`, types/Zod, unit tests, optional `POST /api/chapters/[id]/crowded/accounts/bulk`. **[TRA-413](https://linear.app/trailblaize/issue/TRA-413/implement-crowded-chapter-account-creation-client-optional-api) Done.** |
 
-**Still open (unchanged):** **POST collections** **401** accept-terms gate ([Pass 3](#pass-3--collect--collection-links-dues)), webhooks ([Pass 4](#pass-4--webhooks)), treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)), transaction sync ([TRA-418](https://linear.app/trailblaize/issue/TRA-418)).
+**Still open:** **POST collections** **401** accept-terms ([Pass 3](#pass-3--collect--collection-links-dues)) blocks **[TRA-414](https://linear.app/trailblaize/issue/TRA-414)**; webhooks ([Pass 4](#pass-4--webhooks)); treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)); transaction sync ([TRA-418](https://linear.app/trailblaize/issue/TRA-418)).
 
 ---
 
@@ -153,9 +154,54 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 | **Live error (path correct)** | **400** `ResourceInputSafeError`, `details: ["NO_CUSTOMER"]`, message `"No customer was found for operation"` — chapter/org exists but **banking customer** not provisioned (portal **Finish setup** or Crowded support). |
 | **Fields to persist (app)** | `crowded_account_id` ← `id`; link to our `chapter_id`; optional cache: `status`, `currency`, balances; `contactId` if we sync contacts. **Do not** store full account/routing in logs; treat as sensitive in UI. |
 | **GET single account** | `GET …/chapters/:chapterId/accounts/:accountId` — in sandbox, using **`id` from list** sometimes yields **400** `chapterId must be a positive integer` while list works; confirm correct path/account identifier with Crowded. App sync uses **list** for upserts. |
-| **Create** | Collection includes **POST Bulk create accounts** — run only when ready; not filled here. |
+| **Bulk create accounts** | `POST {{base_url}}/api/v1/chapters/:chapterId/accounts` — same path as **GET** list; path var **`chapterId`** = **`{{chapter_id}}`**. Each `data.items[]` entry requires **`contactId`** (contact UUID) + **`product`**: **`wallet`** or **`perdiem`** only — not `checking` (chapter primary checking from **GET list** uses `product: checking`; bulk create is a different product set). **`data.idempotencyKey`**: UUID v4 per logical request. **Validation (400):** `product is required`; `product must be one of: wallet, perdiem`. **Verified 200** response: [subsection below](#bulk-create-accounts--verified-sandbox-apr-2026). Ticket: [TRA-413](https://linear.app/trailblaize/issue/TRA-413/implement-crowded-chapter-account-creation-client-optional-api). |
 
 **Tickets:** TRA-412, TRA-413, TRA-410.
+
+### Bulk create accounts — verified (sandbox, Apr 2026)
+
+**Request body (example):**
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "contactId": "<contact-uuid-from-GET-contacts>",
+        "product": "perdiem"
+      }
+    ],
+    "idempotencyKey": "<uuid-v4>"
+  }
+}
+```
+
+**Success (`200`) — shape observed:**
+
+```json
+{
+  "data": {
+    "totalProcessed": 1,
+    "successCount": 1,
+    "failedCount": 0,
+    "results": [
+      {
+        "contactId": "<uuid>",
+        "accountId": "12988060",
+        "product": "perdiem",
+        "error": false,
+        "message": "Account",
+        "accountCreated": true,
+        "cardCreated": false
+      }
+    ]
+  }
+}
+```
+
+**Notes for implementers:** `results[].accountId` is an **opaque string** (numeric), consistent with **GET list** account `id`. After bulk create, **`GET …/accounts`** (list) can be re-run and **`upsertCrowdedAccountsFromList`** will pick up new rows if product policy includes syncing per-diem accounts. **`cardCreated`** may be `false` when cards are not issued for that product.
+
+**Next steps (product / engineering):** implement `CrowdedClient.bulkCreateAccounts` (or equivalent), types + optional Zod, optional gated `app/api/...` route, unit tests; optionally extend `npm run test:crowded` or a dedicated script for manual sandbox verification (idempotent retries with same `idempotencyKey`).
 
 **Troubleshooting:** Path param must be `{{chapter_id}}`, not literal `chapter_id` (else 403 / wrong chapter). **400 `NO_CUSTOMER`:** banking customer not ready — complete **Finish setup** in portal (below) or ask Crowded to provision sandbox.
 
@@ -350,7 +396,8 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | [TRA-561](https://linear.app/trailblaize/issue/TRA-561) | Chapter ↔ Crowded UUID stub | Done | Yes — columns + `chapterCrowdedMapping.ts` |
 | [TRA-410](https://linear.app/trailblaize/issue/TRA-410) | DB: accounts + transactions | Done | Yes — migration `20260401181943_*`, types `crowdedDb.ts`, `docs/DATABASE_SCHEMA.md` |
 | [TRA-411](https://linear.app/trailblaize/issue/TRA-411) | Feature flag | Done | Yes — `crowded_integration_enabled`, dashboard UI |
-| [TRA-412](https://linear.app/trailblaize/issue/TRA-412) | Account management API methods | Done | `listAccounts` (unwrap + sync) proven in smoke; `getAccount` implemented but Crowded may reject list `id` on single GET — confirm with Crowded; `syncCrowdedAccounts.ts` upserts from **list**; bulk/create POSTs still backlog if needed |
+| [TRA-412](https://linear.app/trailblaize/issue/TRA-412) | Account management API methods | Done | `listAccounts` (unwrap + sync) proven in smoke; `getAccount` implemented but Crowded may reject list `id` on single GET — confirm with Crowded; `syncCrowdedAccounts.ts` upserts from **list** |
+| [TRA-413](https://linear.app/trailblaize/issue/TRA-413) | Chapter account creation (bulk) | Done | **`bulkCreateAccounts`** + types/Zod/tests + optional bulk API route; Postman **200** ([Pass 2](#bulk-create-accounts--verified-sandbox-apr-2026)) |
 | [TRA-414](https://linear.app/trailblaize/issue/TRA-414) | Collections + intents | Backlog | **Not implemented** — no client methods; blocked in sandbox until terms accepted (see Pass 3) |
 | [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | Backlog | **Not implemented** |
 | [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** — no `/api/webhooks/crowded` |
@@ -359,12 +406,13 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 
 **Revisit later (implementation notes)**
 
-1. **TRA-412 — Done for list + DB sync:** `syncCrowdedAccountsForTrailblaizeChapter` / `upsertCrowdedAccountsFromList` validated end-to-end. **`syncCrowdedAccountByIds` / `getAccount`:** verify Crowded’s expected `:accountId` with Kyle if single-GET keeps failing. Optional: `postJson` for bulk/create account; use **NO_CUSTOMER** in treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)).
-2. **TRA-410 / sync — Use `mapCrowdedAccountToSyncFields`:** No cron or API route calls it yet; first sync should upsert `crowded_accounts` then populate `crowded_transactions` per TRA-418.
-3. **TRA-411 — Gate server routes:** Flag exists in DB/UI; **dues and Crowded API calls** should check `crowded_integration_enabled` (and chapter mapping) before hitting Crowded — not yet centralized in a middleware/helper.
-4. **Collections / dues / webhooks:** Still aligned with **Pass 3–4** in this doc; Postman/API gaps (terms, pay URL) unchanged until Crowded unblocks sandbox.
-5. **`CROWDED_VALIDATE_RESPONSES`:** Optional strict Zod on all responses — off by default; turn on when stabilizing schemas against production payloads.
-6. **Later milestones** (e.g. TRA-423+): Expense/spending issues in Linear are **backlog**; no code in `lib/services/crowded` for cards/expenses yet.
+1. **TRA-412 — Done for list + DB sync:** `syncCrowdedAccountsForTrailblaizeChapter` / `upsertCrowdedAccountsFromList` validated end-to-end. **`syncCrowdedAccountByIds` / `getAccount`:** verify Crowded’s expected `:accountId` with Kyle if single-GET keeps failing. Use **NO_CUSTOMER** in treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)).
+2. **TRA-413 — Bulk create:** **Done** — `CrowdedClient.bulkCreateAccounts`, `types/crowded.ts`, `crowded-schemas.ts`, `crowded-client.accounts.test.ts`, `app/api/chapters/[id]/crowded/accounts/bulk/route.ts`.
+3. **TRA-410 / sync — Use `mapCrowdedAccountToSyncFields`:** No cron or API route calls it yet; first sync should upsert `crowded_accounts` then populate `crowded_transactions` per TRA-418.
+4. **TRA-411 — Gate server routes:** Flag exists in DB/UI; **dues and Crowded API calls** should check `crowded_integration_enabled` (and chapter mapping) before hitting Crowded — not yet centralized in a middleware/helper.
+5. **Collections / dues / webhooks:** Still aligned with **Pass 3–4** in this doc; Postman/API gaps (terms, pay URL) unchanged until Crowded unblocks sandbox.
+6. **`CROWDED_VALIDATE_RESPONSES`:** Optional strict Zod on all responses — off by default; turn on when stabilizing schemas against production payloads.
+7. **Later milestones** (e.g. TRA-423+): Expense/spending issues in Linear are **backlog**; no code in `lib/services/crowded` for cards/expenses yet.
 
 ---
 
@@ -389,6 +437,7 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | Apr 2026 | **Accounts list + DB** | Confirmed live **200** list; nested `data.data` unwrap; **`crowded_account_id` TEXT** migration; **`npm run test:crowded`** → **`crowded_accounts` upsert OK** with mapping smoke. |
 | Apr 2026 | **`CrowdedApiError.details`** | Normalized string/array/object so `hasDetail` / NO_CUSTOMER checks never throw on variant API bodies. |
 | Apr 2026 | **GET single account** | **400** `chapterId must be a positive integer` when using list `id` in path; smoke treats single GET as best-effort; sync uses list only. |
+| Apr 2026 | **POST bulk create accounts** | Sandbox **200**: `product` ∈ `wallet` \| `perdiem` (not `checking`); success body includes `data.results[]` with `accountId`, `accountCreated`, `cardCreated`. Doc: [Bulk create — verified](#bulk-create-accounts--verified-sandbox-apr-2026). |
 
 ---
 

@@ -98,3 +98,43 @@ export interface CrowdedErrorBody {
   details?: unknown;
   requestId?: string;
 }
+
+/** Bulk create accounts — `product` must be `wallet` or `perdiem` (not `checking`). */
+export type CrowdedBulkCreateAccountItemProduct = 'wallet' | 'perdiem';
+
+export interface CrowdedBulkCreateAccountItem {
+  contactId: string;
+  product: CrowdedBulkCreateAccountItemProduct;
+}
+
+/** Wire body for POST /api/v1/chapters/:chapterId/accounts */
+export interface CrowdedBulkCreateAccountsRequestBody {
+  items: CrowdedBulkCreateAccountItem[];
+  idempotencyKey: string;
+}
+
+export interface CrowdedBulkCreateAccountsRequest {
+  data: CrowdedBulkCreateAccountsRequestBody;
+}
+
+/** One row in the bulk-create results array (sandbox / Postman). */
+export interface CrowdedBulkCreateAccountResult {
+  contactId: string;
+  accountId: string;
+  product: string;
+  error: boolean;
+  message: string;
+  accountCreated: boolean;
+  cardCreated: boolean;
+}
+
+export interface CrowdedBulkCreateAccountsResponseData {
+  totalProcessed: number;
+  successCount: number;
+  failedCount: number;
+  results: CrowdedBulkCreateAccountResult[];
+}
+
+export interface CrowdedBulkCreateAccountsResponse {
+  data: CrowdedBulkCreateAccountsResponseData;
+}

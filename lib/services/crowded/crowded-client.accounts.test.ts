@@ -2,10 +2,12 @@
  * @see https://nodejs.org/api/test.html — run: npm run test:crowded:unit
  */
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
+  buildCrowdedUrl,
   CrowdedApiError,
   CROWDED_ERROR_DETAIL_NO_CUSTOMER,
+  CrowdedClient,
   isCrowdedNoCustomerError,
   normalizeCrowdedErrorDetails,
   unwrapCrowdedAccountsListPayload,
@@ -205,5 +207,93 @@ describe('mapCrowdedAccountToSyncFields', () => {
     });
     assert.equal(resolveCrowdedAccountApiId(flat), id);
     assert.equal(flat.name, 'Nested');
+  });
+});
+
+describe('CrowdedClient.bulkCreateAccounts', () => {
+  const originalFetch = globalThis.fetch;
+  const chapterId = 'aaaaaaaa-bbbb-cccc-dddd-aaaaaaaaaaaa';
+  const contactId = '11111111-1111-1111-1111-111111111111';
+
+  beforeEach(() => {
+    delete process.env.CROWDED_VALIDATE_RESPONSES;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    delete process.env.CROWDED_VALIDATE_RESPONSES;
+  });
+
+  it('POSTs JSON to /api/v1/chapters/:id/accounts with Bearer token', async () => {
+    const expectedUrl = buildCrowdedUrl('https://crowded.test', `/chapters/${chapterId}/accounts`);
+    const payload = {
+      data: {
+        items: [{ contactId, product: 'perdiem' as const }],
+        idempotencyKey: 'ik-1',
+      },
+    };
+    const responseBody = {
+      data: {
+        totalProcessed: 1,
+        successCount: 1,
+        failedCount: 0,
+        results: [
+          {
+            contactId,
+            accountId: '999',
+            product: 'perdiem',
+            error: false,
+            message: 'ok',
+            accountCreated: true,
+            cardCreated: false,
+          },
+        ],
+      },
+    };
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      assert.equal(String(input), expectedUrl);
+      assert.equal(init?.method, 'POST');
+      const headers = init?.headers as Record<string, string>;
+      assert.equal(headers['Content-Type'], 'application/json');
+      assert.equal(headers.Authorization, 'Bearer test-token');
+      assert.equal(init?.body, JSON.stringify(payload));
+      return new Response(JSON.stringify(responseBody), { status: 200 });
+    }) as typeof fetch;
+
+    const client = new CrowdedClient({ baseUrl: 'https://crowded.test', token: 'test-token' });
+    const out = await client.bulkCreateAccounts(chapterId, payload);
+    assert.equal(out.data.successCount, 1);
+    assert.equal(out.data.results[0]?.accountId, '999');
+  });
+
+  it('throws CrowdedApiError on non-OK with parsed body', async () => {
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          type: 'BadRequest',
+          statusCode: 400,
+          message: 'Invalid product',
+          details: ['INVALID_PRODUCT'],
+        }),
+        { status: 400 }
+      );
+    }) as typeof fetch;
+
+    const client = new CrowdedClient({ baseUrl: 'https://crowded.test', token: 't' });
+    await assert.rejects(
+      () =>
+        client.bulkCreateAccounts(chapterId, {
+          data: { items: [{ contactId, product: 'wallet' }], idempotencyKey: 'x' },
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof CrowdedApiError);
+        const e = err as CrowdedApiError;
+        assert.equal(e.statusCode, 400);
+        assert.equal(e.message, 'Invalid product');
+        assert.deepEqual(e.details, ['INVALID_PRODUCT']);
+        return true;
+      }
+    );
   });
 });

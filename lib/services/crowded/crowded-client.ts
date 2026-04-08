@@ -4,6 +4,8 @@
  */
 import type {
   CrowdedAccount,
+  CrowdedBulkCreateAccountsRequest,
+  CrowdedBulkCreateAccountsResponse,
   CrowdedChapter,
   CrowdedContact,
   CrowdedErrorBody,
@@ -14,6 +16,7 @@ import type {
 import {
   crowdedAccountListResponseSchema,
   crowdedAccountSingleResponseSchema,
+  crowdedBulkCreateAccountsResponseSchema,
   crowdedChapterListResponseSchema,
   crowdedContactListResponseSchema,
   crowdedContactSingleResponseSchema,
@@ -284,7 +287,7 @@ export class CrowdedClient {
   }
 
   /**
-   * Low-level POST with JSON body. Use for Crowded endpoints not yet wrapped (e.g. bulk account create — confirm path with Postman).
+   * Low-level POST with JSON body. On non-OK, throws {@link CrowdedApiError} (same as {@link getJson}).
    */
   async postJson<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
     return this.requestJson<T>(path, {
@@ -358,6 +361,24 @@ export class CrowdedClient {
       crowdedAccountSingleResponseSchema,
       normalized
     ) as CrowdedSingleResponse<CrowdedAccount>;
+  }
+
+  /**
+   * POST /api/v1/chapters/:chapterId/accounts — bulk create wallet / per-diem accounts for contacts.
+   * @see docs/development/features/crowded_cursor_postman_session.md
+   */
+  async bulkCreateAccounts(
+    chapterId: string,
+    body: CrowdedBulkCreateAccountsRequest
+  ): Promise<CrowdedBulkCreateAccountsResponse> {
+    const raw = await this.postJson<unknown>(
+      `/chapters/${encodeURIComponent(chapterId)}/accounts`,
+      body
+    );
+    return maybeParse(
+      crowdedBulkCreateAccountsResponseSchema,
+      raw
+    ) as CrowdedBulkCreateAccountsResponse;
   }
 }
 

@@ -121,3 +121,44 @@ export const crowdedAccountListResponseSchema = z.object({
 export const crowdedAccountSingleResponseSchema = z.object({
   data: crowdedAccountSchema,
 });
+
+/** Bulk POST …/chapters/:id/accounts — item product enum */
+export const crowdedBulkCreateAccountItemProductSchema = z.enum(['wallet', 'perdiem']);
+
+export const crowdedBulkCreateAccountItemSchema = z.object({
+  contactId: z.string().uuid(),
+  product: crowdedBulkCreateAccountItemProductSchema,
+});
+
+/** Trailblaize app API body (wrapped into Crowded wire `{ data }` by the route). */
+export const crowdedBulkCreateAccountsAppRequestSchema = z.object({
+  items: z.array(crowdedBulkCreateAccountItemSchema).min(1).max(500),
+  idempotencyKey: z.string().min(1).max(200),
+});
+
+/** Crowded API request wire shape */
+export const crowdedBulkCreateAccountsWireRequestSchema = z.object({
+  data: z.object({
+    items: z.array(crowdedBulkCreateAccountItemSchema),
+    idempotencyKey: z.string().min(1),
+  }),
+});
+
+export const crowdedBulkCreateAccountResultSchema = z.object({
+  contactId: z.string(),
+  accountId: z.string(),
+  product: z.string(),
+  error: z.boolean(),
+  message: z.string(),
+  accountCreated: z.boolean(),
+  cardCreated: z.boolean(),
+});
+
+export const crowdedBulkCreateAccountsResponseSchema = z.object({
+  data: z.object({
+    totalProcessed: z.number(),
+    successCount: z.number(),
+    failedCount: z.number(),
+    results: z.array(crowdedBulkCreateAccountResultSchema),
+  }),
+});
