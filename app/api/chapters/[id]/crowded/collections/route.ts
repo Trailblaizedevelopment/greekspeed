@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
-import { crowdedBulkCreateAccountsAppRequestSchema } from '@/lib/services/crowded/crowded-schemas';
+import { crowdedCreateCollectionAppRequestSchema } from '@/lib/services/crowded/crowded-schemas';
 import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 
 export async function POST(
@@ -22,7 +22,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const parsed = crowdedBulkCreateAccountsAppRequestSchema.safeParse(json);
+    const parsed = crowdedCreateCollectionAppRequestSchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Invalid request', issues: parsed.error.flatten() },
@@ -41,15 +41,14 @@ export async function POST(
       );
     }
 
-    const crowdedBody = {
+    const result = await crowdedClient.createCollection(ctx.crowdedChapterId, {
       data: {
-        items: parsed.data.items,
-        idempotencyKey: parsed.data.idempotencyKey,
+        title: parsed.data.title,
+        requestedAmount: parsed.data.requestedAmount,
       },
-    };
+    });
 
-    const result = await crowdedClient.bulkCreateAccounts(ctx.crowdedChapterId, crowdedBody);
-    return NextResponse.json(result);
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     if (error instanceof CrowdedApiError) {
       return NextResponse.json(
@@ -57,7 +56,7 @@ export async function POST(
         { status: error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 502 }
       );
     }
-    console.error('Crowded bulk create accounts error:', error);
+    console.error('Crowded create collection error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

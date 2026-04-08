@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
-import { crowdedBulkCreateAccountsAppRequestSchema } from '@/lib/services/crowded/crowded-schemas';
+import { crowdedCreateCollectIntentAppRequestSchema } from '@/lib/services/crowded/crowded-schemas';
 import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; collectionId: string }> }
 ) {
   try {
-    const { id: trailblaizeChapterId } = await params;
+    const { id: trailblaizeChapterId, collectionId } = await params;
 
     const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
     if (!ctx.ok) {
@@ -22,7 +22,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const parsed = crowdedBulkCreateAccountsAppRequestSchema.safeParse(json);
+    const parsed = crowdedCreateCollectIntentAppRequestSchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Invalid request', issues: parsed.error.flatten() },
@@ -41,14 +41,15 @@ export async function POST(
       );
     }
 
-    const crowdedBody = {
+    const result = await crowdedClient.createIntent(ctx.crowdedChapterId, collectionId, {
       data: {
-        items: parsed.data.items,
-        idempotencyKey: parsed.data.idempotencyKey,
+        contactId: parsed.data.contactId,
+        requestedAmount: parsed.data.requestedAmount,
+        payerIp: parsed.data.payerIp,
+        userConsented: parsed.data.userConsented,
       },
-    };
+    });
 
-    const result = await crowdedClient.bulkCreateAccounts(ctx.crowdedChapterId, crowdedBody);
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof CrowdedApiError) {
@@ -57,7 +58,7 @@ export async function POST(
         { status: error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 502 }
       );
     }
-    console.error('Crowded bulk create accounts error:', error);
+    console.error('Crowded create intent error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

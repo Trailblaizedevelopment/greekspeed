@@ -30,10 +30,10 @@ Summary of what Postman **against `sandbox-api.crowdedfinance.com`** has proven 
 | `GET /chapters/{{chapter_id}}/contacts` | **200** | At least one contact; use `data[].id` as **`contact_id`**. |
 | `GET /chapters/{{chapter_id}}/contacts/{{contact_id}}` | **200** | Single contact shape (`id`, `chapterId`, `firstName`, `lastName`, `email`, …). |
 | `GET /chapters/{{chapter_id}}/accounts` | **200** or **400** | **200** once banking customer is provisioned (Finish setup); list payload uses **nested `data.data`** and account **`id`** is often a **numeric string** (see Pass 2). **400 `NO_CUSTOMER`** if customer not ready — not a path bug. |
-| `POST /chapters/{{chapter_id}}/collections` | **401** | **`UnauthorizedUser`**: `"To proceed, please accept terms"` — block on legal/onboarding terms in Crowded (portal or account state), not wrong `chapterId`. See [Pass 3](#pass-3--collect--collection-links-dues). |
-| `POST …/collections/…/intents` | Not exercised | Waiting on **Create Collection** success + real `collection_id`. |
+| `POST /chapters/{{chapter_id}}/collections` | **201** or **401** | **Apr 2026:** **201 Created** with `data.id` as **`collection_id`** when org is unblocked ([Pass 3](#pass-3--collect--collection-links-dues)). Some orgs still see **401** *accept terms* — portal / Crowded. |
+| `POST …/collections/…/intents` | **200** | **`data`**: `{ contactId, requestedAmount, payerIp, userConsented }` (all under **`data`**). Response **`data.paymentUrl`** = member checkout ([Pass 3](#pass-3--collect--collection-links-dues)). |
 
-**Implication for app work:** Read-only org/chapter/contact flows can be implemented and tested; **balances/accounts** need **NO_CUSTOMER** resolved until **200** on list; **dues collection links** need **terms** accepted (and likely customer setup) per Crowded.
+**Implication for app work:** **Collect flow** is **Postman-verified** and implemented in repo (**[TRA-414](https://linear.app/trailblaize/issue/TRA-414)** — `CrowdedClient.createCollection` / `createIntent`, optional Next routes). Next product step: **[TRA-415](https://linear.app/trailblaize/issue/TRA-415)** dues UX. Pass **real `payerIp`** and **`userConsented`** from the member session in production.
 
 ---
 
@@ -50,7 +50,7 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 | **GET single account** | **Best-effort in smoke only:** Crowded may return **400** `chapterId must be a positive integer` when using list `id` in `GET …/chapters/{uuid}/accounts/{id}` while **list** still returns **200**. Script logs a warning and continues; product sync should rely on **list**, not single GET, until Crowded confirms path/id rules. |
 | **Bulk create** | **POST** `…/chapters/:chapterId/accounts` — sandbox **200** + **repo:** `CrowdedClient.bulkCreateAccounts`, types/Zod, unit tests, optional `POST /api/chapters/[id]/crowded/accounts/bulk`. **[TRA-413](https://linear.app/trailblaize/issue/TRA-413/implement-crowded-chapter-account-creation-client-optional-api) Done.** |
 
-**Still open:** **POST collections** **401** accept-terms ([Pass 3](#pass-3--collect--collection-links-dues)) blocks **[TRA-414](https://linear.app/trailblaize/issue/TRA-414)**; webhooks ([Pass 4](#pass-4--webhooks)); treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)); transaction sync ([TRA-418](https://linear.app/trailblaize/issue/TRA-418)).
+**Still open:** **POST collections** **401** *accept terms* for orgs not yet unblocked ([Pass 3](#pass-3--collect--collection-links-dues)); webhooks ([Pass 4](#pass-4--webhooks)); treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)); transaction sync ([TRA-418](https://linear.app/trailblaize/issue/TRA-418)). **TRA-414** code shipped — see implementation scan table.
 
 ---
 
@@ -275,28 +275,161 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 
 - **`requestedAmount`:** Treat as **minor units (cents)** unless Crowded docs say otherwise — `50000` ⇒ **$500.00** for product logic / display.
 
-**Create Intent — request body (raw JSON):**
+**Create Collection — success status:** Sandbox returns **`201 Created`** (not `200`) when the collection is created.
+
+**Create Intent — request body (raw JSON, verified Apr 2026):**
+
+1. **`data` must be an object**, not an array. Using **`data: [ { contactId } ]`** triggers **400**:
+
+   `"message": "\"data\" must be of type object"`.
+
+2. With only **`contactId`** inside **`data`**, sandbox returns **400** `ValidationError`:
+
+   `"message": "\"data.requestedAmount\" is required. payerIp is required. userConsented is required"`
+
+3. Putting **`payerIp`** and **`userConsented`** as **siblings of `data`** (root of the JSON) still returns **400**:
+
+   `"message": "payerIp is required. userConsented is required"`
+
+   The API reads those fields **inside `data`**, not at the top level.
+
+**Working shape (sandbox Apr 2026):**
+
+```json
+{
+  "data": {
+    "contactId": "00000000-0000-0000-0000-000000000000",
+    "requestedAmount": 50000,
+    "payerIp": "203.0.113.1",
+    "userConsented": true
+  }
+}
+```
+
+| Field | Notes |
+|--------|--------|
+| **`data.contactId`** | Crowded contact UUID for the payer (from list / **GET contact**). |
+| **`data.requestedAmount`** | **Minor units (cents)** — align with the collection / dues amount (often match **`Create Collection`** `requestedAmount`, e.g. `50000` = $500.00). |
+| **`data.payerIp`** | **Inside `data`.** Use the **client’s public IPv4** in production; Postman may use a test IP (e.g. **`203.0.113.x`**) — confirm with Crowded if validation rejects certain ranges. |
+| **`data.userConsented`** | **Inside `data`.** Boolean — set **`true`** only after your product records real **terms / payment consent** from the member. |
+
+**Wrong shape (do not use):**
 
 ```json
 {
   "data": [
     {
-      "contactId": "contact_id"
+      "contactId": "00000000-0000-0000-0000-000000000000"
     }
   ]
 }
 ```
 
-- Replace `contact_id` with a real **Crowded contact** UUID from **Contacts** APIs after you create or list contacts for that chapter/member.
+If Crowded returns **400** with a different `message`, capture it and adjust — field names may be versioned.
+
+### Verified sandbox responses (Apr 2026)
+
+Redacted where useful for git; **IDs** match a real sandbox exercise.
+
+**GET** `/api/v1/chapters/:chapterId/contacts/:contactId` — **200 OK**
+
+Example `data` shape (single contact):
+
+```json
+{
+  "data": {
+    "id": "aecc6ddb-b3d7-406c-96af-418fb0a2fb42",
+    "chapterId": "c651e8dd-a3b0-4756-91a0-30d18e22d714",
+    "firstName": "Owen",
+    "lastName": "Ridgeway",
+    "mobile": "+1…",
+    "email": "member@example.com",
+    "dateOfBirth": "2006-01-05",
+    "status": "Active",
+    "createdAt": "2026-01-25T23:06:00.000Z",
+    "updatedAt": "2026-01-26T13:51:32.000Z",
+    "archivedAt": null
+  }
+}
+```
+
+**POST** `/api/v1/chapters/:chapterId/collections` — **201 Created**
+
+Request (example):
+
+```json
+{
+  "data": {
+    "title": "Test dues collection",
+    "requestedAmount": 50000
+  }
+}
+```
+
+Response — **`data.id`** is the **`collectionId`** for **Create Intent** path param:
+
+```json
+{
+  "data": {
+    "id": "442650b1-05e2-4d33-8417-3df879ed0a2e",
+    "title": "Test dues collection",
+    "requestedAmount": 50000,
+    "goalAmount": null,
+    "createdAt": "2026-04-08T22:32:37.305Z"
+  }
+}
+```
+
+**Notes:** No pay link on this response — the **member checkout URL** is on **Create Intent** **200** (**`data.paymentUrl`**), see below.
+
+**POST** `/api/v1/chapters/:chapterId/collections/:collectionId/intents` — **200 OK**
+
+Request (verified shape):
+
+```json
+{
+  "data": {
+    "contactId": "00000000-0000-0000-0000-000000000000",
+    "requestedAmount": 50000,
+    "payerIp": "203.0.113.1",
+    "userConsented": true
+  }
+}
+```
+
+Response — **Member payment link:** **`data.paymentUrl`** (staging host **`staging.collect.crowdedme.xyz`**). Query param **`collectintentuuid`** matches **`data.id`**. **`successUrl`** / **`failureUrl`** were **`null`** in this sandbox call — confirm if Crowded accepts them on create when you need return URLs.
+
+Example **`data`** shape (PII redacted; use real values in Postman only):
+
+```json
+{
+  "data": {
+    "id": "e2e1a7c2-a9cc-4759-b9d8-079b5227e024",
+    "contactId": "00000000-0000-0000-0000-000000000000",
+    "requestedAmount": 50000,
+    "paidAmount": 0,
+    "firstName": "Member",
+    "lastName": "Example",
+    "email": "member@example.com",
+    "status": "Not Paid",
+    "payments": [],
+    "createdAt": "2026-04-08T22:44:13.891Z",
+    "successUrl": null,
+    "failureUrl": null,
+    "paymentUrl": "https://staging.collect.crowdedme.xyz/collection/<collect-page-id>?collectintentuuid=<same-as-data.id>"
+  }
+}
+```
 
 ### Findings — Pass 3
 
 | Item | Notes |
 |------|--------|
 | Endpoint(s) | See table above. |
-| Required IDs | `chapterId` → sandbox chapter UUID; `collectionId` → from **Create Collection** response after send; `contactId` → from Contacts. |
-| **Create Collection — live (Mar 2026)** | **401** `UnauthorizedUser`, message **`"To proceed, please accept terms"`** — user/org must accept Crowded **terms of use** (or equivalent) in **staging portal** or via Crowded’s process; not fixed by changing Postman body. Confirm with **Kyle / Crowded** where partner accounts accept terms for API/collections. |
-| **Member-facing URL field** | **Still TBD** — blocked until **POST collections** returns **200**; then record pay/checkout field from response (and optional **GET collection**). |
+| Required IDs | `chapterId` → sandbox chapter UUID; `collectionId` → **`data.id`** from **Create Collection** response; `contactId` → **`data.id`** from **GET/LIST contacts**. |
+| **Create Collection — live** | **Apr 2026 sandbox:** **201** with `data.id`, `title`, `requestedAmount`, `goalAmount`, `createdAt`. Earlier **401** *accept terms* may still apply to other orgs — resolve in portal / with Crowded if seen. |
+| **Create Intent — body shape** | Single **`data`** object: **`contactId`**, **`requestedAmount`**, **`payerIp`**, **`userConsented`** (all inside **`data`** — root-level `payerIp` / `userConsented` are ignored). Not `data: [...]`. |
+| **Member-facing URL field** | **`data.paymentUrl`** on **Create Intent** **200** — open in browser for checkout; **`collectintentuuid`** in query matches **`data.id`**. |
 
 **Tickets:** TRA-414, TRA-415.
 
@@ -332,17 +465,19 @@ Crowded asks for **Legal Entity Name**, **Website**, **Registered Business Addre
 | Area | Notes |
 |------|--------|
 | Env | `CROWDED_API_BASE_URL=https://sandbox-api.crowdedfinance.com` (sandbox); Bearer token in env (e.g. `CROWDED_API_TOKEN`); webhook secret when known |
-| Client | `lib/services/crowded/crowded-client.ts` — `Authorization: Bearer`, base URL from env; accounts list **unwrap** (`unwrapCrowdedAccountsListPayload`); **`normalizeCrowdedErrorDetails`** + safe `hasDetail` on `CrowdedApiError` |
+| Client | `lib/services/crowded/crowded-client.ts` — `Authorization: Bearer`, base URL from env; accounts list **unwrap** (`unwrapCrowdedAccountsListPayload`); **`normalizeCrowdedErrorDetails`** + safe `hasDetail` on `CrowdedApiError`; **collect:** `createCollection`, `getCollection`, `createIntent`, `getCrowdedIntentPaymentUrl` |
 | Chapter ↔ Crowded IDs | `public.chapters.crowded_chapter_id`, `crowded_organization_id` (nullable UUIDs). Set per chapter per environment (e.g. Supabase SQL `UPDATE`). Maps Trailblaize `chapters.id` → Crowded path segment for `/api/v1/chapters/:chapterId/...`. |
 | Resolver | `lib/services/crowded/chapterCrowdedMapping.ts` — `getCrowdedIdsForTrailblaizeChapter(supabase, trailblaizeChapterId)` returns `{ crowdedChapterId, crowdedOrganizationId }` or `null`. Use server-side with service role or RLS-safe client. |
 | Types | `types/chapter.ts` — `Chapter` includes optional `crowded_chapter_id` / `crowded_organization_id`. |
 | Test | `npm run test:crowded` — see [Local CLI smoke — TRA-412 full upsert](#local-cli-smoke--tra-412-full-upsert-path) for env sources (Supabase vs Postman). With smoke chapter id + service role: TRA-561 mapping + `listAccounts` + **`crowded_accounts` upsert** on **200**. |
 | Account sync (TRA-412) | `lib/services/crowded/syncCrowdedAccounts.ts` — `upsertCrowdedAccountsFromList`, `syncCrowdedAccountsForTrailblaizeChapter`, `syncCrowdedAccountByIds`. |
-| Unit tests | `npm run test:crowded:unit` — `crowded-client.accounts.test.ts` (unwrap, `normalizeCrowdedErrorDetails`, `mapCrowdedAccountToSyncFields`, numeric account id). |
+| Unit tests | `npm run test:crowded:unit` — `crowded-client.accounts.test.ts` + `crowded-client.collections.test.ts` (bulk create, create collection / intent, `getCrowdedIntentPaymentUrl`). |
 | DB (TRA-410 + TRA-561) | `chapters.crowded_*` mapping migration; `crowded_accounts` / `crowded_transactions` + RLS. **`20260408190000_crowded_account_id_to_text.sql`** — `crowded_account_id` **TEXT** on both tables (opaque Crowded ids). |
 | Account → DB row | `lib/services/crowded/crowdedAccountMapping.ts` — `mapCrowdedAccountToSyncFields` for future sync jobs (balances assumed minor units; confirm with Crowded before production). |
 | Supabase row types | `types/crowdedDb.ts` — `CrowdedAccountRow`, `CrowdedTransactionRow`. |
 | Feature flag (TRA-411) | `types/featureFlags.ts` — `crowded_integration_enabled` (default **false**). `app/dashboard/feature-flags/page.tsx` — exec toggle. Persisted via existing chapter feature-flags API. |
+| Crowded chapter API (auth) | `lib/services/crowded/resolveCrowdedChapterApiContext.ts` — Bearer/cookies + service role, `canManageChapterForContext`, flag + `crowded_chapter_id`. Used by bulk accounts + collections + intents routes. |
+| Next routes (TRA-413 / 414) | `POST /api/chapters/[id]/crowded/accounts/bulk`, `POST …/crowded/collections` (**201**), `POST …/crowded/collections/[collectionId]/intents`. |
 
 ---
 
@@ -398,7 +533,7 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | [TRA-411](https://linear.app/trailblaize/issue/TRA-411) | Feature flag | Done | Yes — `crowded_integration_enabled`, dashboard UI |
 | [TRA-412](https://linear.app/trailblaize/issue/TRA-412) | Account management API methods | Done | `listAccounts` (unwrap + sync) proven in smoke; `getAccount` implemented but Crowded may reject list `id` on single GET — confirm with Crowded; `syncCrowdedAccounts.ts` upserts from **list** |
 | [TRA-413](https://linear.app/trailblaize/issue/TRA-413) | Chapter account creation (bulk) | Done | **`bulkCreateAccounts`** + types/Zod/tests + optional bulk API route; Postman **200** ([Pass 2](#bulk-create-accounts--verified-sandbox-apr-2026)) |
-| [TRA-414](https://linear.app/trailblaize/issue/TRA-414) | Collections + intents | Backlog | **Not implemented** — no client methods; blocked in sandbox until terms accepted (see Pass 3) |
+| [TRA-414](https://linear.app/trailblaize/issue/TRA-414) | Collections + intents | Done | **`createCollection`**, **`getCollection`**, **`createIntent`**, **`getCrowdedIntentPaymentUrl`**; types + Zod; `crowded-client.collections.test.ts`; routes `POST …/crowded/collections`, `POST …/crowded/collections/[collectionId]/intents`; `resolveCrowdedChapterApiContext` shared with bulk accounts. |
 | [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | Backlog | **Not implemented** |
 | [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** — no `/api/webhooks/crowded` |
 | [TRA-417](https://linear.app/trailblaize/issue/TRA-417) | Treasurer balance UI | Backlog | **Not implemented** — depends on live `GET …/accounts` + sync story |
@@ -408,11 +543,12 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 
 1. **TRA-412 — Done for list + DB sync:** `syncCrowdedAccountsForTrailblaizeChapter` / `upsertCrowdedAccountsFromList` validated end-to-end. **`syncCrowdedAccountByIds` / `getAccount`:** verify Crowded’s expected `:accountId` with Kyle if single-GET keeps failing. Use **NO_CUSTOMER** in treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)).
 2. **TRA-413 — Bulk create:** **Done** — `CrowdedClient.bulkCreateAccounts`, `types/crowded.ts`, `crowded-schemas.ts`, `crowded-client.accounts.test.ts`, `app/api/chapters/[id]/crowded/accounts/bulk/route.ts`.
-3. **TRA-410 / sync — Use `mapCrowdedAccountToSyncFields`:** No cron or API route calls it yet; first sync should upsert `crowded_accounts` then populate `crowded_transactions` per TRA-418.
-4. **TRA-411 — Gate server routes:** Flag exists in DB/UI; **dues and Crowded API calls** should check `crowded_integration_enabled` (and chapter mapping) before hitting Crowded — not yet centralized in a middleware/helper.
-5. **Collections / dues / webhooks:** Still aligned with **Pass 3–4** in this doc; Postman/API gaps (terms, pay URL) unchanged until Crowded unblocks sandbox.
-6. **`CROWDED_VALIDATE_RESPONSES`:** Optional strict Zod on all responses — off by default; turn on when stabilizing schemas against production payloads.
-7. **Later milestones** (e.g. TRA-423+): Expense/spending issues in Linear are **backlog**; no code in `lib/services/crowded` for cards/expenses yet.
+3. **TRA-414 — Collections / intents:** **Done** — `createCollection`, `getCollection`, `createIntent`, `getCrowdedIntentPaymentUrl`; `resolveCrowdedChapterApiContext`; Next routes under `app/api/chapters/[id]/crowded/collections/…`.
+4. **TRA-410 / sync — Use `mapCrowdedAccountToSyncFields`:** No cron or API route calls it yet; first sync should upsert `crowded_accounts` then populate `crowded_transactions` per TRA-418.
+5. **TRA-411 — Gate server routes:** Flag exists in DB/UI; new Crowded routes use **`resolveCrowdedChapterApiContext`**; broader middleware TBD.
+6. **Collections / dues / webhooks:** **Pass 3** pay URL on **`data.paymentUrl`**; **TRA-415** dues UX next; webhooks still **Pass 4**.
+7. **`CROWDED_VALIDATE_RESPONSES`:** Optional strict Zod on all responses — off by default; turn on when stabilizing schemas against production payloads.
+8. **Later milestones** (e.g. TRA-423+): Expense/spending issues in Linear are **backlog**; no code in `lib/services/crowded` for cards/expenses yet.
 
 ---
 
@@ -438,6 +574,9 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | Apr 2026 | **`CrowdedApiError.details`** | Normalized string/array/object so `hasDetail` / NO_CUSTOMER checks never throw on variant API bodies. |
 | Apr 2026 | **GET single account** | **400** `chapterId must be a positive integer` when using list `id` in path; smoke treats single GET as best-effort; sync uses list only. |
 | Apr 2026 | **POST bulk create accounts** | Sandbox **200**: `product` ∈ `wallet` \| `perdiem` (not `checking`); success body includes `data.results[]` with `accountId`, `accountCreated`, `cardCreated`. Doc: [Bulk create — verified](#bulk-create-accounts--verified-sandbox-apr-2026). |
+| Apr 2026 | **Pass 3 — Create Collection** | Sandbox **201**; response `data.id` = `collection_id`; no pay URL on this response. |
+| Apr 2026 | **Pass 3 — Create Intent body** | **`payerIp`** / **`userConsented`** must live **inside `data`** (root-level siblings ignored → **400** *payerIp is required*). |
+| Apr 2026 | **Pass 3 — Create Intent 200** | **`data.paymentUrl`** checkout link; `status` **Not Paid** until paid; `collectintentuuid` = intent `id`. |
 
 ---
 
@@ -447,13 +586,13 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 
 2. **Crowded — confirm GET single account:** If product needs **`getAccount`**, ask **Kyle / Crowded** which identifier belongs in `…/accounts/:accountId` when list returns a numeric **`id`** (vs chapter UUID in path). Until then, **rely on list** for sync.
 
-3. **Crowded / portal — unblock Collect (`401` accept terms):** Find where the **sandbox** user or partner org must **accept terms** so **`POST …/collections`** succeeds. Ask **Kyle / Crowded** if not visible in UI. Retry **Create Collection** → **Create Intent** after **200** on collections — this unblocks **[TRA-414](https://linear.app/trailblaize/issue/TRA-414)** / **[TRA-415](https://linear.app/trailblaize/issue/TRA-415)** in the [Crowded Integration Strategy](https://linear.app/trailblaize/project/crowded-integration-strategy-6e845cc7474a/issues) project.
+3. **Crowded / portal — if `POST …/collections` is still `401` (*accept terms*):** Same as before for orgs not yet unblocked. Once you see **201**, continue with **Create Intent** using **`data` as object** ([Pass 3](#pass-3--collect--collection-links-dues)).
 
 4. **Postman env:** Keep **`chapter_id`**, **`contact_id`** (from list), **`base_url`**, **`api_token`** saved; path vars **`{{chapter_id}}`**, **`{{contact_id}}`** everywhere.
 
-5. **Collect — when 401 is cleared:**  
-   - **POST Create Collection** → copy **`collection_id`** from response.  
-   - **POST Create Intent** with real **`contactId`** → document **member payment / checkout URL** field in **Findings — Pass 3**.
+5. **Collect:**  
+   - **POST Create Collection** → expect **201**; copy **`data.id`** as **`collection_id`**.  
+   - **POST Create Intent** with **`data: { contactId, requestedAmount, payerIp, userConsented }`** → document **member payment / checkout URL** in **Findings — Pass 3** when you get **2xx**.
 
 6. **Optional:** If the collection has **GET** on a single collection, open it and note any `url` / `link` fields without paying.
 
@@ -465,7 +604,7 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
    Crowded: `CROWDED_API_BASE_URL`, `CROWDED_API_TOKEN`. For **DB upsert smoke**, add Supabase URL, **service_role** key, and **`CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID`** = Trailblaize **`chapters.id`** (see [Local CLI smoke — TRA-412 full upsert path](#local-cli-smoke--tra-412-full-upsert-path)). **`scripts/test-crowded-api.ts`** uses Bearer via `createCrowdedClientFromEnv()`.
 
 9. **Linear**  
-   **TRA-409**, **TRA-561**, **TRA-410**, **TRA-411**, **TRA-412** (list + upsert path) are in good shape in repo. **Natural next focus:** **[TRA-414](https://linear.app/trailblaize/issue/TRA-414)** (collections + intents client/API) once terms are cleared → **[TRA-415](https://linear.app/trailblaize/issue/TRA-415)** (dues pay route) → **[TRA-417](https://linear.app/trailblaize/issue/TRA-417)** (treasurer UI can read `crowded_accounts` you are now syncing) → **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** (transaction sync) → **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** (webhooks). **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
+   **TRA-409** … **TRA-414** are in good shape in repo. **Natural next focus:** **[TRA-415](https://linear.app/trailblaize/issue/TRA-415)** (dues pay route / member UX) → **[TRA-417](https://linear.app/trailblaize/issue/TRA-417)** (treasurer UI) → **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** (transaction sync) → **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** (webhooks). **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
 
 ---
 

@@ -138,3 +138,52 @@ export interface CrowdedBulkCreateAccountsResponseData {
 export interface CrowdedBulkCreateAccountsResponse {
   data: CrowdedBulkCreateAccountsResponseData;
 }
+
+/** Dues / collect “collection” under a chapter (POST …/collections, GET …/collections/:id). @see docs/development/features/crowded_cursor_postman_session.md */
+export interface CrowdedCollection {
+  id: string;
+  title: string;
+  requestedAmount: number;
+  goalAmount?: number | null;
+  createdAt: string;
+}
+
+/** Wire body for POST /api/v1/chapters/:chapterId/collections */
+export interface CrowdedCreateCollectionRequest {
+  data: {
+    title: string;
+    /** Minor units (cents). */
+    requestedAmount: number;
+  };
+}
+
+/**
+ * Wire body for POST …/chapters/:chapterId/collections/:collectionId/intents.
+ * All fields live under `data` (not root-level siblings).
+ */
+export interface CrowdedCreateCollectIntentRequest {
+  data: {
+    contactId: string;
+    /** Minor units (cents) — usually matches collection `requestedAmount`. */
+    requestedAmount: number;
+    payerIp: string;
+    userConsented: boolean;
+  };
+}
+
+/** Intent row returned by Create Intent (200). Member pays via `paymentUrl`. */
+export interface CrowdedCollectIntent {
+  id: string;
+  contactId: string;
+  requestedAmount: number;
+  paidAmount: number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  status: string;
+  payments: unknown[];
+  createdAt: string;
+  successUrl?: string | null;
+  failureUrl?: string | null;
+  paymentUrl: string;
+}

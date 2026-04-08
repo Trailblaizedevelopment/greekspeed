@@ -162,3 +162,51 @@ export const crowdedBulkCreateAccountsResponseSchema = z.object({
     results: z.array(crowdedBulkCreateAccountResultSchema),
   }),
 });
+
+/** POST …/chapters/:id/collections — response (201) */
+export const crowdedCollectionSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  requestedAmount: z.number(),
+  goalAmount: z.number().nullable().optional(),
+  createdAt: z.string(),
+});
+
+export const crowdedCollectionSingleResponseSchema = z.object({
+  data: crowdedCollectionSchema,
+});
+
+/** App route: create collection */
+export const crowdedCreateCollectionAppRequestSchema = z.object({
+  title: z.string().min(1).max(500),
+  requestedAmount: z.number().int().positive(),
+});
+
+/** POST …/collections/:id/intents — response (200) */
+export const crowdedCollectIntentSchema = z.object({
+  id: z.string().uuid(),
+  contactId: z.string().uuid(),
+  requestedAmount: z.number(),
+  paidAmount: z.number(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().optional(),
+  status: z.string(),
+  payments: z.array(z.unknown()),
+  createdAt: z.string(),
+  successUrl: z.string().nullable().optional(),
+  failureUrl: z.string().nullable().optional(),
+  paymentUrl: z.string().min(1),
+});
+
+export const crowdedCollectIntentSingleResponseSchema = z.object({
+  data: crowdedCollectIntentSchema,
+});
+
+/** App route: create intent (Crowded `data` payload) */
+export const crowdedCreateCollectIntentAppRequestSchema = z.object({
+  contactId: z.string().uuid(),
+  requestedAmount: z.number().int().positive(),
+  payerIp: z.string().min(1).max(100),
+  userConsented: z.literal(true),
+});

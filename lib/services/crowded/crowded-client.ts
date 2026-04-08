@@ -7,7 +7,11 @@ import type {
   CrowdedBulkCreateAccountsRequest,
   CrowdedBulkCreateAccountsResponse,
   CrowdedChapter,
+  CrowdedCollectIntent,
+  CrowdedCollection,
   CrowdedContact,
+  CrowdedCreateCollectIntentRequest,
+  CrowdedCreateCollectionRequest,
   CrowdedErrorBody,
   CrowdedListResponse,
   CrowdedOrganization,
@@ -18,6 +22,8 @@ import {
   crowdedAccountSingleResponseSchema,
   crowdedBulkCreateAccountsResponseSchema,
   crowdedChapterListResponseSchema,
+  crowdedCollectIntentSingleResponseSchema,
+  crowdedCollectionSingleResponseSchema,
   crowdedContactListResponseSchema,
   crowdedContactSingleResponseSchema,
   crowdedOrganizationListResponseSchema,
@@ -380,6 +386,68 @@ export class CrowdedClient {
       raw
     ) as CrowdedBulkCreateAccountsResponse;
   }
+
+  /**
+   * POST /api/v1/chapters/:chapterId/collections — create a dues / collect campaign.
+   * Sandbox typically returns **201 Created**.
+   * @see docs/development/features/crowded_cursor_postman_session.md
+   */
+  async createCollection(
+    chapterId: string,
+    body: CrowdedCreateCollectionRequest
+  ): Promise<CrowdedSingleResponse<CrowdedCollection>> {
+    const raw = await this.postJson<unknown>(
+      `/chapters/${encodeURIComponent(chapterId)}/collections`,
+      body
+    );
+    return maybeParse(
+      crowdedCollectionSingleResponseSchema,
+      raw
+    ) as CrowdedSingleResponse<CrowdedCollection>;
+  }
+
+  /**
+   * GET /api/v1/chapters/:chapterId/collections/:collectionId — optional; use when Crowded exposes it.
+   */
+  async getCollection(
+    chapterId: string,
+    collectionId: string
+  ): Promise<CrowdedSingleResponse<CrowdedCollection>> {
+    const raw = await this.getJson<unknown>(
+      `/chapters/${encodeURIComponent(chapterId)}/collections/${encodeURIComponent(collectionId)}`
+    );
+    return maybeParse(
+      crowdedCollectionSingleResponseSchema,
+      raw
+    ) as CrowdedSingleResponse<CrowdedCollection>;
+  }
+
+  /**
+   * POST /api/v1/chapters/:chapterId/collections/:collectionId/intents — payer intent + **`data.paymentUrl`** checkout link.
+   * @see docs/development/features/crowded_cursor_postman_session.md
+   */
+  async createIntent(
+    chapterId: string,
+    collectionId: string,
+    body: CrowdedCreateCollectIntentRequest
+  ): Promise<CrowdedSingleResponse<CrowdedCollectIntent>> {
+    const raw = await this.postJson<unknown>(
+      `/chapters/${encodeURIComponent(chapterId)}/collections/${encodeURIComponent(collectionId)}/intents`,
+      body
+    );
+    return maybeParse(
+      crowdedCollectIntentSingleResponseSchema,
+      raw
+    ) as CrowdedSingleResponse<CrowdedCollectIntent>;
+  }
+}
+
+/** Member checkout URL from {@link CrowdedClient.createIntent}, or `undefined` if missing/empty. */
+export function getCrowdedIntentPaymentUrl(
+  response: CrowdedSingleResponse<CrowdedCollectIntent>
+): string | undefined {
+  const u = response.data.paymentUrl;
+  return typeof u === 'string' && u.trim().length > 0 ? u.trim() : undefined;
 }
 
 /**
