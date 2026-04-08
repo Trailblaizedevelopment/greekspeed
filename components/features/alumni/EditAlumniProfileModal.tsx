@@ -19,7 +19,7 @@ import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection
 import type { DetectedChange } from '@/components/features/profile/ProfileUpdatePromptModal';
 import { buildIndustrySelectOptions, getGraduationYears } from '@/lib/alumniConstants';
 import { queueProfileUpdatePrompt } from '@/lib/utils/profileUpdatePromptQueue';
-import { Select, SelectItem } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { UsernameInput } from '@/components/features/profile/UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
@@ -29,6 +29,11 @@ import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 const editAlumniIndustryOptions = buildIndustrySelectOptions('Select Industry');
+
+const ALUMNI_INDUSTRY_OPTIONS = [
+  { value: '', label: 'Select Industry' },
+  ...industries.map((industry) => ({ value: industry, label: industry })),
+];
 
 interface EditAlumniProfileModalProps {
   isOpen: boolean;
@@ -655,6 +660,10 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
   const isMobile = variant === 'mobile';
 
   const graduationYears = getGraduationYears();
+  const graduationYearOptions = graduationYears.map((year) => ({
+    value: String(year),
+    label: String(year),
+  }));
 
   const keyboardOpen = isMobile && visualHeight < fullInnerHeight - 50;
   const mobileDrawerStyle: React.CSSProperties | undefined = keyboardOpen
@@ -678,6 +687,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-[10002] bg-black/50 transition-opacity" />
         <Drawer.Content
+          ref={drawerContentRef}
           className={`
             bg-white flex flex-col z-[10003]
             fixed bottom-0 left-0 right-0
@@ -714,20 +724,31 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
             <Card className="p-0">
               <CardContent className={`relative ${isMobile ? 'h-32' : 'h-64'} p-0 overflow-hidden`}>
                 {/* Banner Section */}
-                <div 
-                  className="absolute inset-0 flex items-center justify-center text-white cursor-pointer group rounded-lg overflow-hidden"
+                <div
+                  className="absolute inset-0 cursor-pointer group overflow-hidden rounded-lg"
                   onClick={() => document.getElementById('banner-upload')?.click()}
                 >
-                  <img 
-                    src={bannerPreview || profile?.banner_url || DEFAULT_BANNER_IMAGE} 
-                    alt="Profile banner" 
-                    className="w-full h-full object-cover rounded-lg"
+                  <img
+                    src={bannerPreview || profile?.banner_url || DEFAULT_BANNER_IMAGE}
+                    alt="Profile banner"
+                    className="pointer-events-none absolute inset-0 h-full w-full rounded-lg object-cover"
                   />
-                  
-                  <div className={`absolute inset-0 flex flex-col items-center justify-start opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg ${isMobile ? 'pt-4' : 'pt-8'}`}>
-                    <div className="text-center">
+                  {!bannerPreview && !profile?.banner_url && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center text-white opacity-80 transition-opacity group-hover:opacity-0">
+                      <div>
+                        <p className={isMobile ? 'text-sm font-medium' : 'text-lg font-medium'}>Banner Image</p>
+                        {!isMobile && <p className="text-sm">Click to upload your banner</p>}
+                      </div>
+                    </div>
+                  )}
+                  <div
+                    className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-start rounded-lg bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 ${isMobile ? 'pt-4' : 'pt-8'}`}
+                  >
+                    <div className="text-center text-white">
                       {bannerUploading ? (
-                        <div className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2`} />
+                        <div
+                          className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} mx-auto mb-2 animate-spin rounded-full border-2 border-white border-t-transparent`}
+                        />
                       ) : (
                         <Upload className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} mx-auto mb-2`} />
                       )}
@@ -741,15 +762,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                       )}
                     </div>
                   </div>
-                  
-                  {!bannerPreview && !profile?.banner_url && (
-                    <div className="text-center opacity-80 group-hover:opacity-0 transition-opacity">
-                      <p className={isMobile ? 'text-sm font-medium' : 'text-lg font-medium'}>Banner Image</p>
-                      {!isMobile && (
-                        <p className="text-sm">Click to upload your banner</p>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* Profile Photo Section */}
@@ -873,17 +885,15 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                   
                   <div>
                     <Label htmlFor="graduation_year">Graduation Year</Label>
-                    <Select
-                      value={formData.graduation_year}
+                    <SearchableSelect
+                      value={formData.graduation_year || ''}
                       onValueChange={(value) => handleInputChange('graduation_year', value)}
+                      options={graduationYearOptions}
                       placeholder="Select graduation year"
-                    >
-                      {graduationYears.map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </Select>
+                      searchPlaceholder="Search years..."
+                      className="mt-1"
+                      portalContainerRef={drawerContentRef}
+                    />
                   </div>
                 </div>
               </div>

@@ -561,7 +561,7 @@ export default function RoleChapterPage() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Alumni</p>
-                    <p className="text-sm text-gray-500">Connect with your fraternity network</p>
+                    <p className="text-sm text-gray-500">Connect with your organization's network</p>
                   </div>
                 </div>
               </div>

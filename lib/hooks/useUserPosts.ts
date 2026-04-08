@@ -9,7 +9,7 @@ import { nextLikeSnapshot } from '@/lib/social/postLikeState';
 import { toast } from 'react-toastify';
 
 export function useUserPosts(userId: string) {
-  const { user } = useAuth();
+  const { user, refreshClientSessionIfNeeded } = useAuth();
   const { mutateAsync: togglePostLike } = useTogglePostLikeMutation();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +88,8 @@ export function useUserPosts(userId: string) {
 
   const likePost = useCallback(
     async (postId: string) => {
-      if (!user) {
+      const hasSession = await refreshClientSessionIfNeeded();
+      if (!hasSession) {
         toast.error('Sign in to like posts');
         return;
       }
@@ -132,7 +133,7 @@ export function useUserPosts(userId: string) {
         setError(err instanceof Error ? err.message : 'Failed to like post');
       }
     },
-    [user, posts, togglePostLike],
+    [refreshClientSessionIfNeeded, user, posts, togglePostLike],
   );
 
   const deletePost = useCallback(async (postId: string) => {

@@ -467,7 +467,11 @@ export function SearchableSelect({
     );
   }
 
-  // ── Desktop: fixed portal dropdown ──
+  // ── Desktop: portal dropdown (body or modal/drawer container for focus trap) ──
+
+  const portalParent = portalContainerRef?.current ?? null;
+  const portalTarget = portalParent ?? document.body;
+  const useDrawerRelativePosition = portalParent !== null;
 
   return (
     <>

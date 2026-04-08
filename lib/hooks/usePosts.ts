@@ -35,7 +35,7 @@ const EMPTY_RESPONSE: PostsResponse = {
 };
 
 export function usePosts(chapterId: string, options: UsePostsOptions = {}) {
-  const { user, session, getAuthHeaders } = useAuth();
+  const { user, session, getAuthHeaders, refreshClientSessionIfNeeded } = useAuth();
   const queryClient = useQueryClient();
   const { mutateAsync: togglePostLike } = useTogglePostLikeMutation();
 
@@ -278,7 +278,8 @@ export function usePosts(chapterId: string, options: UsePostsOptions = {}) {
 
   const likePost = useCallback(
     async (postId: string) => {
-      if (!user || !session) {
+      const hasSession = await refreshClientSessionIfNeeded();
+      if (!hasSession) {
         toast.error('Sign in to like posts');
         return;
       }
@@ -302,7 +303,10 @@ export function usePosts(chapterId: string, options: UsePostsOptions = {}) {
           updateDetailCache: true,
         });
       } catch (err) {
-        if (err instanceof Error && err.message === 'AUTH_REQUIRED') {
+        if (
+          err instanceof Error &&
+          (err.message === 'AUTH_REQUIRED' || err.message === 'Authentication required')
+        ) {
           toast.error('Sign in to like posts');
           return;
         }
@@ -313,9 +317,8 @@ export function usePosts(chapterId: string, options: UsePostsOptions = {}) {
       chapterId,
       normalizedInitialData,
       pageSize,
-      session,
+      refreshClientSessionIfNeeded,
       togglePostLike,
-      user,
     ],
   );
 
