@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getManagedChapterIds } from '@/lib/services/governanceService';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
 import { fetchLinkPreviewsServer } from '@/lib/services/linkPreviewService';
 import { LinkPreview } from '@/types/posts';
 import { buildPushPayload } from '@/lib/services/notificationPushPayload';
 import { sendPushToUser } from '@/lib/services/oneSignalPushService';
 import { canSendEmailNotification } from '@/lib/utils/checkEmailPreferences';
 import { EmailService } from '@/lib/services/emailService';
+import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
+import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 
 export async function GET(
   request: NextRequest,
@@ -52,7 +54,7 @@ export async function GET(
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id, is_developer')
+      .select('chapter_id, is_developer, signup_channel')
       .eq('id', user.id)
       .single();
 
@@ -60,13 +62,18 @@ export async function GET(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const isDeveloper = profile.is_developer === true;
-    const isOwnChapter = profile.chapter_id === post.chapter_id;
-    if (!isDeveloper && !isOwnChapter) {
-      const managedIds = await getManagedChapterIds(supabase, user.id);
-      if (!managedIds.length || !managedIds.includes(post.chapter_id)) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-      }
+    const access = await assertAuthenticatedChapterReadAccess(
+      supabase,
+      user.id,
+      {
+        chapter_id: profile.chapter_id,
+        signup_channel: profile.signup_channel,
+        is_developer: profile.is_developer,
+      },
+      post.chapter_id as string
+    );
+    if (!access.ok) {
+      return access.response;
     }
 
     // Calculate offset for pagination
@@ -179,7 +186,7 @@ export async function POST(
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id, is_developer')
+      .select('chapter_id, is_developer, signup_channel')
       .eq('id', user.id)
       .single();
 
@@ -187,13 +194,18 @@ export async function POST(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const isDeveloper = profile.is_developer === true;
-    const isOwnChapter = profile.chapter_id === post.chapter_id;
-    if (!isDeveloper && !isOwnChapter) {
-      const managedIds = await getManagedChapterIds(supabase, user.id);
-      if (!managedIds.length || !managedIds.includes(post.chapter_id)) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-      }
+    const access = await assertAuthenticatedChapterReadAccess(
+      supabase,
+      user.id,
+      {
+        chapter_id: profile.chapter_id,
+        signup_channel: profile.signup_channel,
+        is_developer: profile.is_developer,
+      },
+      post.chapter_id as string
+    );
+    if (!access.ok) {
+      return access.response;
     }
 
     let parentCommentAuthorId: string | null = null;
@@ -265,10 +277,18 @@ export async function POST(
       }
     }
 
-    // Only create metadata object if we have link previews
-    // This prevents storing empty {} which Supabase might convert to {}
-    const finalMetadata = linkPreviews.length > 0 
-    ? { link_previews: linkPreviews }
+    // Resolve @mentions server-side
+    const mentionUsernames = parseMentions(content);
+    const resolvedMentions = mentionUsernames.length > 0
+      ? await resolveMentions(supabase, mentionUsernames, post.chapter_id)
+      : [];
+
+    // Build metadata with link previews and mentions
+    const finalMetadata = (linkPreviews.length > 0 || resolvedMentions.length > 0)
+    ? {
+        ...(linkPreviews.length > 0 ? { link_previews: linkPreviews } : {}),
+        ...(resolvedMentions.length > 0 ? { mentions: resolvedMentions } : {}),
+      }
     : undefined;
 
     // Create comment
@@ -379,6 +399,19 @@ export async function POST(
           }
         }
       }
+    }
+
+    // Send mention notifications (fire and forget, excluding the comment/reply notification recipient)
+    if (resolvedMentions.length > 0 && comment) {
+      sendMentionNotifications({
+        mentionedUsers: resolvedMentions,
+        actorUserId: user.id,
+        contentType: 'comment',
+        contentId: comment.id,
+        postId,
+        contentPreview: content.trim().slice(0, 80),
+        supabase,
+      }).catch((err) => console.error('Failed to send mention notifications:', err));
     }
 
     return NextResponse.json({ comment });

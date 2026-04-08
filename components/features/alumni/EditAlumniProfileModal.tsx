@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase/client';
 import { trackActivity, ActivityTypes } from '@/lib/utils/activityUtils';
 import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection';
 import type { DetectedChange } from '@/components/features/profile/ProfileUpdatePromptModal';
-import { getGraduationYears, industries } from '@/lib/alumniConstants';
+import { buildIndustrySelectOptions, getGraduationYears } from '@/lib/alumniConstants';
 import { queueProfileUpdatePrompt } from '@/lib/utils/profileUpdatePromptQueue';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { UsernameInput } from '@/components/features/profile/UsernameInput';
@@ -27,10 +27,7 @@ import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 
-const ALUMNI_INDUSTRY_OPTIONS = [
-  { value: '', label: 'Select Industry' },
-  ...industries.map((industry) => ({ value: industry, label: industry })),
-];
+const editAlumniIndustryOptions = buildIndustrySelectOptions('Select Industry');
 
 interface EditAlumniProfileModalProps {
   isOpen: boolean;
@@ -99,6 +96,8 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
 
   // Form ref for programmatic submission
   const formRef = useRef<HTMLFormElement>(null);
+  /** Portals SearchableSelect inside the drawer; pair with outer host without overflow clip. */
+  const selectDropdownPortalRef = useRef<HTMLDivElement>(null);
   const drawerContentRef = useRef<HTMLDivElement>(null);
 
   // SessionStorage persistence functions
@@ -714,8 +713,8 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
           </button>
         </div>
 
-        {/* Scrollable Content Area - exact same structure as original */}
-        <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
+        <div ref={selectDropdownPortalRef} className="relative flex min-h-0 flex-1 flex-col">
+          <div className={`min-h-0 flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
           <form ref={formRef} onSubmit={handleSubmit} className={isMobile ? 'space-y-4' : 'space-y-6'}>
             {/* Combined Profile Photo & Banner Card - exact same as original */}
             <Card className="p-0">
@@ -912,11 +911,12 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                     <SearchableSelect
                       value={formData.industry || ''}
                       onValueChange={(value) => handleInputChange('industry', value)}
-                      options={ALUMNI_INDUSTRY_OPTIONS}
+                      options={editAlumniIndustryOptions}
                       placeholder="Select Industry"
                       searchPlaceholder="Search industries..."
                       className="mt-1"
-                      portalContainerRef={drawerContentRef}
+                      allowCustom
+                      portalContainerRef={selectDropdownPortalRef}
                     />
                   </div>
                   <div>
@@ -1152,6 +1152,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
               </div>
             </div>
           </form>
+          </div>
         </div>
 
         {/* Footer - moved OUTSIDE scrollable area and form */}

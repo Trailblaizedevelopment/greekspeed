@@ -7,6 +7,7 @@ import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { AvatarService } from '@/lib/services/avatarService';
 import { BannerService } from '@/lib/services/bannerService';
+import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -289,7 +290,7 @@ export default function ProfilePhotoPage() {
   return (
     <div className="space-y-6">
       {/* Profile Photo Card */}
-      <Card>
+      <Card className={ONBOARDING_MAIN_CARD_CLASS}>
         <CardHeader className="text-center pb-2">
           <CardTitle className="flex items-center justify-center gap-2">
             Add Your Photos

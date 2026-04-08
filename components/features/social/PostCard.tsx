@@ -9,16 +9,17 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, Trash2, X, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import { PostActionsMenu } from './PostActionsMenu';
-import { Post, PostComment } from '@/types/posts';
+import { Post, PostComment, MentionData } from '@/types/posts';
 import { formatDistanceToNow } from 'date-fns';
 import { LinkPreviewCard } from './LinkPreviewCard';
+import { MentionText } from './MentionText';
 import { ClickableAvatar } from '@/components/features/user-profile/ClickableAvatar';
 import { ClickableUserName } from '@/components/features/user-profile/ClickableUserName';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useComments } from '@/lib/hooks/useComments';
 import { useCommentCount } from '@/lib/hooks/useCommentCount';
 import { useProfile } from '@/lib/contexts/ProfileContext';
-import { Textarea } from '@/components/ui/textarea';
+import MentionTextarea, { type MentionTextareaHandle } from './MentionTextarea';
 import { PostImageGrid } from './PostImageGrid';
 import { cn } from '@/lib/utils';
 
@@ -301,6 +302,7 @@ function PostCardInner({
     const previewUrls = new Set(
       (post.metadata?.link_previews || []).map((preview: any) => preview.url),
     );
+    const mentions: MentionData[] | undefined = post.metadata?.mentions;
 
     // Convert URLs to clickable links, but skip URLs that have previews
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -309,9 +311,8 @@ function PostCardInner({
       .map((part, i) => {
         if (part.match(urlRegex)) {
           const cleanUrl = part.replace(/[.,;:!?]+$/, '');
-          // If this URL has a preview card, don't render it as a link
           if (previewUrls.has(cleanUrl)) {
-            return null; // Hide URLs that have preview cards
+            return null;
           }
           return (
             <a
@@ -326,9 +327,11 @@ function PostCardInner({
             </a>
           );
         }
-        return <span key={i}>{part}</span>;
+        return (
+          <MentionText key={i} content={part} mentions={mentions} />
+        );
       })
-      .filter(Boolean); // Remove null entries
+      .filter(Boolean);
 
     return (
       <div className="space-y-2">
@@ -354,15 +357,26 @@ function PostCardInner({
   const [showCommentComposer, setShowCommentComposer] = useState(false);
   const commentComposerMobileRef = useRef<HTMLDivElement | null>(null);
   const commentComposerDesktopRef = useRef<HTMLDivElement | null>(null);
-  const inlineCommentTextareaMobileRef = useRef<HTMLTextAreaElement | null>(null);
-  const inlineCommentTextareaDesktopRef = useRef<HTMLTextAreaElement | null>(null);
+  const inlineCommentTextareaMobileRef = useRef<MentionTextareaHandle | null>(null);
+  const inlineCommentTextareaDesktopRef = useRef<MentionTextareaHandle | null>(null);
 
   const isInsideCommentComposer = useCallback((node: Node | null) => {
     if (!node) return false;
-    return (
-      !!commentComposerMobileRef.current?.contains(node) ||
-      !!commentComposerDesktopRef.current?.contains(node)
-    );
+    if (
+      commentComposerMobileRef.current?.contains(node) ||
+      commentComposerDesktopRef.current?.contains(node)
+    ) {
+      return true;
+    }
+    // MentionTextarea portals the suggestion list to document.body; treat it as part of the composer
+    // so capture-phase pointerdown does not close the inline composer before a row can be selected.
+    if (
+      node instanceof Element &&
+      (node.closest('[data-mention-suggestions]') || node.closest('[data-mention-sheet]'))
+    ) {
+      return true;
+    }
+    return false;
   }, []);
   const postCardRef = useRef<HTMLDivElement | null>(null);
   const [showHeartOverlay, setShowHeartOverlay] = useState(false);
@@ -442,7 +456,7 @@ function PostCardInner({
     return `${trimmed.slice(0, 137)}…`;
   };
 
-  const linkifyCommentContent = (content: string, previewUrls?: Set<string>) => {
+  const linkifyCommentContent = (content: string, previewUrls?: Set<string>, mentions?: MentionData[]) => {
     if (!content) return null;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = content.split(urlRegex);
@@ -464,7 +478,9 @@ function PostCardInner({
           </a>
         );
       }
-      return <span key={i}>{part}</span>;
+      return (
+        <MentionText key={i} content={part} mentions={mentions} />
+      );
     }).filter(Boolean);
   };
 
@@ -517,6 +533,7 @@ function PostCardInner({
                   comment.metadata?.link_previews?.length
                     ? new Set(comment.metadata.link_previews.map((p: { url: string }) => p.url))
                     : undefined,
+                  comment.metadata?.mentions,
                 )}
               </p>
             </div>
@@ -837,11 +854,12 @@ function PostCardInner({
                     onSubmit={handleSubmitInlineComment}
                   >
                     <div className="flex items-end gap-2">
-                      <Textarea
+                      <MentionTextarea
                         ref={inlineCommentTextareaMobileRef}
                         placeholder="Write a comment..."
                         value={inlineComment}
-                        onChange={(e) => setInlineComment(e.target.value)}
+                        onChange={setInlineComment}
+                        chapterId={profile?.chapter_id ?? undefined}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
@@ -1126,11 +1144,12 @@ function PostCardInner({
                     onSubmit={handleSubmitInlineComment}
                   >
                     <div className="flex items-end gap-2">
-                      <Textarea
+                      <MentionTextarea
                         ref={inlineCommentTextareaDesktopRef}
                         placeholder="Write a comment..."
                         value={inlineComment}
-                        onChange={(e) => setInlineComment(e.target.value)}
+                        onChange={setInlineComment}
+                        chapterId={profile?.chapter_id ?? undefined}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();

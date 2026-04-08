@@ -7,6 +7,11 @@ export interface LinkPreview {
   favicon?: string;
 }
 
+export interface MentionData {
+  username: string;
+  user_id: string;
+}
+
 export interface Post {
   id: string;
   chapter_id: string;
@@ -18,6 +23,7 @@ export interface Post {
   has_image?: boolean;
   metadata?: Record<string, any> & {
     link_previews?: LinkPreview[];
+    mentions?: MentionData[];
     profile_update?: {
       source: 'profile_update_prompt';
       changed_fields: string[];
@@ -73,6 +79,7 @@ export interface PostComment {
   parent_comment_id?: string | null;
   metadata?: Record<string, any> & {
     link_previews?: LinkPreview[];
+    mentions?: MentionData[];
   };
   author?: {
     id: string;

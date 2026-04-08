@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { industries, getGraduationYears, majors, minors } from '@/lib/alumniConstants';
+import { buildIndustrySelectOptions, getGraduationYears, majors } from '@/lib/alumniConstants';
 import {
   User,
   Building2,
@@ -32,6 +32,10 @@ import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
+import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
+
+const profileBasicsIndustryOptions = buildIndustrySelectOptions('Select industry');
 
 // ============================================================================
 // Constants
@@ -78,6 +82,8 @@ export default function ProfileBasicsPage() {
   const [loading, setLoading] = useState(false);
   const [hasInvitation, setHasInvitation] = useState(false);
   const [invitationLoading, setInvitationLoading] = useState(true);
+  /** TRA-579: canonical chapter UUID when profile.chapter_id is null (pending marketing request). */
+  const [pendingRequestChapterId, setPendingRequestChapterId] = useState<string | null>(null);
 
   const graduationYears = getGraduationYears();
 
@@ -91,6 +97,67 @@ export default function ProfileBasicsPage() {
   const isAlumni = effectiveRole === 'alumni';
   /** Major required for actives and admin accounts; optional for alumni */
   const majorRequired = effectiveRole === 'active_member' || effectiveRole === 'admin';
+
+  // Pending membership request → chapter UUID for forms/alumni row (marketing or invitation source)
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPendingChapterId = async () => {
+      if (!user?.id || profile?.chapter_id) {
+        setPendingRequestChapterId(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('chapter_membership_requests')
+        .select('chapter_id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .in('source', ['marketing_alumni', 'invitation'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled || error) return;
+      if (data?.chapter_id) {
+        setPendingRequestChapterId(data.chapter_id);
+      } else {
+        setPendingRequestChapterId(null);
+      }
+    };
+
+    void loadPendingChapterId();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, profile?.chapter_id]);
+
+  /**
+   * Omit profiles.chapter_id until exec approval. Include invitation + no UUID yet (even if signup_channel
+   * is still null before pending row loads) — but never treat marketing_alumni as invitation via sessionStorage alone.
+   */
+  const omitProfileChapterId =
+    !profile?.chapter_id &&
+    (isAwaitingChapterMembershipApproval(profile) ||
+      pendingRequestChapterId !== null ||
+      (hasInvitation && profile?.signup_channel !== 'marketing_alumni'));
+
+  // When chapter name is known but UUID missing, resolve from directory (until pending fetch returns)
+  useEffect(() => {
+    if (!profile?.chapter?.trim() || profile.chapter_id || formData.chapterId || chapters.length === 0) {
+      return;
+    }
+    const id = chapters.find((c) => c.name === profile.chapter)?.id;
+    if (id) {
+      setFormData((prev) => ({ ...prev, chapterId: id }));
+    }
+  }, [profile?.chapter, profile?.chapter_id, chapters, formData.chapterId]);
+
+  // Apply pending-request UUID when it loads (authoritative for requested chapter)
+  useEffect(() => {
+    if (!pendingRequestChapterId) return;
+    setFormData((prev) => ({ ...prev, chapterId: pendingRequestChapterId }));
+  }, [pendingRequestChapterId]);
 
   // Check for invitation token and auto-populate
   useEffect(() => {
@@ -132,6 +199,9 @@ export default function ProfileBasicsPage() {
         // Check if profile already has chapter and/or role (saved from step 1)
         // Note: These are checked separately — OAuth alumni users always have both
         // saved from step 1, but we handle each independently as a safety net.
+        if (profile?.signup_channel === 'invitation') {
+          setHasInvitation(true);
+        }
         if (profile?.chapter || profile?.role) {
           if (profile.role === 'active_member') {
             setHasInvitation(true);
@@ -347,7 +417,13 @@ export default function ProfileBasicsPage() {
       const fullName = `${formData.firstName} ${formData.lastName}`;
       const chapterName =
         formData.chapter?.trim() || profile?.chapter?.trim() || '';
-      const chapterIdVal = formData.chapterId || profile?.chapter_id || null;
+      const resolvedChapterUuid =
+        formData.chapterId ||
+        profile?.chapter_id ||
+        pendingRequestChapterId ||
+        (chapterName
+          ? chapters.find((c) => c.name === chapterName)?.id ?? null
+          : null);
       const roleRaw = formData.role || profile?.role || '';
       const normalizedRole = roleRaw.toLowerCase();
       if (!normalizedRole) {
@@ -356,19 +432,26 @@ export default function ProfileBasicsPage() {
         return;
       }
 
-      // Update profiles table
-      const updateData: any = {
+      // Update profiles table (TRA-579/invitation-pending: do not set profiles.chapter_id until exec approves)
+      const updateData: Record<string, unknown> = {
         first_name: formData.firstName,
         last_name: formData.lastName,
         full_name: fullName,
         email: formData.email,
         chapter: chapterName,
-        chapter_id: chapterIdVal,
         role: normalizedRole,
-        grad_year: parseInt(formData.graduationYear),
+        grad_year: parseInt(formData.graduationYear, 10),
         major: formData.major?.trim() || null,
         updated_at: new Date().toISOString(),
       };
+
+      if (!omitProfileChapterId) {
+        updateData.chapter_id = resolvedChapterUuid;
+      } else if (profile?.signup_channel === 'invitation') {
+        updateData.signup_channel = 'invitation';
+      } else if (profile?.signup_channel === 'marketing_alumni') {
+        updateData.signup_channel = 'marketing_alumni';
+      }
 
       if (formData.location?.trim()) {
         updateData.location = formData.location.trim();
@@ -390,35 +473,38 @@ export default function ProfileBasicsPage() {
 
       if (profileError) throw profileError;
 
-      // Create/update alumni record if alumni role
+      // Create/update alumni record if alumni role (chapter name + optional UUID; profile.chapter_id may stay null for pending marketing)
       if (normalizedRole === 'alumni') {
-        const { error: alumniError } = await supabase
-          .from('alumni')
-          .upsert({
-            user_id: user.id,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            full_name: fullName,
-            chapter: formData.chapter,
-            industry: formData.industry.trim(),
-            graduation_year: parseInt(formData.graduationYear),
-            company: formData.company.trim(),
-            job_title: formData.jobTitle.trim(),
-            email: formData.email || user.email,
-            phone: formData.phone || null,
-            location: formData.location.trim(),
-            description: `Alumni from ${chapterName}`,
-            avatar_url: profile?.avatar_url || null,
-            verified: false,
-            is_actively_hiring: false,
-            last_contact: null,
-            tags: null,
-            mutual_connections: [],
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'user_id',
-            ignoreDuplicates: false,
-          });
+        const alumniRow: Record<string, unknown> = {
+          user_id: user.id,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          full_name: fullName,
+          chapter: chapterName,
+          industry: formData.industry.trim(),
+          graduation_year: parseInt(formData.graduationYear, 10),
+          company: formData.company.trim(),
+          job_title: formData.jobTitle.trim(),
+          email: formData.email || user.email,
+          phone: formData.phone || null,
+          location: formData.location.trim(),
+          description: `Alumni from ${chapterName}`,
+          avatar_url: profile?.avatar_url || null,
+          verified: false,
+          is_actively_hiring: false,
+          last_contact: null,
+          tags: null,
+          mutual_connections: [],
+          updated_at: new Date().toISOString(),
+        };
+        if (resolvedChapterUuid) {
+          alumniRow.chapter_id = resolvedChapterUuid;
+        }
+
+        const { error: alumniError } = await supabase.from('alumni').upsert(alumniRow, {
+          onConflict: 'user_id',
+          ignoreDuplicates: false,
+        });
 
         if (alumniError) {
           console.error('Alumni record error:', alumniError);
@@ -446,29 +532,23 @@ export default function ProfileBasicsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Information Banner for non-invitation users */}
-      {!hasInvitation && !invitationLoading && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <h3 className="font-medium text-amber-900 text-sm mb-1">Alumni Profile Only</h3>
-                <p className="text-sm text-amber-800">
-                  This profile setup is for alumni only. Active members must be invited by chapter administrators.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
+      <Card className={ONBOARDING_MAIN_CARD_CLASS}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-brand-primary" />
             Tell Us About Yourself
           </CardTitle>
+          {omitProfileChapterId && (
+            <p
+              className={cn(
+                'mt-3 rounded-lg border border-brand-accent/20 px-3 py-2.5 text-sm text-slate-700',
+                'bg-gradient-to-r from-slate-50/90 to-brand-accent-light/50 shadow-sm'
+              )}
+            >
+              <span className="font-medium text-slate-900">{profile?.chapter ?? 'Your chapter'}</span>: membership
+              pending approval. Finish your profile & unlock more once you&apos;re approved.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="pt-0">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -595,6 +675,7 @@ export default function ProfileBasicsPage() {
                 placeholder="Select Major"
                 searchPlaceholder="Search majors..."
                 className={cn(errors.major && 'border-red-500')}
+                allowCustom
               />
               {errors.major && (
                 <p className="text-sm text-red-500">{errors.major}</p>
@@ -696,21 +777,15 @@ export default function ProfileBasicsPage() {
                   {/* Industry */}
                   <div className="space-y-2 mb-4">
                     <Label htmlFor="industry">Industry *</Label>
-                    <Select
+                    <SearchableSelect
                       value={formData.industry}
                       onValueChange={(value) => handleChange('industry', value)}
-                    >
-                      <SelectTrigger className={cn(errors.industry && 'border-red-500')}>
-                        <SelectValue placeholder="Select industry" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {industries.map((industry) => (
-                          <SelectItem key={industry} value={industry}>
-                            {industry}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={profileBasicsIndustryOptions}
+                      placeholder="Select industry"
+                      searchPlaceholder="Search industries..."
+                      className={cn(errors.industry && 'border-red-500')}
+                      allowCustom
+                    />
                     {errors.industry && (
                       <p className="text-sm text-red-500">{errors.industry}</p>
                     )}

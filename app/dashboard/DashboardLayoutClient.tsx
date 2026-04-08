@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { DashboardHeader } from '@/components/features/dashboard/DashboardHeader';
 import { useActivityTracking } from '@/lib/hooks/useActivityTracking';
 import { useOneSignalPush } from '@/lib/hooks/useOneSignalPush';
@@ -23,6 +24,12 @@ import {
 } from '@/lib/utils/profileUpdatePreferences';
 import { getPendingPrompt, clearPendingPrompt, queueProfileUpdatePrompt } from '@/lib/utils/profileUpdatePromptQueue';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
+import {
+  clearPendingMembershipFlowAcknowledged,
+  hasPendingMembershipFlowAcknowledged,
+  isAwaitingChapterMembershipApproval,
+} from '@/lib/utils/marketingAlumniOnboarding';
 import { ChapterFeaturesProvider } from '@/lib/contexts/ChapterFeaturesContext';
 import { OneSignalDashboardLoader } from '@/components/features/dashboard/OneSignalDashboardLoader';
 import { PwaPromptProvider } from '@/lib/contexts/PwaPromptContext';
@@ -35,18 +42,109 @@ export default function DashboardLayoutClient({
   // Initialize activity tracking for all dashboard pages
   useActivityTracking();
 
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading, refreshProfile } = useProfile();
 
   // Register push subscription so users receive chapter announcements, events, messages, etc.
   useOneSignalPush(profile?.id);
   const router = useRouter();
 
-  // Guard: redirect to onboarding if not completed
+  /** TRA-583: Do not render dashboard chrome while marketing alumni without chapter are being sent to pending/onboarding. */
+  const [marketingDashboardGatePending, setMarketingDashboardGatePending] = useState(false);
+
+  // Guard: incomplete onboarding → wizard entry; pending page only after finishOnboarding sets LS ack.
+  // TRA-583: Also gate when onboarding_completed is true but profile is still marketing_alumni without chapter_id (edge case).
   useEffect(() => {
-    if (!profileLoading && profile && !profile.onboarding_completed) {
-      router.replace('/onboarding');
+    if (profileLoading || !profile) {
+      setMarketingDashboardGatePending(false);
+      return;
     }
+
+    const awaiting = isAwaitingChapterMembershipApproval(profile);
+
+    if (profile.onboarding_completed && !awaiting) {
+      setMarketingDashboardGatePending(false);
+      return;
+    }
+
+    if (
+      profile.chapter_id &&
+      (profile.signup_channel === 'marketing_alumni' ||
+        profile.signup_channel === 'invitation')
+    ) {
+      setMarketingDashboardGatePending(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const guard = async () => {
+      if (awaiting) {
+        setMarketingDashboardGatePending(true);
+        if (hasPendingMembershipFlowAcknowledged(profile.id)) {
+          if (!cancelled) router.replace('/onboarding/pending-chapter-approval');
+          return;
+        }
+        if (!cancelled) router.replace('/onboarding');
+        return;
+      }
+
+      setMarketingDashboardGatePending(false);
+      if (!cancelled) router.replace('/onboarding');
+    };
+
+    void guard();
+    return () => {
+      cancelled = true;
+    };
   }, [profile, profileLoading, router]);
+
+  // Approved marketing alumni: chapter_id set but wizard never flipped onboarding_completed — sync once (exec approval path).
+  useEffect(() => {
+    if (profileLoading || !profile?.id) return;
+    if (profile.onboarding_completed) return;
+    if (
+      (profile.signup_channel !== 'marketing_alumni' &&
+        profile.signup_channel !== 'invitation') ||
+      !profile.chapter_id
+    )
+      return;
+
+    let cancelled = false;
+    (async () => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          onboarding_completed: true,
+          onboarding_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.id);
+
+      if (cancelled || error) return;
+      clearPendingMembershipFlowAcknowledged(profile.id);
+      await refreshProfile();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    profileLoading,
+    profile?.id,
+    profile?.onboarding_completed,
+    profile?.signup_channel,
+    profile?.chapter_id,
+    refreshProfile,
+  ]);
+
+  if (marketingDashboardGatePending) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="h-10 w-10 animate-spin text-brand-primary" aria-hidden />
+        <p className="mt-4 text-sm text-gray-600">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <ActiveChapterProvider>

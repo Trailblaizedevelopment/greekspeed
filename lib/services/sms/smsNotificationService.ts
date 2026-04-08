@@ -196,6 +196,94 @@ export class SMSNotificationService {
     return result.success;
   }
 
+  /** Chapter membership approved or rejected (alumni gate queue). */
+  static async sendMembershipDecisionNotification(
+    phoneNumber: string,
+    userName: string,
+    chapterName: string,
+    approved: boolean,
+    userId: string,
+    chapterId: string,
+    options?: { link?: string }
+  ): Promise<boolean> {
+    const formattedPhone = SMSService.formatPhoneNumber(phoneNumber);
+    const link = options?.link ?? `${BASE_URL}/dashboard`;
+    const chapterShort = toGsmSafe(chapterName.slice(0, 28));
+    const headline = approved
+      ? `${chapterShort}: you're approved on Trailblaize`
+      : `${chapterShort}: membership not approved`;
+
+    const isFirst = !(await this.hasReceivedSmsBefore(userId));
+    const complianceLevel = isFirst ? 'full' : 'none';
+
+    const messageParts = SMSMessageFormatter.formatShortMessage(
+      headline,
+      approved ? 'Open the app to continue' : 'Sign in for details',
+      'Open',
+      link,
+      { complianceLevel }
+    );
+
+    const result = await SMSService.sendSMS({ to: formattedPhone, body: messageParts.fullMessage });
+    await this.logSMS(
+      {
+        userId,
+        chapterId,
+        phoneNumber: formattedPhone,
+        messageType: 'membership_decision',
+        messageContent: messageParts.fullMessage,
+      },
+      result.success,
+      result.messageId,
+      result.error
+    );
+    return result.success;
+  }
+
+  /** New pending membership request — SMS to platform admin / governance (TRA-591). */
+  static async sendNewMembershipRequestAdminNotification(
+    phoneNumber: string,
+    adminFirstName: string,
+    chapterName: string,
+    applicantName: string,
+    userId: string,
+    chapterId: string,
+    options?: { link?: string }
+  ): Promise<boolean> {
+    const formattedPhone = SMSService.formatPhoneNumber(phoneNumber);
+    const link = options?.link ?? `${BASE_URL}/dashboard/requests`;
+    const chapterShort = toGsmSafe(chapterName.slice(0, 22));
+    const applicantShort = toGsmSafe(applicantName.slice(0, 24));
+    const headline = `${chapterShort}: new membership request`;
+    const detail = `${applicantShort} wants to join`;
+
+    const isFirst = !(await this.hasReceivedSmsBefore(userId));
+    const complianceLevel = isFirst ? 'full' : 'none';
+
+    const messageParts = SMSMessageFormatter.formatShortMessage(
+      headline,
+      detail,
+      'Review',
+      link,
+      { complianceLevel }
+    );
+
+    const result = await SMSService.sendSMS({ to: formattedPhone, body: messageParts.fullMessage });
+    await this.logSMS(
+      {
+        userId,
+        chapterId,
+        phoneNumber: formattedPhone,
+        messageType: 'membership_request_admin_new',
+        messageContent: messageParts.fullMessage,
+      },
+      result.success,
+      result.messageId,
+      result.error
+    );
+    return result.success;
+  }
+
   // For connection accepted: full compliance only on first-ever SMS
   static async sendConnectionAcceptedNotification(
     phoneNumber: string,

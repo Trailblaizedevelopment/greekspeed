@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -22,7 +22,13 @@ import {
   Shield,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import {
+  ONBOARDING_BANNER_AMBER_CARD_CLASS,
+  ONBOARDING_BANNER_GREEN_CARD_CLASS,
+  ONBOARDING_MAIN_CARD_CLASS,
+} from '@/lib/constants/onboardingUi';
 import { cn } from '@/lib/utils';
+import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 
 // ============================================================================
 // Component
@@ -30,7 +36,7 @@ import { cn } from '@/lib/utils';
 
 export default function RoleChapterPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const { profile, refreshProfile } = useProfile();
   const { completeStep } = useOnboarding();
   const { chapters, loading: chaptersLoading } = useChapters();
@@ -142,8 +148,77 @@ export default function RoleChapterPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
-  // Handle form submission
+  /**
+   * TRA-578: Marketing alumni stay without profiles.chapter_id until exec approval.
+   * Exclude invitation-style flows (sessionStorage) so we never queue a request instead of honoring invite/chapter assignment.
+   */
+  const useMarketingMembershipRequestFlow =
+    profile?.signup_channel === 'marketing_alumni' && !hasInvitation;
+
+  /**
+   * Do not persist profiles.chapter_id while exec approval is pending (marketing or invitation).
+   * Invitation pending already has chapter_membership_requests row from accept; do not duplicate marketing POST.
+   */
+  const omitProfileChapterId =
+    useMarketingMembershipRequestFlow ||
+    isAwaitingChapterMembershipApproval(profile) ||
+    (!!hasInvitation && !profile?.chapter_id);
+
+  /** TRA-590: shared POST so confirmation mode (sign-up pre-filled chapter/role) also queues the row. */
+  const postMarketingMembershipRequest = useCallback(
+    async (chapterUuid: string): Promise<boolean> => {
+      const {
+        data: { session: freshSession },
+      } = await supabase.auth.getSession();
+
+      let bearer = freshSession?.access_token;
+      if (!bearer) {
+        try {
+          bearer = getAuthHeaders().Authorization.replace(/^Bearer\s+/i, '');
+        } catch {
+          bearer = undefined;
+        }
+      }
+
+      if (!bearer) {
+        toast.error('Please sign in again to submit your chapter request.');
+        return false;
+      }
+
+      const requestRes = await fetch('/api/chapter-membership-requests', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chapterId: chapterUuid }),
+      });
+
+      const requestBody: { error?: string } = await requestRes.json().catch(() => ({}));
+      const errText =
+        typeof requestBody.error === 'string' ? requestBody.error.trim() : '';
+
+      if (requestRes.ok) {
+        return true;
+      }
+
+      if (requestRes.status === 400 && errText.includes('already exists')) {
+        return true;
+      }
+
+      const serverMsg =
+        errText ||
+        (requestRes.status === 401
+          ? 'Your session expired. Please sign in again.'
+          : requestRes.status === 403
+            ? 'You are not eligible to submit a request through this flow.'
+            : `Could not submit your chapter request (${requestRes.status}). Please try again.`);
+      toast.error(serverMsg);
+      return false;
+    },
+    [getAuthHeaders]
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !validateForm()) return;
@@ -151,54 +226,55 @@ export default function RoleChapterPage() {
     setLoading(true);
 
     try {
-      // Ensure chapterId is set correctly
       const selectedChapter = chapters.find(c => c.name === formData.chapter);
       if (!selectedChapter) {
         throw new Error('Selected chapter not found. Please try again.');
       }
 
-      // Extract name from all available sources (profile, OAuth metadata)
       let firstName = profile?.first_name || '';
       let lastName = profile?.last_name || '';
 
       if (user.user_metadata) {
-        // Google OAuth: given_name, family_name
-        // LinkedIn OAuth: first_name, last_name
-        // Fallback: split full 'name' field
-        firstName = firstName ||
+        firstName =
+          firstName ||
           user.user_metadata.given_name ||
           user.user_metadata.first_name ||
-          (user.user_metadata.name?.split(' ')[0]) ||
+          user.user_metadata.name?.split(' ')[0] ||
           '';
-        lastName = lastName ||
+        lastName =
+          lastName ||
           user.user_metadata.family_name ||
           user.user_metadata.last_name ||
-          (user.user_metadata.name?.split(' ').slice(1).join(' ')) ||
+          user.user_metadata.name?.split(' ').slice(1).join(' ') ||
           '';
       }
 
-      // Build profile update — ALWAYS save role and chapter together
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         chapter: formData.chapter,
-        chapter_id: selectedChapter.id,
-        role: formData.role, // Always persist role from step 1
+        role: formData.role,
         member_status: formData.role === 'alumni' ? 'graduated' : 'active',
         updated_at: new Date().toISOString(),
       };
 
-      // Save names if we have them from OAuth (so profile-basics can pre-populate)
+      if (!omitProfileChapterId) {
+        updateData.chapter_id = selectedChapter.id;
+      } else if (profile?.signup_channel === 'invitation') {
+        updateData.signup_channel = 'invitation';
+      } else if (profile?.signup_channel === 'marketing_alumni') {
+        updateData.signup_channel = 'marketing_alumni';
+      }
+
       if (firstName.trim()) updateData.first_name = firstName;
       if (lastName.trim()) updateData.last_name = lastName;
       if (firstName.trim() && lastName.trim()) {
         updateData.full_name = `${firstName} ${lastName}`;
       }
 
-      // Preserve avatar_url if it exists (from OAuth)
       if (profile?.avatar_url) {
         updateData.avatar_url = profile.avatar_url;
       }
 
-      const { data, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .update(updateData)
         .eq('id', user.id)
@@ -212,16 +288,19 @@ export default function RoleChapterPage() {
           hint: profileError.hint,
           code: profileError.code,
         });
-        throw profileError;
+        throw new Error(profileError.message || 'Failed to save your profile.');
       }
 
-      // If alumni and we have names, create a minimal alumni record now
-      // (will be fully populated in profile-basics)
-      if (formData.role === 'alumni' && firstName.trim() && lastName.trim()) {
+      if (useMarketingMembershipRequestFlow) {
+        const ok = await postMarketingMembershipRequest(selectedChapter.id);
+        if (!ok) {
+          setLoading(false);
+          return;
+        }
+      } else if (formData.role === 'alumni' && firstName.trim() && lastName.trim()) {
         try {
-          await supabase
-            .from('alumni')
-            .upsert({
+          await supabase.from('alumni').upsert(
+            {
               user_id: user.id,
               first_name: firstName,
               last_name: lastName,
@@ -230,7 +309,7 @@ export default function RoleChapterPage() {
               chapter_id: selectedChapter.id,
               email: user.email || profile?.email || '',
               industry: 'Not specified',
-              graduation_year: new Date().getFullYear(), // Temporary, updated in profile-basics
+              graduation_year: new Date().getFullYear(),
               company: 'Not specified',
               job_title: 'Not specified',
               location: 'Not specified',
@@ -238,24 +317,28 @@ export default function RoleChapterPage() {
               verified: false,
               is_actively_hiring: false,
               updated_at: new Date().toISOString(),
-            }, {
+            },
+            {
               onConflict: 'user_id',
               ignoreDuplicates: false,
-            });
+            }
+          );
         } catch (alumniErr) {
           console.warn('Alumni record creation warning (will be created in profile-basics):', alumniErr);
-          // Don't fail — alumni record will be created/updated in profile-basics
         }
       }
 
-      // Refresh profile so step 2 sees the latest data
       try {
         await refreshProfile();
       } catch (refreshError) {
         console.warn('Profile refresh failed after update (non-critical):', refreshError);
       }
 
-      toast.success('Chapter and role saved!');
+      toast.success(
+        useMarketingMembershipRequestFlow
+          ? 'Membership request sent. Continue to complete your profile.'
+          : 'Chapter and role saved!'
+      );
       await completeStep('role-chapter');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save. Please try again.';
@@ -274,17 +357,36 @@ export default function RoleChapterPage() {
 
   // NOTE: Removed auto-skip - we now show confirmation mode for invitation users
 
-  // Handle confirmation mode continue (just complete step and move on)
+  // Handle confirmation mode continue (invitation: skip POST; marketing without chapter_id: POST first)
   const handleConfirmContinue = async () => {
     setLoading(true);
     try {
-      toast.success('Welcome! Let\'s continue setting up your profile.');
+      if (useMarketingMembershipRequestFlow && !profile?.chapter_id) {
+        const selectedChapter = chapters.find((c) => c.name === profile?.chapter?.trim());
+        if (!selectedChapter) {
+          toast.error(
+            'Could not match your chapter to our directory. Please contact support or try selecting your chapter again.'
+          );
+          setLoading(false);
+          return;
+        }
+        const ok = await postMarketingMembershipRequest(selectedChapter.id);
+        if (!ok) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      toast.success(
+        useMarketingMembershipRequestFlow && !profile?.chapter_id
+          ? 'Membership request sent. Continue to complete your profile.'
+          : 'Welcome! Let\'s continue setting up your profile.'
+      );
       await completeStep('role-chapter');
-      // Don't reset loading - page is navigating away
     } catch (error) {
       console.error('Error completing step:', error);
       toast.error('Something went wrong. Please try again.');
-      setLoading(false); // Only reset on error
+      setLoading(false);
     }
   };
 
@@ -301,7 +403,7 @@ export default function RoleChapterPage() {
     return (
       <div className="space-y-6">
         {/* Welcome Banner */}
-        <Card className="border-green-200 bg-green-50">
+        <Card className={ONBOARDING_BANNER_GREEN_CARD_CLASS}>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
@@ -315,7 +417,7 @@ export default function RoleChapterPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={ONBOARDING_MAIN_CARD_CLASS}>
           <CardHeader className="pb-0">
             <CardTitle className="flex items-center gap-2">
               You&apos;re All Set!
@@ -365,7 +467,12 @@ export default function RoleChapterPage() {
             <div className="pt-0">
               <Button
                 onClick={handleConfirmContinue}
-                disabled={loading}
+                disabled={
+                  loading ||
+                  (useMarketingMembershipRequestFlow &&
+                    !profile?.chapter_id &&
+                    (chaptersLoading || chapters.length === 0))
+                }
                 className="w-full bg-brand-primary hover:bg-brand-primary-hover rounded-full"
               >
                 {loading ? (
@@ -390,7 +497,7 @@ export default function RoleChapterPage() {
   return (
     <div className="space-y-6">
       {/* Information Banner */}
-      <Card className="border-amber-200 bg-amber-50">
+      <Card className={ONBOARDING_BANNER_AMBER_CARD_CLASS}>
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -404,7 +511,7 @@ export default function RoleChapterPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={ONBOARDING_MAIN_CARD_CLASS}>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-brand-primary" />

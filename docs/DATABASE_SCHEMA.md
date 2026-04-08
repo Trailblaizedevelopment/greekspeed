@@ -26,6 +26,7 @@ User profiles - the central user table.
 - `profile_slug` (TEXT, nullable)
 - `onboarding_completed` (BOOLEAN, default: false)
 - `onboarding_completed_at` (TIMESTAMPTZ, nullable)
+- `signup_channel` (TEXT, nullable) - `marketing_alumni`, `invitation`, `chapter_slug`; NULL = legacy/unknown
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
 
@@ -84,6 +85,7 @@ Social feed posts.
   - `link_previews` - Array of link preview objects
   - `image_urls` - Array of image URLs (for multiple images)
   - `image_count` - Number of images
+  - `mentions` - Array of `{ username: string, user_id: string }` resolved @mention data
 - `likes_count` (INTEGER, default: 0)
 - `comments_count` (INTEGER, default: 0)
 - `shares_count` (INTEGER, default: 0)
@@ -141,7 +143,9 @@ Comments on posts.
 - `likes_count` (INTEGER, default: 0)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
-- `metadata` (JSONB, nullable) - Can store link previews
+- `metadata` (JSONB, nullable) - Can store:
+  - `link_previews` - Array of link preview objects
+  - `mentions` - Array of `{ username: string, user_id: string }` resolved @mention data
 
 **Relationships:**
 - Belongs to `posts` via `post_id`
@@ -374,6 +378,28 @@ Tracks invitation usage.
 - `invitation_id` (UUID, Foreign Key → `invitations.id`)
 - `user_id` (UUID, Foreign Key → `profiles.id`)
 - `used_at` (TIMESTAMPTZ)
+
+### `chapter_membership_requests`
+Queue for chapter access that requires admin approval (marketing alumni signup or invitations with `approval_mode = pending`).
+
+**Key Columns:**
+- `id` (UUID, Primary Key)
+- `user_id` (UUID, Foreign Key → `profiles.id`)
+- `chapter_id` (UUID, Foreign Key → `chapters.id`)
+- `status` (TEXT) - `pending`, `approved`, `rejected`, `cancelled`
+- `source` (TEXT) - `marketing_alumni`, `invitation`
+- `invitation_id` (UUID, nullable, Foreign Key → `invitations.id`)
+- `resolved_at` (TIMESTAMPTZ, nullable)
+- `resolved_by` (UUID, nullable, Foreign Key → `profiles.id`)
+- `rejection_reason` (TEXT, nullable)
+- `applicant_email`, `applicant_full_name` (TEXT, nullable) - snapshot for admin review
+- `created_at`, `updated_at` (TIMESTAMPTZ)
+
+**Indexes:** `(chapter_id, status)`, `(user_id, status)`; partial unique on `(user_id, chapter_id)` where `status = pending` (one open request per user per chapter).
+
+**RLS:** Enabled (`20260404223126_chapter_membership_requests_rls_tra569`). Authenticated: applicants **SELECT**/**INSERT** own rows (`user_id = auth.uid()`). Chapter exec **SELECT**/**UPDATE** rows for their `chapter_id` when `chapter_role` is president, vice_president, treasurer, or secretary (matches `CHAPTER_ADMIN_ROLES` in `lib/permissions.ts`). Platform `role = admin` **SELECT**/**UPDATE** all. `role = governance` **SELECT**/**UPDATE** rows where `chapter_id` is their home chapter or listed in `governance_chapters`. No **DELETE** policy for authenticated (use service role if needed). Service role bypasses RLS.
+
+**TypeScript:** `types/chapterMembershipRequests.ts` (`ChapterMembershipRequest`, `ChapterMembershipRequestStatus`, `ChapterMembershipRequestSource`).
 
 ### `recruits`
 Recruitment submissions.

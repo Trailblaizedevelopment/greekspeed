@@ -8,7 +8,7 @@ export interface Invitation {
   chapter_id: string;
   created_by: string;
   email_domain_allowlist: string[] | null;
-  approval_mode: 'auto'; 
+  approval_mode: ApprovalMode;
   single_use: boolean;
   expires_at: string | null;
   usage_count: number;

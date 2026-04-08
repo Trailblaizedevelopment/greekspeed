@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ProfilePdfUploader } from '@/components/features/onboarding/ProfilePdfUploader';
@@ -250,7 +251,7 @@ function LinkedInImportPageContent() {
       {/* Choice Step */}
       {currentStep === 'choice' && (
         <>
-          <Card>
+          <Card className={ONBOARDING_MAIN_CARD_CLASS}>
             <CardHeader className="text-center pb-2">
               <CardTitle className="flex items-center justify-center gap-2">
                 Import Your Profile
@@ -344,7 +345,7 @@ function LinkedInImportPageContent() {
 
       {/* Upload/Processing Step */}
       {currentStep === 'upload' && (
-        <Card>
+        <Card className={ONBOARDING_MAIN_CARD_CLASS}>
           <CardContent className="py-8">
             <div className="flex flex-col items-center text-center">
               <Loader2 className="h-12 w-12 animate-spin text-brand-primary mb-4" />
@@ -374,7 +375,7 @@ function LinkedInImportPageContent() {
 
       {/* Applying Step */}
       {currentStep === 'applying' && (
-        <Card>
+        <Card className={ONBOARDING_MAIN_CARD_CLASS}>
           <CardContent className="py-8">
             <div className="flex flex-col items-center text-center">
               <Loader2 className="h-12 w-12 animate-spin text-brand-primary mb-4" />

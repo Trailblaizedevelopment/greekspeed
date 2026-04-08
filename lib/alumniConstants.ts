@@ -404,3 +404,16 @@ export const minors = [
   "Statistics",
   "Theatre"
 ];
+
+export type IndustrySelectOption = { value: string; label: string };
+
+/** Curated industry list plus an empty row (value `""`) for clear / placeholder flows. */
+export function buildIndustrySelectOptions(emptyLabel: string): IndustrySelectOption[] {
+  return [{ value: '', label: emptyLabel }, ...industries.map((i) => ({ value: i, label: i }))];
+}
+
+/** Alumni directory filter: value "" means no industry filter. */
+export const alumniDirectoryIndustryFilterOptions: IndustrySelectOption[] = [
+  { value: '', label: 'All Industries' },
+  ...industries.map((i) => ({ value: i, label: i })),
+];

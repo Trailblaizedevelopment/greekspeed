@@ -344,12 +344,19 @@ export default function SignUpPage() {
                     <Info className="h-3 w-3 text-brand-accent mt-0.5 flex-shrink-0" />
                     <div>
                       <h3 className="font-medium text-accent-900 text-xs mb-1">Alumni Signup Only</h3>
-                      <p className="text-xs text-accent-800 mb-1">
-                        This signup form is for alumni only. Active members must be invited by chapter administrators.
-                      </p>
                       <div className="flex items-center space-x-1 text-xs text-accent-700">
                         <Users className="h-3 w-3" />
-                        <span>Need to join as an active member? Contact your chapter admin for an invitation.</span>
+                        <span>
+                          Need help joining as an active member?{' '}
+                          <a
+                            href="mailto:support@trailblaize.net"
+                            className="underline text-brand-accent hover:text-brand-primary transition-colors"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Contact Support
+                          </a>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -466,7 +473,7 @@ export default function SignUpPage() {
                               Sign me up for SMS so I get immediate chapter updates & notifcations.
                             </Label>
                             <p className="text-xs text-gray-500">
-                              Message frequency may vary. Standard Message and Data Rates may apply. Reply STOP to opt out. Reply HELP for help. Consent is not a condition of purchase. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.
+                              Message frequency may vary. Standard Message and Data Rates may apply.
                             </p>
                           </div>
                         </div>

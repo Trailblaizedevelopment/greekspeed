@@ -21,6 +21,8 @@ export const NOTIFICATION_TYPES = [
   'comment_like',
   'inactivity_reminder',
   'system_alert',
+  // TRA-593: OneSignal push to chapter reviewers on new membership request
+  'membership_request_admin',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

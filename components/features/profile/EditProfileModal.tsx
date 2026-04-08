@@ -19,7 +19,7 @@ import { useModal } from '@/lib/contexts/ModalContext';
 import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection';
 import type { DetectedChange } from './ProfileUpdatePromptModal';
 import { cn } from '@/lib/utils';
-import { getGraduationYears, industries, majors, minors } from '@/lib/alumniConstants';
+import { buildIndustrySelectOptions, getGraduationYears, majors, minors } from '@/lib/alumniConstants';
 import { UsernameInput } from './UsernameInput';
 import { generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
@@ -28,10 +28,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 
-const ALUMNI_INDUSTRY_OPTIONS = [
-  { value: '', label: 'Select Industry' },
-  ...industries.map((industry) => ({ value: industry, label: industry })),
-];
+const editProfileIndustryOptions = buildIndustrySelectOptions('Select Industry');
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -111,6 +108,8 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
   // Form ref for programmatic submission
   const formRef = useRef<HTMLFormElement>(null);
+  /** Portals SearchableSelect dropdown inside the drawer so Vaul modal focus trap does not block the search input. */
+  const selectDropdownPortalRef = useRef<HTMLDivElement>(null);
   const drawerContentRef = useRef<HTMLDivElement>(null);
 
   // Add loading state to prevent modal flicker
@@ -835,8 +834,9 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
           </button>
         </div>
 
-        {/* Scrollable Content Area */}
-        <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
+        {/* Outer host for portaled selects (must not use overflow-hidden clipping); inner div scrolls. */}
+        <div ref={selectDropdownPortalRef} className="relative flex min-h-0 flex-1 flex-col">
+          <div className={`min-h-0 flex-1 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
           <form ref={formRef} onSubmit={handleSubmit} className={isMobile ? 'space-y-4' : 'space-y-6'}>
             {/* Combined Profile Photo & Banner */}
             <div className={`relative ${isMobile ? 'h-32' : 'h-64'} overflow-hidden rounded-lg`}>
@@ -1049,11 +1049,12 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         <SearchableSelect
                           value={formData.industry || ''}
                           onValueChange={(value) => handleInputChange('industry', value)}
-                          options={ALUMNI_INDUSTRY_OPTIONS}
+                          options={editProfileIndustryOptions}
                           placeholder="Select Industry"
                           searchPlaceholder="Search industries..."
                           className="mt-1"
-                          portalContainerRef={drawerContentRef}
+                          allowCustom
+                          portalContainerRef={selectDropdownPortalRef}
                         />
                       </div>
                       <div>
@@ -1209,6 +1210,8 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         placeholder="Select Major"
                         searchPlaceholder="Search majors..."
                         className="mt-1"
+                        allowCustom
+                        portalContainerRef={selectDropdownPortalRef}
                       />
                     </div>
                     <div>
@@ -1220,6 +1223,8 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                         placeholder="Select Minor"
                         searchPlaceholder="Search minors..."
                         className="mt-1"
+                        allowCustom
+                        portalContainerRef={selectDropdownPortalRef}
                       />
                     </div>
                   </div>
@@ -1329,6 +1334,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
             {/* Remove the old alumni-specific sections that were at the bottom */}
           </form>
+          </div>
         </div>
 
         {/* Enhanced Footer with Save Options */}

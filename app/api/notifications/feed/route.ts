@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
+import type { ProfileForPermission } from '@/lib/permissions';
+import {
+  getManageableChapterIdsForMembershipFeed,
+  listPendingMembershipRequestsForFeed,
+} from '@/lib/services/membershipRequestFeedService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,10 +17,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    // Get user's profile to get chapter_id
+    // Get user's profile (chapter + roles for chapter-scoped feed items)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id')
+      .select('chapter_id, role, chapter_role')
       .eq('id', userId)
       .single();
 
@@ -61,6 +66,54 @@ export async function GET(request: NextRequest) {
           read: false
         });
       });
+    }
+
+    // 1b. Pending chapter membership requests (review queue) — TRA-592
+    const manageableChapterIds = await getManageableChapterIdsForMembershipFeed(
+      supabase,
+      userId,
+      profile as ProfileForPermission
+    );
+    if (manageableChapterIds.length > 0) {
+      const pendingMembershipRows = await listPendingMembershipRequestsForFeed(
+        supabase,
+        manageableChapterIds,
+        20
+      );
+      for (const row of pendingMembershipRows) {
+        const applicantRel = Array.isArray(row.applicant) ? row.applicant[0] : row.applicant;
+        const chapterRel = Array.isArray(row.chapter) ? row.chapter[0] : row.chapter;
+        const nameParts = [applicantRel?.first_name, applicantRel?.last_name]
+          .map((s) => s?.trim())
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        const displayName =
+          row.applicant_full_name?.trim() ||
+          applicantRel?.full_name?.trim() ||
+          nameParts ||
+          applicantRel?.first_name?.trim() ||
+          'Someone';
+        const chapterName = chapterRel?.name?.trim() || 'your chapter';
+
+        notifications.push({
+          id: `membership-request-${row.id}`,
+          type: 'membership_request',
+          title: 'Membership request',
+          message: `requested to join ${chapterName}`,
+          actionUrl: `/dashboard/requests?request=${encodeURIComponent(row.id)}`,
+          timestamp: row.created_at,
+          metadata: {
+            requestId: row.id,
+            chapterId: row.chapter_id,
+            chapterName,
+            requesterName: displayName,
+            requesterAvatar: applicantRel?.avatar_url ?? null,
+            requesterId: row.user_id,
+          },
+          read: false,
+        });
+      }
     }
 
     // 2. Get recent connection accepted notifications

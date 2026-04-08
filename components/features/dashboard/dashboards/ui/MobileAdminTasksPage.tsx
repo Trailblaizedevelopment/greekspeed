@@ -706,25 +706,20 @@ export function MobileAdminTasksPage() {
 
   if (!chapterId) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-4 pb-20 px-4">
-        <div className="max-w-md mx-auto">
-          <div className="text-center py-8 text-gray-500">
-            <CheckSquare className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-lg font-medium mb-2">No Chapter Access</p>
-            <p className="text-sm">You need to be associated with a chapter to manage tasks.</p>
-          </div>
+      <div className="min-h-screen w-full max-w-none bg-gray-50 pt-4 pb-20 px-0">
+        <div className="text-center py-8 text-gray-500">
+          <CheckSquare className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+          <p className="text-lg font-medium mb-2">No Chapter Access</p>
+          <p className="text-sm">You need to be associated with a chapter to manage tasks.</p>
         </div>
       </div>
     );
   }
 
   return (
-
-    <div className="min-h-screen bg-gray-50 pt-0 pb-20 px-4">
-      <div className="max-w-md mx-auto">
-
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+    <div className="min-h-screen w-full max-w-none bg-gray-50 pt-0 pb-20 px-0">
+      {/* Full width of parent padded column (AdminOverview); no max-w-md gutter */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className={cn(
             "grid w-full mb-2 h-11 bg-transparent p-0 rounded-none border-b border-gray-200",
             recruitmentCrmEnabled ? "grid-cols-3" : "grid-cols-2"
@@ -1138,11 +1133,6 @@ export function MobileAdminTasksPage() {
             <TabsContent value="recruits" className="space-y-4">
               {/* Header Section */}
               <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <UserPlus className="h-5 w-5 text-brand-primary" />
-                  <h2 className="text-lg font-semibold text-gray-900">Manage Recruits</h2>
-                </div>
-
                 {/* Search Bar */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1497,7 +1487,6 @@ export function MobileAdminTasksPage() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

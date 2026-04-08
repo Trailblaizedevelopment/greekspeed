@@ -12,6 +12,7 @@ import {
 import { AlumniIntelligence } from '@/components/features/governance/AlumniIntelligence';
 import { ChapterHealthTable } from '@/components/features/governance/ChapterHealthTable';
 import { GovernanceBroadcastHub } from '@/components/features/governance/GovernanceBroadcastHub';
+import { EmbeddedMembershipRequestsSection } from '@/components/features/dashboard/EmbeddedMembershipRequestsSection';
 import { useNetworkKpis } from '@/lib/hooks/useNetworkKpis';
 import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -130,6 +131,10 @@ export function GovernanceOverview() {
         </div>
 
         <GovernanceBroadcastHub />
+
+        <div className="mt-8 border-t border-stone-200 pt-8">
+          <EmbeddedMembershipRequestsSection />
+        </div>
       </div>
 
       <MobileBottomNavigation />

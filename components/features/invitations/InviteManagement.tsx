@@ -1,7 +1,25 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Plus, Copy, Eye, Edit, Trash2, Users, Calendar, Shield, Link, AlertCircle, X, Table, Loader2, Check, Share2 } from 'lucide-react';
+import {
+  Plus,
+  Copy,
+  Eye,
+  Edit,
+  Trash2,
+  Users,
+  Calendar,
+  Shield,
+  AlertCircle,
+  X,
+  Table,
+  Loader2,
+  Check,
+  Share2,
+  ChevronRight,
+  UserCheck,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,13 +29,26 @@ import { InvitationWithUsage } from '@/types/invitations';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'react-toastify';
 import { generateInvitationUrl, generateChapterJoinUrl } from '@/lib/utils/invitationUtils';
+import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useActiveChapter } from '@/lib/contexts/ActiveChapterContext';
+import { canSeeMembershipRequestsNav } from '@/lib/utils/membershipRequestsAccess';
+import type { ProfileForPermission } from '@/lib/permissions';
+import { cn } from '@/lib/utils';
 
 interface InviteManagementProps {
   chapterId: string;
   className?: string;
 }
 
+function invitationApprovalLabel(
+  approvalMode: InvitationWithUsage['approval_mode'] | undefined
+): string {
+  return approvalMode === 'pending' ? 'Requires chapter approval' : 'Auto-approve';
+}
+
 export function InviteManagement({ chapterId, className }: InviteManagementProps) {
+  const { profile, isDeveloper } = useProfile();
+  const { activeChapterId } = useActiveChapter();
   const [invitations, setInvitations] = useState<InvitationWithUsage[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -26,6 +57,12 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
   const [showUsageModal, setShowUsageModal] = useState<InvitationWithUsage | null>(null);
   const [chapterSlug, setChapterSlug] = useState<string | null>(null);
   const [chapterJoinLinkCopied, setChapterJoinLinkCopied] = useState(false);
+
+  const permissionProfile = profile as ProfileForPermission | undefined;
+  const showMembershipRequestsCta = canSeeMembershipRequestsNav(permissionProfile, {
+    isDeveloper,
+    activeChapterId,
+  });
 
   useEffect(() => {
     const fetchChapterSlug = async () => {
@@ -300,7 +337,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
                     
                     <div className="flex items-center space-x-1">
                       <Shield className="h-4 w-4" />
-                      <span>Auto-approve</span>
+                      <span>{invitationApprovalLabel(invitation.approval_mode)}</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
@@ -375,10 +412,14 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
               </div>
               
               {/* Stats row - aligned with invitation ID */}
-              <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 mb-2">
                 <div className="flex items-center space-x-1">
                   <Users className="h-3 w-3" />
                   <span>{invitation.usage.length} uses</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Shield className="h-3 w-3" />
+                  <span>{invitationApprovalLabel(invitation.approval_mode)}</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Calendar className="h-3 w-3" />
@@ -507,6 +548,42 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
     );
   };
 
+  const renderPendingJoinRequestsCta = (variant: 'desktop' | 'mobile') => {
+    if (!showMembershipRequestsCta) return null;
+    return (
+      <Link
+        href="/dashboard/requests"
+        className={cn(
+          'group mb-4 rounded-xl border border-primary-100/70 bg-gradient-to-r from-primary-50/90 to-white px-4 py-3 shadow-sm transition-all duration-200 hover:border-brand-primary/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/25',
+          variant === 'desktop'
+            ? 'hidden md:flex items-center justify-between gap-3'
+            : 'flex md:hidden items-center justify-between gap-3'
+        )}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary-100/80 bg-white shadow-sm">
+            <UserCheck className="h-5 w-5 text-brand-primary" aria-hidden />
+          </div>
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-semibold text-gray-900">
+              Review pending join requests{' '}
+              <span className="text-brand-primary" aria-hidden>
+                →
+              </span>
+            </p>
+            <p className="text-xs text-gray-600 mt-0.5">
+              Marketing signups and invitations awaiting chapter approval
+            </p>
+          </div>
+        </div>
+        <ChevronRight
+          className="h-5 w-5 shrink-0 text-gray-400 transition-transform group-hover:translate-x-0.5"
+          aria-hidden
+        />
+      </Link>
+    );
+  };
+
   return (
     <div className={className}>
       {/* Desktop: Use Card wrapper */}
@@ -540,6 +617,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
           </div>
         </CardHeader>
         <CardContent className="pt-4">
+          {renderPendingJoinRequestsCta('desktop')}
           {renderChapterJoinLinkWidget()}
           {renderInvitationsContent()}
         </CardContent>
@@ -550,7 +628,6 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
         {/* Mobile Header */}
         <div className="px-4 pb-4 border-b border-gray-200">
           <div className="flex items-center space-x-3 mb-3">
-            <Users className="h-6 w-6 text-brand-accent flex-shrink-0" />
             <h2 className="text-lg font-semibold text-primary-900 whitespace-nowrap overflow-hidden text-ellipsis">
               Invitation Management
             </h2>
@@ -578,6 +655,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
 
         {/* Mobile Content */}
         <div className="pt-4 px-4">
+          {renderPendingJoinRequestsCta('mobile')}
           {renderChapterJoinLinkWidget()}
           {renderInvitationsContent()}
         </div>
@@ -691,13 +769,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
         />
       )}
 
-      {/* Settings Modal */}
-      {showSettings && (
-        <InviteSettings
-          chapterId={chapterId}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
+      <InviteSettings open={showSettings} onOpenChange={setShowSettings} />
     </div>
   );
 }

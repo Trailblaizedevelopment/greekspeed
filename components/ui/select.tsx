@@ -116,6 +116,27 @@ const findTriggerContent = (children: React.ReactNode): { icon?: React.ReactNode
   return { icon, placeholder };
 };
 
+/** True if this element can scroll on at least one axis (nested drawers, modals, page). */
+function isScrollableElement(el: HTMLElement): boolean {
+  const style = window.getComputedStyle(el);
+  const combined = `${style.overflow}${style.overflowY}${style.overflowX}`;
+  if (!/(auto|scroll|overlay)/i.test(combined)) return false;
+  return el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+}
+
+/** Walk up from the trigger and collect ancestors that have their own scroll (Vaul drawers, overflow panels, etc.). */
+function collectScrollParents(start: HTMLElement | null): HTMLElement[] {
+  const parents: HTMLElement[] = [];
+  let el: HTMLElement | null = start;
+  while (el) {
+    if (isScrollableElement(el)) {
+      parents.push(el);
+    }
+    el = el.parentElement;
+  }
+  return parents;
+}
+
 export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
   ({ value, onValueChange, placeholder, children, className, disableDynamicPositioning = false, disabled = false, ...props }, ref) => {
     const [isOpen, setIsOpen] = React.useState(false);
@@ -168,7 +189,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
           if (selectRef.current && dropdownRef.current) {
             const rect = selectRef.current.getBoundingClientRect();
             const viewportWidth = window.innerWidth;
-            
+
             if (disableDynamicPositioning) {
               // Simple positioning: always below, no dynamic behavior
               dropdownRef.current.style.top = `${rect.bottom + 4}px`;
@@ -179,27 +200,27 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
             } else {
               // Existing dynamic positioning logic
               const viewportHeight = window.innerHeight;
-              
+
               // Calculate available space
               const spaceBelow = viewportHeight - rect.bottom;
               const spaceAbove = rect.top;
               const maxDropdownHeight = 240; // max-h-60 = 240px
               const minDropdownHeight = 100; // Minimum height to show at least a few items
               const padding = 8; // Padding from viewport edges
-              
+
               // Determine if we should open upward
               // Open upward if there's more space above OR if space below is insufficient
               const shouldOpenUpward = spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow;
-              
+
               let topPosition: number;
               let maxHeight: number;
-              
+
               if (shouldOpenUpward) {
                 // Position above the trigger
                 const availableHeight = spaceAbove - padding;
                 maxHeight = Math.min(maxDropdownHeight, Math.max(minDropdownHeight, availableHeight));
                 topPosition = rect.top - maxHeight - 4;
-                
+
                 // Ensure we don't go above the viewport
                 if (topPosition < padding) {
                   topPosition = padding;
@@ -210,13 +231,13 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                 const availableHeight = spaceBelow - padding;
                 maxHeight = Math.min(maxDropdownHeight, Math.max(minDropdownHeight, availableHeight));
                 topPosition = rect.bottom + 4;
-                
+
                 // Ensure we don't go below the viewport
                 if (topPosition + maxHeight > viewportHeight - padding) {
                   maxHeight = viewportHeight - topPosition - padding;
                 }
               }
-              
+
               // Set position and size
               dropdownRef.current.style.top = `${topPosition}px`;
               dropdownRef.current.style.left = `${Math.max(padding, Math.min(rect.left, viewportWidth - rect.width - padding))}px`;
@@ -226,25 +247,45 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
             }
           }
         };
-        
-        // Initial position
-        // Use requestAnimationFrame to ensure DOM is ready
-        requestAnimationFrame(() => {
-          updatePosition();
+
+        const scheduleMeasure = () => {
+          requestAnimationFrame(() => {
+            updatePosition();
+            requestAnimationFrame(() => {
+              updatePosition();
+              queueMicrotask(() => updatePosition());
+            });
+          });
+        };
+
+        scheduleMeasure();
+
+        const scrollParents = collectScrollParents(selectRef.current);
+        scrollParents.forEach((el) => {
+          el.addEventListener("scroll", updatePosition, { passive: true });
         });
-        
-        // Update on scroll/resize
-        // Always listen to scroll and resize to keep dropdown aligned with field
-        window.addEventListener('scroll', updatePosition, true);
-        window.addEventListener('resize', updatePosition);
-        
-        // Also listen to touchmove for mobile scrolling
-        window.addEventListener('touchmove', updatePosition, { passive: true });
-        
+
+        window.addEventListener("scroll", updatePosition, true);
+        window.addEventListener("resize", updatePosition);
+        window.addEventListener("touchmove", updatePosition, { passive: true });
+
+        const vv = typeof window !== "undefined" ? window.visualViewport : null;
+        if (vv) {
+          vv.addEventListener("resize", updatePosition);
+          vv.addEventListener("scroll", updatePosition);
+        }
+
         return () => {
-          window.removeEventListener('scroll', updatePosition, true);
-          window.removeEventListener('resize', updatePosition);
-          window.removeEventListener('touchmove', updatePosition);
+          scrollParents.forEach((el) => {
+            el.removeEventListener("scroll", updatePosition);
+          });
+          window.removeEventListener("scroll", updatePosition, true);
+          window.removeEventListener("resize", updatePosition);
+          window.removeEventListener("touchmove", updatePosition);
+          if (vv) {
+            vv.removeEventListener("resize", updatePosition);
+            vv.removeEventListener("scroll", updatePosition);
+          }
         };
       }
     }, [isOpen, disableDynamicPositioning]);

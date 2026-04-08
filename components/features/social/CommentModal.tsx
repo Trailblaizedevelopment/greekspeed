@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { motion } from 'framer-motion';
 import { X, Heart, MessageCircle, Trash2, Send, ChevronLeft, ChevronRight, Reply, ChevronDown, ChevronUp } from 'lucide-react';
 import { PostActionsMenu } from './PostActionsMenu';
-import { Post, PostComment } from '@/types/posts';
+import { Post, PostComment, MentionData } from '@/types/posts';
+import { MentionText } from './MentionText';
 import { useComments } from '@/lib/hooks/useComments';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useProfileModal } from '@/lib/contexts/ProfileModalContext';
@@ -23,6 +24,7 @@ import { useLayoutEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { toast } from 'react-toastify';
 import { ExpandableCommentText } from './ExpandableCommentText';
+import MentionTextarea, { type MentionTextareaHandle } from './MentionTextarea';
 
 interface CommentModalProps {
   isOpen: boolean;
@@ -99,7 +101,7 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
   const { profile } = useProfile();
   const { isProfileModalOpen } = useProfileModal();
   const { getAuthHeaders } = useAuth();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<MentionTextareaHandle>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const commentsScrollRef = useRef<HTMLDivElement | null>(null);
   const scrollContentRef = useRef<HTMLDivElement | null>(null);
@@ -318,7 +320,7 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
     const input = textareaRef.current;
     if (!input) return;
     input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    input.focus({ preventScroll: true });
+    input.focus();
     const len = input.value.length;
     input.setSelectionRange(len, len);
   }, []);
@@ -344,8 +346,13 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
 
   // Auto-resize main comment textarea when content changes
   useEffect(() => {
-    resizeTextarea(textareaRef.current, MAX_COMMENT_INPUT_HEIGHT, MIN_COMMENT_INPUT_HEIGHT);
-  }, [newComment, resizeTextarea]);
+    const handle = textareaRef.current;
+    if (!handle?.style) return;
+    handle.style.height = 'auto';
+    const newHeight = Math.max(MIN_COMMENT_INPUT_HEIGHT, Math.min(handle.scrollHeight, MAX_COMMENT_INPUT_HEIGHT));
+    handle.style.height = `${newHeight}px`;
+    handle.style.overflowY = newHeight >= MAX_COMMENT_INPUT_HEIGHT ? 'auto' : 'hidden';
+  }, [newComment]);
 
   // Auto-resize active reply textarea when its content changes
   useEffect(() => {
@@ -433,25 +440,23 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
     });
   };
 
-  // Render post content with link parsing and preview cards (for modal display)
+  // Render post content with link parsing, @mentions, and preview cards (for modal display)
   const renderPostContentInModal = () => {
     if (!post.content) return null;
 
-    // Get URLs that have previews - we'll hide these from the content
     const previewUrls = new Set(
       (post.metadata?.link_previews || []).map((preview: any) => preview.url),
     );
+    const mentions: MentionData[] | undefined = post.metadata?.mentions;
 
-    // Convert URLs to clickable links, but skip URLs that have previews
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const contentWithLinks = post.content
       .split(urlRegex)
       .map((part, i) => {
         if (part.match(urlRegex)) {
           const cleanUrl = part.replace(/[.,;:!?]+$/, '');
-          // If this URL has a preview card, don't render it as a link
           if (previewUrls.has(cleanUrl)) {
-            return null; // Hide URLs that have preview cards
+            return null;
           }
           return (
             <a
@@ -466,16 +471,17 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
             </a>
           );
         }
-        return <span key={i}>{part}</span>;
+        return (
+          <MentionText key={i} content={part} mentions={mentions} />
+        );
       })
-      .filter(Boolean); // Remove null entries
+      .filter(Boolean);
 
     return (
       <div className="space-y-2">
         <p className="text-slate-800 text-sm sm:text-base leading-relaxed break-words whitespace-pre-wrap">
           {contentWithLinks}
         </p>
-        {/* Link Preview Cards */}
         {post.metadata?.link_previews && post.metadata.link_previews.length > 0 && (
           <div className="space-y-2 mt-2">
             {post.metadata.link_previews.map(
@@ -494,25 +500,23 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
     );
   };
 
-  // Render comment content with link parsing and preview cards
+  // Render comment content with link parsing, @mentions, and preview cards
   const renderCommentContent = (comment: PostComment) => {
     if (!comment.content) return null;
 
-    // Get URLs that have previews - we'll hide these from the content
     const previewUrls = new Set(
       (comment.metadata?.link_previews || []).map((preview: any) => preview.url),
     );
+    const mentions: MentionData[] | undefined = comment.metadata?.mentions;
 
-    // Convert URLs to clickable links, but skip URLs that have previews
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const contentWithLinks = comment.content
       .split(urlRegex)
       .map((part, i) => {
         if (part.match(urlRegex)) {
           const cleanUrl = part.replace(/[.,;:!?]+$/, '');
-          // If this URL has a preview card, don't render it as a link
           if (previewUrls.has(cleanUrl)) {
-            return null; // Hide URLs that have preview cards
+            return null;
           }
           return (
             <a
@@ -527,16 +531,17 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
             </a>
           );
         }
-        return <span key={i}>{part}</span>;
+        return (
+          <MentionText key={i} content={part} mentions={mentions} />
+        );
       })
-      .filter(Boolean); // Remove null entries
+      .filter(Boolean);
 
     return (
       <div className="space-y-2">
         <p className="text-slate-900 text-sm sm:text-base leading-relaxed break-words whitespace-pre-wrap">
           {contentWithLinks}
         </p>
-        {/* Link Preview Cards */}
         {comment.metadata?.link_previews && comment.metadata.link_previews.length > 0 && (
           <div className="space-y-2 mt-2">
             {comment.metadata.link_previews.map(
@@ -1121,11 +1126,12 @@ export function CommentModal({ isOpen, onClose, post, onLike, onCommentAdded, on
             </div>
             
             <div className="flex-1 min-w-0">
-              <Textarea
+              <MentionTextarea
                 ref={textareaRef}
                 placeholder="Write a comment..."
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                onChange={setNewComment}
+                chapterId={profile?.chapter_id ?? undefined}
                 onKeyPress={handleKeyPress}
                 onFocus={handleCommentInputFocus}
                 className="min-h-[48px] sm:min-h-[52px] max-h-[200px] resize-none overflow-y-hidden rounded-2xl border border-transparent bg-white/80 px-4 py-3 text-sm sm:text-base text-slate-800 placeholder:text-slate-400 focus:border-primary-300 focus:bg-white focus:ring-2 focus:ring-primary-200 transition"

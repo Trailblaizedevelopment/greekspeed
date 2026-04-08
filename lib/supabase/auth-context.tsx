@@ -258,6 +258,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 role: normalizedRole,
                 phone: profileData?.phone || null,
                 sms_consent: profileData?.smsConsent || false,
+                // TRA-576: /sign-up passes profileData — enables POST /api/chapter-membership-requests
+                ...(profileData ? { signup_channel: 'marketing_alumni' as const } : {}),
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               },
