@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingUp, Users, AlertTriangle, CheckCircle, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, TrendingUp, Users, AlertTriangle, CheckCircle, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight, Link2, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectItem, SelectContent } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProfile } from "@/lib/contexts/ProfileContext";
-import { createClient } from '@supabase/supabase-js';
+import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
+import { supabase } from '@/lib/supabase/client';
 import { QuickActions, QuickAction } from '@/components/features/dashboard/dashboards/ui/QuickActions';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 interface DuesCycle {
   id: string;
@@ -32,6 +28,7 @@ interface DuesCycle {
   status: string;
   allow_payment_plans: boolean;
   created_at: string;
+  crowded_collection_id?: string | null;
 }
 
 interface DuesAssignment {
@@ -124,6 +121,8 @@ const exportDuesToCSV = (assignments: DuesAssignment[], filename: string = "dues
 
 export function TreasurerDashboard() {
   const { profile } = useProfile();
+  const { enabled: crowdedIntegrationEnabled, loading: crowdedFlagLoading } =
+    useFeatureFlag('crowded_integration_enabled');
   const [selectedTab, setSelectedTab] = useState("overview");
   const [cycles, setCycles] = useState<DuesCycle[]>([]);
   const [assignments, setAssignments] = useState<DuesAssignment[]>([]);
@@ -155,6 +154,7 @@ export function TreasurerDashboard() {
     status: 'required' as 'required' | 'exempt' | 'reduced' | 'waived',
     notes: ''
   });
+  const [linkingCrowdedCycleId, setLinkingCrowdedCycleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.chapter_id) {
@@ -241,21 +241,118 @@ export function TreasurerDashboard() {
     }
   };
 
+  const handleLinkCrowdedCollection = async (cycle: DuesCycle) => {
+    const chapterId = profile?.chapter_id?.trim();
+    if (!chapterId) {
+      alert('Your profile is not linked to a chapter.');
+      return;
+    }
+    const base = Number(cycle.base_amount);
+    if (!Number.isFinite(base) || base < 0) {
+      alert('This cycle has an invalid base amount; fix it before linking Crowded.');
+      return;
+    }
+    const requestedAmount = Math.max(1, Math.round(base * 100));
+    setLinkingCrowdedCycleId(cycle.id);
+    try {
+      const createRes = await fetch(`/api/chapters/${chapterId}/crowded/collections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: cycle.name || 'Dues',
+          requestedAmount,
+        }),
+      });
+      const createJson = (await createRes.json().catch(() => null)) as {
+        data?: { id?: string };
+        error?: string;
+      } | null;
+      if (!createRes.ok) {
+        console.error('Crowded create collection failed:', createRes.status, createJson);
+        alert(createJson?.error || `Could not create Crowded collection (${createRes.status})`);
+        return;
+      }
+      const collectionId = createJson?.data?.id;
+      if (!collectionId || typeof collectionId !== 'string') {
+        alert('Crowded did not return a collection id. Check server logs.');
+        return;
+      }
+      const patchRes = await fetch(`/api/dues/cycles/${cycle.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ crowded_collection_id: collectionId }),
+      });
+      const patchJson = (await patchRes.json().catch(() => null)) as { error?: string; details?: string } | null;
+      if (!patchRes.ok) {
+        console.error('PATCH dues cycle failed:', patchRes.status, patchJson);
+        alert(patchJson?.error || patchJson?.details || `Could not save collection on cycle (${patchRes.status})`);
+        return;
+      }
+      await loadDuesData();
+    } catch (e) {
+      console.error('Link Crowded collection error:', e);
+      alert('Could not link Crowded collection. Check your connection and try again.');
+    } finally {
+      setLinkingCrowdedCycleId(null);
+    }
+  };
+
+  const handleUnlinkCrowdedCollection = async (cycle: DuesCycle) => {
+    if (!window.confirm('Remove Crowded collection from this cycle? Members will not be able to pay this cycle online until you link again.')) {
+      return;
+    }
+    setLinkingCrowdedCycleId(cycle.id);
+    try {
+      const patchRes = await fetch(`/api/dues/cycles/${cycle.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ crowded_collection_id: null }),
+      });
+      const patchJson = (await patchRes.json().catch(() => null)) as { error?: string } | null;
+      if (!patchRes.ok) {
+        alert(patchJson?.error || `Could not unlink (${patchRes.status})`);
+        return;
+      }
+      await loadDuesData();
+    } catch (e) {
+      console.error('Unlink Crowded error:', e);
+      alert('Could not unlink. Try again.');
+    } finally {
+      setLinkingCrowdedCycleId(null);
+    }
+  };
+
   const handleCreateCycle = async () => {
+    if (!profile?.chapter_id?.trim()) {
+      alert('Your profile is not linked to a chapter. Cannot create a dues cycle.');
+      return;
+    }
     try {
       const response = await fetch('/api/dues/cycles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCycle)
+        credentials: 'include',
+        body: JSON.stringify({
+          ...newCycle,
+          chapterId: profile.chapter_id,
+        }),
       });
 
       if (response.ok) {
         setShowCreateCycle(false);
         setNewCycle({ name: '', base_amount: 0, due_date: '', allow_payment_plans: false });
         loadDuesData();
+      } else {
+        const errBody = (await response.json().catch(() => null)) as { error?: string } | null;
+        console.error('Create dues cycle failed:', response.status, errBody);
+        alert(errBody?.error || `Could not create cycle (${response.status})`);
       }
     } catch (error) {
       console.error('Error creating cycle:', error);
+      alert('Could not create cycle. Check your connection and try again.');
     }
   };
 
@@ -653,6 +750,7 @@ export function TreasurerDashboard() {
 
       {/* Tab Content */}
       {selectedTab === "overview" && (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
           {/* Desktop Layout - Dues Collection Progress (2/3 width) */}
           <Card className="hidden lg:block lg:col-span-2 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
@@ -744,6 +842,88 @@ export function TreasurerDashboard() {
             />
           </div>
         </div>
+
+        {!crowdedFlagLoading && crowdedIntegrationEnabled && profile?.chapter_id && (
+          <Card className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
+            <CardHeader className="border-b border-primary-100/30">
+              <CardTitle className="text-primary-900 flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-brand-primary" />
+                Crowded checkout
+              </CardTitle>
+              <p className="text-sm text-gray-600 mt-1">
+                Create a Crowded collection for a cycle and save it so members can pay online from Dues. Requires chapter Crowded linking and the crowded integration feature flag.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3">
+              {cycles.length === 0 ? (
+                <p className="text-sm text-gray-500">Create a dues cycle first, then link it here.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {cycles.map((cycle) => (
+                    <li
+                      key={cycle.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-gray-100 rounded-lg p-3"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-900">{cycle.name}</p>
+                        <p className="text-xs text-gray-500">
+                          ${Number(cycle.base_amount).toFixed(2)} · Due{' '}
+                          {new Date(cycle.due_date).toLocaleDateString()}
+                        </p>
+                        {cycle.crowded_collection_id ? (
+                          <Badge variant="outline" className="mt-1 text-green-700 border-green-200 bg-green-50">
+                            Linked
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="mt-1 text-amber-700 border-amber-200 bg-amber-50">
+                            Not linked
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {!cycle.crowded_collection_id ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={linkingCrowdedCycleId !== null}
+                            onClick={() => handleLinkCrowdedCollection(cycle)}
+                          >
+                            {linkingCrowdedCycleId === cycle.id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                Linking…
+                              </>
+                            ) : (
+                              <>
+                                <Link2 className="h-4 w-4 mr-1" />
+                                Create and link collection
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                            disabled={linkingCrowdedCycleId !== null}
+                            onClick={() => handleUnlinkCrowdedCollection(cycle)}
+                          >
+                            {linkingCrowdedCycleId === cycle.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'Unlink'
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        )}
+        </>
       )}
 
       {selectedTab === "members" && (

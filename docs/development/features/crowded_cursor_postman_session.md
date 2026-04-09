@@ -54,6 +54,48 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 
 ---
 
+## App ↔ Crowded E2E — manual verification (Apr 2026)
+
+**Linear tracking:** [TRA-605](https://linear.app/trailblaize/issue/TRA-605) (Devin × Cursor milestone) and related dues/Crowded issues.
+
+### What we confirmed end-to-end (Trailblaize local + Crowded **staging**)
+
+| Step | Result |
+|------|--------|
+| Chapter config | `crowded_integration_enabled` + `chapters.crowded_chapter_id` + server `CROWDED_API_*` env. |
+| Treasurer — dues cycle | Create cycle via API/UI; RLS aligned with `canManageChapterForContext` (migration `20260408193000_dues_cycles_rls_unified_writes.sql`). |
+| Treasurer — link collection | **Crowded checkout** card on Exec Admin → Dues (Overview): `POST /api/chapters/[id]/crowded/collections` then **`PATCH /api/dues/cycles/[id]`** persists `dues_cycles.crowded_collection_id`. |
+| Treasurer — assign member | Bulk (or single) assign with **cycle id + amount &gt; 0** → `POST /api/dues/assignments` **200**. |
+| Member — dues page | `/dashboard/dues` loads assignments with embedded cycle (**shared `createBrowserClient`** + `unwrapDuesCycleEmbed` in `lib/utils/duesEmbeds.ts`; fixes null `cycle` / **Invalid Date**). |
+| Member — pay | Consent + **`POST /api/dues/pay`** **200** → redirect to **`https://staging.collect.crowdedme.xyz/collection/{collectionId}?collectintentuuid=…`**. |
+| Crowded portal | **`staging.portal.crowdedme.xyz`**: collection appears (e.g. **Crowded Cycle Two**); contact shows **Collect request** (Not Paid); dashboard feed; **email notifications** observed when flows run. |
+
+**Staging hosts (reference):** Collect checkout **`staging.collect.crowdedme.xyz`**; org portal **`staging.portal.crowdedme.xyz`**. These are **not** production money movement; use Crowded’s guidance for test cards / ACH in staging (arbitrary PANs may show *card type not accepted*).
+
+### What is **not** the full closed loop yet
+
+| Gap | Why it matters |
+|-----|----------------|
+| **No Crowded → Trailblaize webhook** | **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** not implemented. Paying on Collect does **not** automatically update `dues_assignments`, `profiles.current_dues_amount`, or `payments_ledger` in Supabase. |
+| **Success URL is UI-only** | `?success=true` on `/dashboard/dues` triggers a refetch only; data stays stale until something writes the DB. |
+| **Stripe / fallback** | Still not in repo for dues pay when Crowded is off. |
+| **Treasurer UX polish** | Bulk assign must use **positive amount** (API validation); optional UX hardening tracked under **[TRA-417](https://linear.app/trailblaize/issue/TRA-417)**. |
+
+**Bottom line:** The integration **does** handle **discovery → assign → member checkout handoff** on staging. It does **not** yet handle **post-payment reconciliation** in Trailblaize without new work (webhook + sync service, **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)**).
+
+### Code map (dues ↔ Crowded path)
+
+| Area | Path |
+|------|------|
+| Cycles API (session cookies) | `app/api/dues/cycles/route.ts`, `app/api/dues/cycles/[id]/route.ts` |
+| Member pay | `app/api/dues/pay/route.ts` |
+| Create collection | `app/api/chapters/[id]/crowded/collections/route.ts` |
+| Treasurer UI | `app/dashboard/admin/executive/TreasurerDashboard.tsx` |
+| Member UI | `app/dashboard/dues/DuesClient.tsx`, `components/features/dashboard/dashboards/ui/DuesStatusCard.tsx` |
+| Cycle embed helpers | `lib/utils/duesEmbeds.ts` |
+
+---
+
 ## Crowded base URLs (reference)
 
 | URL | Notes |
@@ -534,9 +576,9 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | [TRA-412](https://linear.app/trailblaize/issue/TRA-412) | Account management API methods | Done | `listAccounts` (unwrap + sync) proven in smoke; `getAccount` implemented but Crowded may reject list `id` on single GET — confirm with Crowded; `syncCrowdedAccounts.ts` upserts from **list** |
 | [TRA-413](https://linear.app/trailblaize/issue/TRA-413) | Chapter account creation (bulk) | Done | **`bulkCreateAccounts`** + types/Zod/tests + optional bulk API route; Postman **200** ([Pass 2](#bulk-create-accounts--verified-sandbox-apr-2026)) |
 | [TRA-414](https://linear.app/trailblaize/issue/TRA-414) | Collections + intents | Done | **`createCollection`**, **`getCollection`**, **`createIntent`**, **`getCrowdedIntentPaymentUrl`**; types + Zod; `crowded-client.collections.test.ts`; routes `POST …/crowded/collections`, `POST …/crowded/collections/[collectionId]/intents`; `resolveCrowdedChapterApiContext` shared with bulk accounts. |
-| [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | In Review | **`POST /api/dues/pay`** (member session); `dues_cycles.crowded_collection_id`; `listContacts` + **`matchCrowdedContactForProfile`** (email, name tie-break); `createIntent` + `paymentUrl`; return URLs `…/dashboard/dues?success=true` & `canceled=true`; **`DuesClient`** consent + redirect. **503** `ONLINE_DUES_UNAVAILABLE` when Crowded not fully configured; **Stripe fallback** not in repo yet. Migration `20260409120000_*`. |
-| [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** — no `/api/webhooks/crowded` |
-| [TRA-417](https://linear.app/trailblaize/issue/TRA-417) | Treasurer balance UI | Backlog | **Not implemented** — depends on live `GET …/accounts` + sync story |
+| [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | **Verified manual E2E** (Apr 2026) | **`POST /api/dues/pay`** + member redirect to **staging Collect** confirmed. **`PATCH /api/dues/cycles/[id]`** + treasurer **Crowded checkout** card link `crowded_collection_id`. **`DuesClient` / `DuesStatusCard`**: shared Supabase browser client + **`duesEmbeds`** unwrap. **503** `ONLINE_DUES_UNAVAILABLE` when misconfigured; **Stripe fallback** not in repo. Migration `20260409120000_*`. **Post-pay DB sync still out of scope** until webhooks. |
+| [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** — no `/api/webhooks/crowded` — **blocks closed-loop paid status in Trailblaize** |
+| [TRA-417](https://linear.app/trailblaize/issue/TRA-417) | Treasurer balance UI | Backlog | **Partial:** Crowded link + dues cycles on **TreasurerDashboard**; full balances / **`GET …/accounts`** UI still **not implemented** |
 | [TRA-418](https://linear.app/trailblaize/issue/TRA-418) | Payment sync service | Backlog | **Not implemented** — `crowded_transactions` table exists; no sync job |
 
 **Revisit later (implementation notes)**
@@ -546,7 +588,7 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 3. **TRA-414 — Collections / intents:** **Done** — `createCollection`, `getCollection`, `createIntent`, `getCrowdedIntentPaymentUrl`; `resolveCrowdedChapterApiContext`; Next routes under `app/api/chapters/[id]/crowded/collections/…`.
 4. **TRA-410 / sync — Use `mapCrowdedAccountToSyncFields`:** No cron or API route calls it yet; first sync should upsert `crowded_accounts` then populate `crowded_transactions` per TRA-418.
 5. **TRA-411 — Gate server routes:** Flag exists in DB/UI; new Crowded routes use **`resolveCrowdedChapterApiContext`**; broader middleware TBD.
-6. **Collections / dues / webhooks:** **Pass 3** pay URL on **`data.paymentUrl`**; **TRA-415** dues UX next; webhooks still **Pass 4**.
+6. **Collections / dues / webhooks:** **Pass 3** pay URL on **`data.paymentUrl`**; **TRA-415** **manually verified** to staging Collect (Apr 2026 — see [App ↔ Crowded E2E](#app--crowded-e2e--manual-verification-apr-2026)); **next:** **TRA-416** webhooks + **TRA-418** sync for post-pay state.
 7. **`CROWDED_VALIDATE_RESPONSES`:** Optional strict Zod on all responses — off by default; turn on when stabilizing schemas against production payloads.
 8. **Later milestones** (e.g. TRA-423+): Expense/spending issues in Linear are **backlog**; no code in `lib/services/crowded` for cards/expenses yet.
 
@@ -577,6 +619,9 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | Apr 2026 | **Pass 3 — Create Collection** | Sandbox **201**; response `data.id` = `collection_id`; no pay URL on this response. |
 | Apr 2026 | **Pass 3 — Create Intent body** | **`payerIp`** / **`userConsented`** must live **inside `data`** (root-level siblings ignored → **400** *payerIp is required*). |
 | Apr 2026 | **Pass 3 — Create Intent 200** | **`data.paymentUrl`** checkout link; `status` **Not Paid** until paid; `collectintentuuid` = intent `id`. |
+| Apr 2026 | **App E2E — dues ↔ Collect** | Treasurer link `crowded_collection_id` + bulk assign + member **`POST /api/dues/pay`** → **`staging.collect.crowdedme.xyz`**; portal shows collection + contact collect request + emails. |
+| Apr 2026 | **Member dues UI hardening** | `DuesClient` + `DuesStatusCard` use **`@/lib/supabase/client`** + **`lib/utils/duesEmbeds.ts`** (unwrap + safe due date). |
+| Apr 2026 | **Post-pay** | Not automated — **TRA-416/418** backlog; success query param refetches only. |
 
 ---
 
@@ -590,21 +635,19 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 
 4. **Postman env:** Keep **`chapter_id`**, **`contact_id`** (from list), **`base_url`**, **`api_token`** saved; path vars **`{{chapter_id}}`**, **`{{contact_id}}`** everywhere.
 
-5. **Collect:**  
-   - **POST Create Collection** → expect **201**; copy **`data.id`** as **`collection_id`**.  
-   - **POST Create Intent** with **`data: { contactId, requestedAmount, payerIp, userConsented }`** → document **member payment / checkout URL** in **Findings — Pass 3** when you get **2xx**.
+5. **Collect (app path — done Apr 2026):** In-app treasurer **link collection** + member **`/api/dues/pay`** → **staging Collect** verified ([App ↔ Crowded E2E](#app--crowded-e2e--manual-verification-apr-2026)). For **card testing**, use Crowded-supported methods on staging or **ACH** if shown; ask Crowded for official **test PANs** if cards decline.
 
 6. **Optional:** If the collection has **GET** on a single collection, open it and note any `url` / `link` fields without paying.
 
-7. **Pass 4 — Webhooks**  
-   If the collection has example webhooks, save a redacted sample.  
-   - Otherwise email **Kyle** or **support@bankingcrowded.com** for: signature header name + verification steps + sample `payment.completed` (or equivalent) JSON.
+7. **Pass 4 — Webhooks (highest product priority for “after pay”)**  
+   Implement **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)**: verify signature, idempotency, then update **`dues_assignments`** / ledger / profile fields from Crowded payment events. Until then, **Crowded portal** shows paid state; **Trailblaize** may still show unpaid after checkout.  
+   - If no doc sample: email **Kyle** or **support@bankingcrowded.com** for: signature header + sample `payment.completed` (or equivalent) JSON.
 
 8. **Local env (no commit)**  
    Crowded: `CROWDED_API_BASE_URL`, `CROWDED_API_TOKEN`. For **DB upsert smoke**, add Supabase URL, **service_role** key, and **`CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID`** = Trailblaize **`chapters.id`** (see [Local CLI smoke — TRA-412 full upsert path](#local-cli-smoke--tra-412-full-upsert-path)). **`scripts/test-crowded-api.ts`** uses Bearer via `createCrowdedClientFromEnv()`.
 
 9. **Linear**  
-   **TRA-409** … **TRA-414** are in good shape in repo. **Natural next focus:** **[TRA-415](https://linear.app/trailblaize/issue/TRA-415)** (dues pay route / member UX) → **[TRA-417](https://linear.app/trailblaize/issue/TRA-417)** (treasurer UI) → **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** (transaction sync) → **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** (webhooks). **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
+   **TRA-415** member + treasurer handoff **verified on staging**. **Natural next focus:** **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** (webhooks) + **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** (transaction / payment sync) → then **[TRA-417](https://linear.app/trailblaize/issue/TRA-417)** (full treasurer financial UI). **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
 
 ---
 

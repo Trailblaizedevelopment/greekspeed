@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/client';
+import { createServerClient } from '@supabase/ssr';
 import { canManageChapterForContext } from '@/lib/permissions';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
 
+/** Session-aware client for Route Handlers (reads auth from request cookies). */
+function createApiSupabaseClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set() {},
+        remove() {},
+      },
+    }
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerSupabaseClient();
+    const supabase = createApiSupabaseClient(request);
 
     const {
       data: { user },
@@ -62,42 +79,78 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServerSupabaseClient();
-    
-    const body = await request.json();
-    // Creating dues cycle with data
-    
+    const supabase = createApiSupabaseClient(request);
+
     const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, chapter_id, chapter_role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const body = await request.json();
+
+    const {
+      chapterId: bodyChapterId,
       name,
       base_amount,
       due_date,
       close_date,
       allow_payment_plans = false,
       plan_options = [],
-      late_fee_policy = null
+      late_fee_policy = null,
     } = body;
 
+    const chapterId =
+      typeof bodyChapterId === 'string' && bodyChapterId.trim().length > 0
+        ? bodyChapterId.trim()
+        : profile.chapter_id?.trim() ?? '';
+
+    if (!chapterId) {
+      return NextResponse.json({ error: 'Chapter context required' }, { status: 400 });
+    }
+
+    let managedChapterIds: string[] | undefined;
+    if (profile.role === 'governance') {
+      managedChapterIds = await getManagedChapterIds(supabase, user.id);
+    }
+
+    if (!canManageChapterForContext(profile, chapterId, managedChapterIds)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     // Validate required fields
-    if (!name || !base_amount || !due_date) {
+    if (!name || base_amount === undefined || base_amount === null || !due_date) {
       console.error('❌ Missing required fields:', { name, base_amount, due_date });
       return NextResponse.json({ error: 'Name, base amount, and due date are required' }, { status: 400 });
     }
 
-    // For now, use a default chapter_id since we're not authenticating
-    const defaultChapterId = '404e65ab-1123-44a0-81c7-e8e75118e741'; // Your chapter ID
-
-    // Creating cycle for chapter
+    const baseAmountNum = parseFloat(String(base_amount));
+    if (!Number.isFinite(baseAmountNum) || baseAmountNum < 0) {
+      return NextResponse.json({ error: 'Valid base amount is required' }, { status: 400 });
+    }
 
     // Create the dues cycle with start_date
     const { data: cycle, error: cycleError } = await supabase
       .from('dues_cycles')
       .insert({
-        chapter_id: defaultChapterId,
+        chapter_id: chapterId,
         name,
         start_date: new Date().toISOString().split('T')[0], // Today's date as start_date
         due_date,
         close_date: close_date || null,
-        base_amount: parseFloat(base_amount),
+        base_amount: baseAmountNum,
         allow_payment_plans,
         plan_options: plan_options || [],
         late_fee_policy: late_fee_policy || null,

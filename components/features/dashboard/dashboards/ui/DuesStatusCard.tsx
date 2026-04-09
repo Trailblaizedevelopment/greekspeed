@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, AlertTriangle, Lock, CheckCircle, Calendar } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from '@/lib/supabase/client';
+import {
+  formatDuesDueDateLabel,
+  unwrapDuesCycleEmbed,
+  type DuesCycleEmbed,
+} from '@/lib/utils/duesEmbeds';
 
 interface DuesAssignment {
   id: string;
@@ -19,12 +19,7 @@ interface DuesAssignment {
   amount_assessed: number;
   amount_due: number;
   amount_paid: number;
-  cycle: {
-    name: string;
-    due_date: string;
-    allow_payment_plans: boolean;
-    plan_options: any[];
-  };
+  cycle: DuesCycleEmbed | null;
 }
 
 export function DuesStatusCard() {
@@ -59,8 +54,14 @@ export function DuesStatusCard() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      setAssignments(data || []);
+
+      const rows = (data || []) as Record<string, unknown>[];
+      setAssignments(
+        rows.map((row) => ({
+          ...(row as unknown as DuesAssignment),
+          cycle: unwrapDuesCycleEmbed(row.cycle),
+        }))
+      );
     } catch (error) {
       console.error('Error loading dues assignments:', error);
       setError('Failed to load dues data');
@@ -197,7 +198,7 @@ export function DuesStatusCard() {
                   ${(currentAssignment.amount_due - currentAssignment.amount_paid).toFixed(2)}
                 </div>
                 <div className="text-base sm:text-sm text-gray-600 break-words">
-                  Due {new Date(currentAssignment.cycle?.due_date).toLocaleDateString()}
+                  {formatDuesDueDateLabel(currentAssignment.cycle)}
                 </div>
               </div>
               

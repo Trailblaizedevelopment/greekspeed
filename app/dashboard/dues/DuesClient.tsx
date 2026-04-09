@@ -28,13 +28,13 @@ import { Progress } from "../../../components/ui/progress";
 import { Checkbox } from "../../../components/ui/checkbox";
 import { Label } from "../../../components/ui/label";
 import { useProfile } from "@/lib/contexts/ProfileContext";
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase/client';
+import {
+  formatDuesDueDateLabel,
+  unwrapDuesCycleEmbed,
+  type DuesCycleEmbed,
+} from '@/lib/utils/duesEmbeds';
 import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const duesCoverage = [
   {
@@ -75,14 +75,8 @@ interface DuesAssignment {
   amount_assessed: number;
   amount_due: number;
   amount_paid: number;
-  cycle: {
-    id?: string;
-    name: string;
-    due_date: string;
-    allow_payment_plans: boolean;
-    plan_options: any[];
-    crowded_collection_id?: string | null;
-  };
+  /** Null if RLS blocked the embed or join failed; use optional chaining in UI. */
+  cycle: DuesCycleEmbed | null;
 }
 
 export default function DuesClient() {
@@ -150,9 +144,14 @@ export default function DuesClient() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      // Loaded assignments
-      setAssignments(data || []);
+
+      const rows = (data || []) as Record<string, unknown>[];
+      setAssignments(
+        rows.map((row) => ({
+          ...(row as unknown as DuesAssignment),
+          cycle: unwrapDuesCycleEmbed(row.cycle),
+        }))
+      );
     } catch (error) {
       console.error('Error loading dues assignments:', error);
     } finally {
@@ -193,7 +192,13 @@ export default function DuesClient() {
         .limit(limit);
 
       if (error) throw error;
-      setPaymentHistory(data || []);
+      const payments = (data || []) as Record<string, unknown>[];
+      setPaymentHistory(
+        payments.map((row) => ({
+          ...row,
+          cycle: unwrapDuesCycleEmbed(row.cycle),
+        }))
+      );
     } catch (error) {
       console.error('Error loading payment history:', error);
     }
@@ -351,8 +356,8 @@ export default function DuesClient() {
                         <p className="text-2xl font-semibold text-primary-900">
                           ${(currentAssignment.amount_due - currentAssignment.amount_paid).toFixed(2)}
                         </p>
-                        <p className="text-brand-primary">Due on {new Date(currentAssignment.cycle.due_date).toLocaleDateString()}</p>
-                        {currentAssignment.cycle.allow_payment_plans && (
+                        <p className="text-brand-primary">{formatDuesDueDateLabel(currentAssignment.cycle)}</p>
+                        {currentAssignment.cycle?.allow_payment_plans && (
                           <p className="text-sm text-gray-600">Payment plans available</p>
                         )}
                       </div>
@@ -360,7 +365,7 @@ export default function DuesClient() {
                     {currentAssignment.amount_due - currentAssignment.amount_paid > 0 && (
                       <div className="border-t border-primary-200/60 pt-4 space-y-3">
                         {payError ? <p className="text-sm text-red-600">{payError}</p> : null}
-                        {currentAssignment.cycle.crowded_collection_id ? (
+                        {currentAssignment.cycle?.crowded_collection_id ? (
                           <>
                             <div className="flex items-start gap-3">
                               <Checkbox
@@ -589,8 +594,8 @@ export default function DuesClient() {
                     <p className="text-2xl font-semibold text-primary-900">
                       ${(currentAssignment.amount_due - currentAssignment.amount_paid).toFixed(2)}
                     </p>
-                    <p className="text-brand-primary">Due on {new Date(currentAssignment.cycle.due_date).toLocaleDateString()}</p>
-                    {currentAssignment.cycle.allow_payment_plans && (
+                    <p className="text-brand-primary">{formatDuesDueDateLabel(currentAssignment.cycle)}</p>
+                    {currentAssignment.cycle?.allow_payment_plans && (
                       <p className="text-sm text-gray-600">Payment plans available</p>
                     )}
                   </div>
@@ -598,7 +603,7 @@ export default function DuesClient() {
                 {currentAssignment.amount_due - currentAssignment.amount_paid > 0 && (
                   <div className="border-t border-primary-200/60 pt-4 space-y-3">
                     {payError ? <p className="text-sm text-red-600">{payError}</p> : null}
-                    {currentAssignment.cycle.crowded_collection_id ? (
+                    {currentAssignment.cycle?.crowded_collection_id ? (
                       <>
                         <div className="flex items-start gap-3">
                           <Checkbox
