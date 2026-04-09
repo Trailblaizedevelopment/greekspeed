@@ -50,7 +50,7 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 | **GET single account** | **Best-effort in smoke only:** Crowded may return **400** `chapterId must be a positive integer` when using list `id` in `GET …/chapters/{uuid}/accounts/{id}` while **list** still returns **200**. Script logs a warning and continues; product sync should rely on **list**, not single GET, until Crowded confirms path/id rules. |
 | **Bulk create** | **POST** `…/chapters/:chapterId/accounts` — sandbox **200** + **repo:** `CrowdedClient.bulkCreateAccounts`, types/Zod, unit tests, optional `POST /api/chapters/[id]/crowded/accounts/bulk`. **[TRA-413](https://linear.app/trailblaize/issue/TRA-413/implement-crowded-chapter-account-creation-client-optional-api) Done.** |
 
-**Still open:** **POST collections** **401** *accept terms* for orgs not yet unblocked ([Pass 3](#pass-3--collect--collection-links-dues)); webhooks ([Pass 4](#pass-4--webhooks)); treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)); transaction sync ([TRA-418](https://linear.app/trailblaize/issue/TRA-418)). **TRA-414** code shipped — see implementation scan table.
+**Still open:** **POST collections** **401** *accept terms* for orgs not yet unblocked ([Pass 3](#pass-3--collect--collection-links-dues)); **Pass 4** — Crowded **registration** APIs verified (Apr 2026); **`GET …/webhooks/:id/deliveries`** **404** (ignored); **inbound** signature + payload from first real **POST** still TBD for hardening ([Pass 4](#pass-4--webhooks) → [TRA-416 checklist](#tra-416-implementation-checklist)); treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)); transaction sync ([TRA-418](https://linear.app/trailblaize/issue/TRA-418)). **TRA-414** code shipped — see implementation scan table.
 
 ---
 
@@ -488,17 +488,421 @@ Example **`data`** shape (PII redacted; use real values in Postman only):
 
 ## Pass 4 — Webhooks
 
-**Goal:** Signature + one event payload for `/api/webhooks/crowded`.
+**Goal:** Confirm how Crowded **delivers** events to Trailblaize (`/api/webhooks/crowded`): event names, payload shape, signature headers, idempotency — and how we **register** that URL via API.
+
+**Human-run checklist (Postman + staging Collect):** [Manual walkthrough — Steps 1–5](#manual-walkthrough-pass4) (includes **`{{webhook_id}}`** setup and **deliveries** URL).
+
+### Use the Postman **Webhooks** folder (yes)
+
+**Crowded API Docs V0.9** includes a **Webhooks** folder. That is the right place to start **before** email: same **`{{base_url}}`** and **Bearer `{{api_token}}`** as the rest of the collection (see [Before you start](#before-you-start-pre-flight)). Subscription calls are **outbound from Trailblaize servers** in production; Postman proves the contract first.
+
+**Recommended order in Postman**
+
+1. **`GET` — List available webhook event types** — **Verified 200** on `sandbox-api.crowdedfinance.com` (Apr 2026). Full enum is captured [below](#verified-event-types-response-apr-2026).
+2. **`GET` — List webhooks** — **`GET /api/v1/webhooks`** — **Verified 200**; empty `data: []` before create, then populated after [create](#verified-list-and-create-webhook-apr-2026). **Do not** use Postman’s `…/webhooks/subscriptions` path (404 — [troubleshooting](#postman-vs-live-paths-troubleshooting-apr-2026)).
+3. **`POST` — Create webhook** — **`POST /api/v1/webhooks`** with **`{ "data": { … } }`** body — **Verified 201** ([below](#verified-list-and-create-webhook-apr-2026)). **Body** must be **raw JSON** with **`Content-Type: application/json`**. Flat root keys → **400** `"data" is required`.
+4. **`GET` — Get one webhook** — **`GET /api/v1/webhooks/:webhookId`** — use **`id`** from list/create; replace Postman placeholder `subscription_id`.
+5. **`PATCH` / `DELETE`** — Same `webhookId` path pattern (confirm exact paths in Postman after fixing base URL to `…/webhooks/:id`).
+6. **`GET` — Get All Deliveries** — Use for debugging once a webhook exists (fix URL if it still uses `…/subscriptions`).
+
+**While you click each request:** open **Params** (path/query) and **Body** docs in Postman — note required IDs (`chapterId`, `organizationId`, etc.). After **Send**, copy the **exact path** from the Postman URL bar into the table below so the doc becomes the source of truth.
+
+### Verified event-types response (Apr 2026)
+
+**Method / path:** `GET {{base_url}}/api/v1/webhooks/event-types`  
+**Status:** **200 OK** (sandbox, Bearer token).  
+**Product note (TRA-416 / TRA-418):** For dues / Collect checkout, prioritize:
+
+- **`collect.payment.succeeded`** — primary signal to mark dues paid / ledger.
+- **`collect.payment.failed`**, **`collect.payment.refunded`** — reconcile failures and refunds.
+- **`collect.intent.created`**, **`collect.intent.updated`** — optional correlation with `collectintentuuid` / intent id.
+- **`collect.collection.*`** — lifecycle of the Crowded collection linked from `dues_cycles.crowded_collection_id`.
+
+**Namespaces:** `collect`, `platform`, `finance`. **`wildcardSupported`:** `true` — confirm with Crowded whether subscription payloads may use wildcards (e.g. `collect.*`) vs explicit strings only.
+
+**Live response shape (redact nothing needed — enum only):**
+
+```json
+{
+  "data": {
+    "events": [
+      "collect.collection.created",
+      "collect.collection.updated",
+      "collect.collection.canceled",
+      "collect.payment.succeeded",
+      "collect.payment.failed",
+      "collect.payment.refunded",
+      "collect.payment_plan.created",
+      "collect.payment_plan.canceled",
+      "collect.payment_plan.completed",
+      "collect.refund.initiated",
+      "collect.refund.processing",
+      "collect.refund.reversed",
+      "collect.intent.created",
+      "collect.intent.updated",
+      "platform.organization.created",
+      "platform.organization.updated",
+      "platform.organization.archived",
+      "platform.chapter.created",
+      "platform.chapter.updated",
+      "platform.chapter.archived",
+      "platform.contact.created",
+      "platform.contact.updated",
+      "platform.contact.archived",
+      "platform.contacts.bulk_created",
+      "finance.account.created",
+      "finance.account.updated",
+      "finance.account.closed",
+      "finance.application.submitted",
+      "finance.application.approved",
+      "finance.application.denied"
+    ],
+    "byNamespace": {
+      "collect": [
+        "collect.collection.created",
+        "collect.collection.updated",
+        "collect.collection.canceled",
+        "collect.payment.succeeded",
+        "collect.payment.failed",
+        "collect.payment.refunded",
+        "collect.payment_plan.created",
+        "collect.payment_plan.canceled",
+        "collect.payment_plan.completed",
+        "collect.refund.initiated",
+        "collect.refund.processing",
+        "collect.refund.reversed",
+        "collect.intent.created",
+        "collect.intent.updated"
+      ],
+      "platform": [
+        "platform.organization.created",
+        "platform.organization.updated",
+        "platform.organization.archived",
+        "platform.chapter.created",
+        "platform.chapter.updated",
+        "platform.chapter.archived",
+        "platform.contact.created",
+        "platform.contact.updated",
+        "platform.contact.archived",
+        "platform.contacts.bulk_created"
+      ],
+      "finance": [
+        "finance.account.created",
+        "finance.account.updated",
+        "finance.account.closed",
+        "finance.application.submitted",
+        "finance.application.approved",
+        "finance.application.denied"
+      ]
+    },
+    "wildcardSupported": true
+  }
+}
+```
+
+### Postman vs live paths troubleshooting (Apr 2026)
+
+| What you tried | Result | Interpretation |
+|----------------|--------|----------------|
+| `POST /api/v1/webhooks/subscriptions` | **404** `Cannot POST /api/v1/webhooks/subscriptions` | Route **not registered** on this API build — collection path is likely **out of date**. |
+| `GET /api/v1/webhooks/subscriptions` | **404** `Webhook with UID subscriptions not found` | Server treats path as **`/api/v1/webhooks/:webhookId`**; segment **`subscriptions`** is parsed as a **webhook UUID**, not a sub-resource. |
+| `GET /api/v1/webhooks/subscriptions/:subscriptionId` with **`subscription_id` literal** | **404** | Same as wrong chapter placeholder — use a **real** id from a successful list call. |
+| `GET /api/v1/webhooks/event-types` | **200** | **Use this enum** for `events[]` when creating subscriptions — do **not** use stale Postman examples like `account.created` / `transaction.created` (they are **not** in the live list; finance uses `finance.account.*` etc.). |
+| `GET /api/v1/webhooks` | **200** | List webhooks; `data` array + `meta.pagination`. |
+| `POST /api/v1/webhooks` with `{ "data": { "url", "secret", "events", … } }` | **201** | **Verified** — see [Verified list and create](#verified-list-and-create-webhook-apr-2026). |
+| `POST /api/v1/webhooks` with **flat** JSON (no `data` wrapper) | **400** | `"data" is required`. |
+
+**Resolved (sandbox Apr 2026):** **`GET /api/v1/webhooks`** and **`POST /api/v1/webhooks`** with **`data`** wrapper work. Postman’s **`…/webhooks/subscriptions`** paths remain **wrong** for this environment — duplicate requests and point to **`/api/v1/webhooks`** (and **`/api/v1/webhooks/:id`** for single-resource ops).
+
+**If list/create still fail elsewhere:** check **Collect** folder for chapter-scoped routes, or ask **Kyle / support@bankingcrowded.com** for canonical paths on other hosts (`api.crowded.me`).
+
+### Verified list and create webhook (Apr 2026)
+
+**List —** `GET {{base_url}}/api/v1/webhooks` → **200 OK**
+
+```json
+{
+  "data": [],
+  "meta": {
+    "pagination": {
+      "total": 0,
+      "limit": 10,
+      "offset": 0,
+      "sort": "createdAt",
+      "order": "DESC"
+    }
+  }
+}
+```
+
+After a successful create, `data` is an array of webhook objects; `meta.pagination.total` matches count.
+
+**Create —** `POST {{base_url}}/api/v1/webhooks` → **201 Created**
+
+Request body (wrap everything under **`data`**; `events[]` must use strings from [event-types](#verified-event-types-response-apr-2026)):
+
+```json
+{
+  "data": {
+    "url": "https://webhook.site/<your-uuid>",
+    "secret": "<generate_a_long_random_secret_client_side>",
+    "events": ["collect.payment.succeeded", "collect.payment.failed"],
+    "description": "Trailblaize sandbox webhook trial"
+  }
+}
+```
+
+- **`secret`:** You **choose** a strong random value at create time; the API **echoes** it in the response. Store the same value server-side as **`CROWDED_WEBHOOK_SECRET`** (or per-webhook secret) for **TRA-416** signature verification. **Never** commit real secrets or paste them into this repo — rotate if exposed (screenshots, chat, webhook.site URLs).
+
+**Create response shape (redacted; `secret` omitted in git — use env only):**
+
+```json
+{
+  "data": {
+    "id": "<webhook_uuid>",
+    "url": "https://webhook.site/<your-uuid>",
+    "events": ["collect.payment.succeeded", "collect.payment.failed"],
+    "deliveryMode": "at_least_once",
+    "description": "Trailblaize sandbox webhook trial",
+    "isActive": true,
+    "hasAuthorizationHeader": false,
+    "createdAt": "2026-04-09T18:32:45.892Z",
+    "updatedAt": "2026-04-09T18:32:45.892Z",
+    "secret": "<same_as_request_store_in_env_only>"
+  }
+}
+```
+
+**Implementation notes (TRA-416):**
+
+| Field | Meaning |
+|-------|--------|
+| **`deliveryMode`: `at_least_once`** | Crowded may **retry** deliveries — handler must be **idempotent** (dedupe on event id or stable resource key). |
+| **`hasAuthorizationHeader`: `false`** | Incoming webhooks may **not** send a Bearer header; rely on **signature** + HTTPS. |
+| **`isActive`** | Subscription can likely be toggled via **PATCH** (confirm in Postman). |
+
+**Response shape — list vs one:** **`GET /api/v1/webhooks`** returns **`data` as an array** of webhooks + **`meta.pagination`**. **`GET /api/v1/webhooks/:id`** returns **`data` as a single object** (same fields as one array element).
+
+### Verified list and get by id (sandbox Apr 2026)
+
+After create, **list** (`GET /api/v1/webhooks`) — live sample (webhook **`id`** is Crowded’s subscription id; **`url`** is your receiver — do not commit secrets):
+
+```json
+{
+  "data": [
+    {
+      "id": "4115c8f6-b378-4661-b563-c848b39e343e",
+      "url": "https://webhook.site/<your-receiver-path>",
+      "events": ["collect.payment.succeeded", "collect.payment.failed"],
+      "deliveryMode": "at_least_once",
+      "description": "Trailblaize sandbox webhook trial",
+      "isActive": true,
+      "hasAuthorizationHeader": false,
+      "createdAt": "2026-04-09T18:32:45.000Z",
+      "updatedAt": "2026-04-09T18:32:45.000Z"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "limit": 10,
+      "offset": 0,
+      "sort": "createdAt",
+      "order": "DESC"
+    }
+  }
+}
+```
+
+**Get one** (`GET /api/v1/webhooks/4115c8f6-b378-4661-b563-c848b39e343e`) — **200**, `data` is **not** an array:
+
+```json
+{
+  "data": {
+    "id": "4115c8f6-b378-4661-b563-c848b39e343e",
+    "url": "https://webhook.site/<your-receiver-path>",
+    "events": ["collect.payment.succeeded", "collect.payment.failed"],
+    "deliveryMode": "at_least_once",
+    "description": "Trailblaize sandbox webhook trial",
+    "isActive": true,
+    "hasAuthorizationHeader": false,
+    "createdAt": "2026-04-09T18:32:45.000Z",
+    "updatedAt": "2026-04-09T18:32:45.000Z"
+  }
+}
+```
+
+**Important:** The UUID in **`https://webhook.site/…`** is the **receiver inbox id** on webhook.site. The UUID in **`data.id`** (e.g. `4115c8f6-…`) is **Crowded’s webhook subscription id** — use **that** for **`{{webhook_id}}`** and for paths like **`…/webhooks/:id/deliveries`**. Do **not** put `webhook_id` in **Headers**; it does **not** substitute into the URL bar.
+
+<a id="manual-walkthrough-pass4"></a>
+
+### Manual walkthrough — Steps 1–5 (Postman + product; no Trailblaize code)
+
+Use this for **human-run** checks. Prefer **Agent mode** when you want the repo implementation (**TRA-416** / **TRA-418**).
+
+#### 1. Confirm webhook in the list
+
+1. Open Postman → collection **Crowded API Docs V0.9** → **`GET List webhooks (trial)`** (or any **GET** saved to **`{{base_url}}/api/v1/webhooks`**).
+2. Top-right: correct environment (**Trailblaize** / Crowded env with **`base_url`** + Bearer **`api_token`**).
+3. URL must be exactly **`{{base_url}}/api/v1/webhooks`** (no **`/subscriptions`**, no trailing junk).
+4. Click **Send**.
+5. **Body** → **Pretty** → **JSON**: open **`data`**. Expect **one or more** objects with **`id`**, **`url`**, **`events`**, **`isActive`**, etc. **`id`** must match the **201 Create** response.
+6. If **`data`** is **`[]`**, wrong environment, **`base_url`**, or Bearer token (create used a different token).
+
+#### 2. GET one webhook by id (single-resource path)
+
+1. **Copy `id`** from step 1 (from the response, not old notes).
+2. New request or duplicate **Get subscription** → rename e.g. **`GET One webhook by id`**.
+3. Method **GET**. URL: **`{{base_url}}/api/v1/webhooks/<paste-id-here>`**  
+   Or: **`{{base_url}}/api/v1/webhooks/{{webhook_id}}`** after you define **`webhook_id`** (see step 3).
+4. **Authorization:** inherit Bearer.
+5. **Send** → expect **200** and **`data`** as a **single object** ([sample](#verified-list-and-get-by-id-sandbox-apr-2026)).
+6. If **404**: check for typos; confirm path is **`/webhooks/{uuid}`** only.
+
+#### 3. `{{webhook_id}}` in Postman (fix red / unresolved variable)
+
+Postman turns **`{{webhook_id}}` red** when the **active environment** has no variable with that **exact** name.
+
+**Option A — Environment variable (recommended)**
+
+1. Top-right: click the **eye** icon (environment quick look) → **Edit** (or **Environments** in left sidebar → open **Trailblaize** / your Crowded environment).
+2. **Add** variable **`webhook_id`** (name must match the URL: `webhook_id`, not `webhookId`).
+3. **Current value:** paste Crowded’s subscription id from list/get-by-id, e.g. **`4115c8f6-b378-4661-b563-c848b39e343e`** (this is **`data.id`**, **not** the webhook.site path UUID). **Paste from the JSON response** (triple-click to select the quoted `id` value) — manual retyping often produces **`411b38f6`** instead of **`4115c8f6`** (**`5`/`b`**, **`c8`/`38`**), which yields **404** *Cannot GET …/deliveries*.
+4. **Save**.
+5. Select that environment in the top-right dropdown.
+6. URL should be exactly: **`{{base_url}}/api/v1/webhooks/{{webhook_id}}/deliveries`** — **no** trailing **`?`** unless you add real query params (e.g. **`?limit=10`**). A lone **`?`** can confuse some servers.
+7. **Headers:** remove any fake **`webhook_id`** header you added for testing — **path substitution does not use custom headers**.
+8. **Send**. After **Send**, confirm the **resolved** URL in **Postman Console** (View → Show Postman Console) matches **`GET List webhooks` → `data[0].id`** exactly.
+
+**Option B — Paste literal id**
+
+1. Set URL to: **`{{base_url}}/api/v1/webhooks/4115c8f6-b378-4661-b563-c848b39e343e/deliveries`** (replace with your current **`data.id`** if you recreated the webhook).
+
+**Deliveries path (trial)**
+
+1. Duplicate **Get All Deliveries** → rename **`GET Webhook deliveries (trial)`**.
+2. Method **GET**. Try in order, **Send** after each:
+   - **`{{base_url}}/api/v1/webhooks/{{webhook_id}}/deliveries`**
+   - If **404** `Cannot GET …/deliveries`: first **fix `webhook_id`** (see typo note in step 3 above). If the UUID in the error message still **does not** match **`GET List webhooks` → `data[0].id`**, update the env var and retry.
+   - If UUID is **correct** and 404 persists: open the collection’s original **Get All Deliveries** request and copy its **exact** path from the URL bar (may differ from **`/deliveries`**). If no documented route works on sandbox, **skip deliveries API** and rely on **webhook.site** (or your future **`/api/webhooks/crowded`**) in step 4.
+3. **Expect:** **200** with a list (may be **empty** until Crowded has attempted a delivery — empty is OK and confirms the path).
+
+#### 4. Fire an event (staging Collect)
+
+**Goal:** Crowded sends **`collect.payment.succeeded`** (or related) to the **`url`** you registered (e.g. webhook.site).
+
+1. Open **webhook.site** — same **unique URL** you put in **`data.url`** at create.
+2. In Trailblaize: treasurer linked **Crowded collection**, member **Pay** → **staging Collect** → complete payment per Crowded staging rules.
+3. Refresh webhook.site → inspect new **POST**: note **headers** (signature / timestamp) and **raw JSON body**.
+4. **Private** copy (Linear / notes): full headers + body for engineering.
+5. **Git / Pass 4 scratchpad:** [redacted sample](#redacted-payload-scratchpad-optional) only — no secrets, minimal PII.
+
+**If nothing arrives:** wait for retries; re-run **step 3** deliveries list; confirm **`isActive`** and **`events`** include **`collect.payment.succeeded`**; ask Crowded for staging test payment guidance if needed.
+
+#### 5. TRA-416 / TRA-418 (implementation — use Agent mode in Cursor)
+
+Not Postman work.
+
+**TRA-416**
+
+- Add **`POST /api/webhooks/crowded`** (`app/api/webhooks/crowded/route.ts`).
+- Read **raw body** (`request.text()` or equivalent) **before** JSON parse; verify **signature** using headers from step 4.
+- **401/403** if invalid signature; **200** after safe handling (avoid long blocking work).
+- **Idempotency:** **`at_least_once`** → dedupe on event id (or stable key).
+- Env: **`CROWDED_WEBHOOK_SECRET`** = same value as **`data.secret`** at create (never commit).
+
+**TRA-418**
+
+- Map **`collect.payment.succeeded`** (and failures/refunds if needed) → **`dues_assignments`**, optional **`payments_ledger`**, **`crowded_transactions`**, profile fields — **service role** server-side.
+- Map payload IDs → your rows (collection, contact, intent — depends on JSON from step 4).
+
+### Postman — `Webhooks` folder inventory (Apr 2026)
+
+| Postman request name | Purpose | Path in collection | Live result (sandbox Apr 2026) |
+|----------------------|---------|--------------------|--------------------------------|
+| List available webhook event types | Event enum | `GET …/webhooks/event-types` | **200** — [verified payload](#verified-event-types-response-apr-2026) |
+| Create subscription | Register URL | `POST …/webhooks/subscriptions` | **404** — use **`POST …/webhooks`** + **`{ "data": … }`** — [201 verified](#verified-list-and-create-webhook-apr-2026) |
+| Get All subscriptions | List | `GET …/webhooks/subscriptions` | **404** — use **`GET …/webhooks`** — **200** |
+| Get subscription | One by id | `GET …/webhooks/subscriptions/:subscriptionId` | **404** if placeholder — use **`GET …/webhooks/:webhookId`** |
+| Update subscription | PATCH | `…/subscriptions` | **TBD** — try **`PATCH …/webhooks/:webhookId`** |
+| Delete subscription | DELETE | `…/subscriptions` | **TBD** — try **`DELETE …/webhooks/:webhookId`** |
+| Get All Deliveries | Debug deliveries | (see Postman) | **`GET …/webhooks/{{webhook_id}}/deliveries`** → **404** `Cannot GET …/deliveries` even when **`webhook_id`** = Crowded **`data.id`** (verified Apr 2026). **Do not block on this** — use **inbound POST** on **`/api/webhooks/crowded`** or **webhook.site** to debug deliveries. |
 
 ### Findings — Pass 4
 
+**Incoming** delivery (what Crowded POSTs to *your* URL) still TBD — capture **headers + raw body** from webhook.site (or **`/api/webhooks/crowded`** on Vercel) after a **collect.payment.*** event fires.
+
 | Item | Notes |
 |------|--------|
-| Event type(s) | |
-| Signature approach | |
-| Idempotency key | |
+| Event type(s) | **Confirmed** — see [verified event-types](#verified-event-types-response-apr-2026). TRA-416 should handle at least **`collect.payment.succeeded`** (+ failures/refunds as needed). |
+| Subscription REST paths | **List + create + get-by-id verified:** **`GET/POST /api/v1/webhooks`**, **`GET /api/v1/webhooks/:id`**. Postman **`…/webhooks/subscriptions`** is **stale** (404). **`GET …/webhooks/:id/deliveries`** → **404** on sandbox with correct id — **deliveries API not used** for Pass 4 completion. |
+| Signing secret | **Confirmed at create:** client supplies **`data.secret`**; API returns same in **`data.secret`** — store only in **env** / secrets manager for verification (**never** commit). |
+| **`deliveryMode`** | **`at_least_once`** — implement **idempotency** in TRA-416. |
+| Signature approach (incoming POST) | TBD on first delivery (headers + algorithm). |
+| Raw body rules | Assume **verify signature on raw bytes** until docs say otherwise. |
+| Idempotency key | TBD on **incoming** payload. |
+| Sandbox vs production | Same as API base URLs ([Crowded base URLs](#crowded-base-urls-reference)); re-verify paths on `api.crowded.me` at go-live. |
 
-**Tickets:** TRA-416.
+<a id="pass-4-postman-registration-status"></a>
+
+### Pass 4 — Postman / registration status (Apr 2026)
+
+**Done in Postman (sandbox):**
+
+- **`GET /api/v1/webhooks/event-types`** — full event enum; subscribe to **`collect.payment.succeeded`** / **`collect.payment.failed`** (and others as needed).
+- **`POST /api/v1/webhooks`** — create with **`{ "data": { url, secret, events, description } }`** → **201**; duplicate **`url`** → **400** *already exists* (expected).
+- **`GET /api/v1/webhooks`** — list; **`GET /api/v1/webhooks/:id`** — single resource.
+- **`webhook_id`** for Crowded paths = **`data.id`** from list/create — **not** the UUID inside **`webhook.site/…`**.
+- **`GET …/webhooks/:id/deliveries`** — **404** with correct **`webhook_id`** — **treat as unavailable** on this host; **no further Postman required** for TRA-416 kickoff.
+
+**Still needed for a fully “closed” TRA-416 (inbound):**
+
+- One real **POST** to your callback URL (production: **`https://<vercel>/api/webhooks/crowded`**) after a **staging Collect** payment — capture **headers + raw body** (private notes) to lock **signature algorithm** and **payload shape**.
+- Until then, Linear allows **Day 1:** stub route + **idempotency placeholder** + signature adapter **TODO** ([TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler)).
+
+<a id="tra-416-implementation-checklist"></a>
+
+### TRA-416 implementation checklist (repo — [Linear TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler))
+
+Map to acceptance criteria on the issue. Suggested branch: `devin/tra-416-crowded-webhook-handler`.
+
+1. **Register callback URL in Crowded (per env)**  
+   **`PATCH`/`POST` via Crowded API** or Postman: set **`data.url`** to your **deployed** **`POST https://<host>/api/webhooks/crowded`** (preview + prod separately). Keep **`data.secret`** in sync with app env (**step 3**).
+
+2. **Env (TRA-409)**  
+   Add **`CROWDED_WEBHOOK_SECRET`** (or name aligned with team) = same string as Crowded subscription **`secret`**. Document in **`.env.example`** (placeholder only). **Never** commit real values.
+
+3. **Route `POST /api/webhooks/crowded`**  
+   `app/api/webhooks/crowded/route.ts` — **`POST` only**; return **405** for other methods. **`middleware.ts`** already skips **`/api/webhooks/`**.
+
+4. **Raw body + signature**  
+   Read **`request.text()`** (or platform equivalent) **before** `JSON.parse`. Verify using headers from the first real delivery (or Crowded doc). **401/403** on failure. If algorithm still unknown: implement **`verifyCrowdedWebhookSignature`** with a **clear TODO** + safe **reject** in production when secret set, or feature-flag **log-only** in dev only (team policy).
+
+5. **Parse + route by event type**  
+   Subscribe to **`collect.payment.succeeded`** (and **`failed`**, etc. as needed). Unknown types → **200** + log (avoid Crowded retry storms only if product agrees).
+
+6. **Idempotency**  
+   **`deliveryMode: "at_least_once"`** — persist **event id** (or composite key) and **skip** duplicates. DB table or Supabase unique constraint.
+
+7. **`payments_ledger` / dues state (Linear AC)**  
+   **Minimum to close TRA-416:** call a **service** that updates DB (service role). **Heavy mapping** (intent → `dues_assignments`, `crowded_transactions`, profiles) may live in **[TRA-418](https://linear.app/trailblaize/issue/TRA-418/payment-status-tracking-and-sync)** — split PRs if needed, but the **webhook handler must not** leave success path as no-op forever; at least **enqueue** or **stub** with ticket reference.
+
+8. **Manual verify**  
+   Staging Collect payment → **200** from your route → DB / logs as expected → update Crowded subscription URL if you tested on webhook.site first.
+
+9. **`npm run lint`** + **`npm run typecheck`** before merge.
+
+### Redacted payload scratchpad (optional)
+
+After you receive a test webhook, add a **minimal** redacted example (no PII, no secrets):
+
+```json
+{
+  "_comment": "Replace with redacted sample when available."
+}
+```
+
+**Tickets:** [TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler) (handler + verify + idempotency), [TRA-418](https://linear.app/trailblaize/issue/TRA-418/payment-status-tracking-and-sync) (sync to `dues_assignments` / ledger).
 
 ---
 
@@ -520,6 +924,7 @@ Example **`data`** shape (PII redacted; use real values in Postman only):
 | Feature flag (TRA-411) | `types/featureFlags.ts` — `crowded_integration_enabled` (default **false**). `app/dashboard/feature-flags/page.tsx` — exec toggle. Persisted via existing chapter feature-flags API. |
 | Crowded chapter API (auth) | `lib/services/crowded/resolveCrowdedChapterApiContext.ts` — Bearer/cookies + service role, `canManageChapterForContext`, flag + `crowded_chapter_id`. Used by bulk accounts + collections + intents routes. |
 | Next routes (TRA-413 / 414) | `POST /api/chapters/[id]/crowded/accounts/bulk`, `POST …/crowded/collections` (**201**), `POST …/crowded/collections/[collectionId]/intents`. |
+| Webhooks — Crowded API (Pass 4) | **Verified:** `GET …/webhooks/event-types`; **`GET/POST /api/v1/webhooks`** (list + create with `data` wrapper, **201**). **`at_least_once`** → idempotent handler. Postman **`…/subscriptions`** paths still wrong — duplicate requests. **Not in `crowded-client.ts` yet** — see [Pass 4](#pass-4--webhooks). |
 
 ---
 
@@ -577,7 +982,7 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | [TRA-413](https://linear.app/trailblaize/issue/TRA-413) | Chapter account creation (bulk) | Done | **`bulkCreateAccounts`** + types/Zod/tests + optional bulk API route; Postman **200** ([Pass 2](#bulk-create-accounts--verified-sandbox-apr-2026)) |
 | [TRA-414](https://linear.app/trailblaize/issue/TRA-414) | Collections + intents | Done | **`createCollection`**, **`getCollection`**, **`createIntent`**, **`getCrowdedIntentPaymentUrl`**; types + Zod; `crowded-client.collections.test.ts`; routes `POST …/crowded/collections`, `POST …/crowded/collections/[collectionId]/intents`; `resolveCrowdedChapterApiContext` shared with bulk accounts. |
 | [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | **Verified manual E2E** (Apr 2026) | **`POST /api/dues/pay`** + member redirect to **staging Collect** confirmed. **`PATCH /api/dues/cycles/[id]`** + treasurer **Crowded checkout** card link `crowded_collection_id`. **`DuesClient` / `DuesStatusCard`**: shared Supabase browser client + **`duesEmbeds`** unwrap. **503** `ONLINE_DUES_UNAVAILABLE` when misconfigured; **Stripe fallback** not in repo. Migration `20260409120000_*`. **Post-pay DB sync still out of scope** until webhooks. |
-| [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** — no `/api/webhooks/crowded` — **blocks closed-loop paid status in Trailblaize** |
+| [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** in repo — no `/api/webhooks/crowded`. **Pass 4:** Crowded **register/list/create** verified; **`…/deliveries`** 404 — OK. **Next:** [implementation checklist](#tra-416-implementation-checklist). |
 | [TRA-417](https://linear.app/trailblaize/issue/TRA-417) | Treasurer balance UI | Backlog | **Partial:** Crowded link + dues cycles on **TreasurerDashboard**; full balances / **`GET …/accounts`** UI still **not implemented** |
 | [TRA-418](https://linear.app/trailblaize/issue/TRA-418) | Payment sync service | Backlog | **Not implemented** — `crowded_transactions` table exists; no sync job |
 
@@ -622,6 +1027,13 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | Apr 2026 | **App E2E — dues ↔ Collect** | Treasurer link `crowded_collection_id` + bulk assign + member **`POST /api/dues/pay`** → **`staging.collect.crowdedme.xyz`**; portal shows collection + contact collect request + emails. |
 | Apr 2026 | **Member dues UI hardening** | `DuesClient` + `DuesStatusCard` use **`@/lib/supabase/client`** + **`lib/utils/duesEmbeds.ts`** (unwrap + safe due date). |
 | Apr 2026 | **Post-pay** | Not automated — **TRA-416/418** backlog; success query param refetches only. |
+| Apr 2026 | **Pass 4 — Postman** | **Webhooks** folder located in **Crowded API Docs V0.9** (`List available webhook event types`, **Create subscription**, subscription CRUD). Doc updated — run requests and fill [Pass 4](#pass-4--webhooks) paths + findings. |
+| Apr 2026 | **Pass 4 — live API** | **`GET /api/v1/webhooks/event-types`** → **200**; full `collect.*` / `platform.*` / `finance.*` enum + `wildcardSupported: true` captured in doc. **`POST`/`GET` …`/webhooks/subscriptions`** → **404** (path drift); documented try **`/api/v1/webhooks`** + **Collect** folder + Crowded confirm. |
+| Apr 2026 | **Pass 4 — create webhook** | **`POST /api/v1/webhooks`** with **`{ "data": { url, secret, events, description } }`** → **201**; response includes **`deliveryMode: "at_least_once"`**, **`isActive`**, **`hasAuthorizationHeader: false`**, echoed **`secret`** (store in env only — not in git). |
+| Apr 2026 | **Pass 4 — list + get by id** | **`GET /api/v1/webhooks`** → **`data` array** + **`meta`**; **`GET /api/v1/webhooks/:id`** → **`data` object**. Doc: [Verified list and get by id](#verified-list-and-get-by-id-sandbox-apr-2026). |
+| Apr 2026 | **Pass 4 — manual steps** | Added [click-by-click walkthrough](#manual-walkthrough-pass4): **`webhook_id`** env (**Crowded `data.id`** vs webhook.site UUID), no bogus **Headers**, deliveries URL without stray **`?`**. |
+| Apr 2026 | **Pass 4 — deliveries API** | **`GET /api/v1/webhooks/:id/deliveries`** → **404** with correct Crowded **`webhook_id`**; Postman phase treated **complete** without deliveries list. |
+| Apr 2026 | **TRA-416 doc** | [Implementation checklist](#tra-416-implementation-checklist) added — maps to [Linear TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler) AC; inbound sample still from staging payment or Crowded support. |
 
 ---
 
@@ -639,9 +1051,10 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 
 6. **Optional:** If the collection has **GET** on a single collection, open it and note any `url` / `link` fields without paying.
 
-7. **Pass 4 — Webhooks (highest product priority for “after pay”)**  
-   Implement **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)**: verify signature, idempotency, then update **`dues_assignments`** / ledger / profile fields from Crowded payment events. Until then, **Crowded portal** shows paid state; **Trailblaize** may still show unpaid after checkout.  
-   - If no doc sample: email **Kyle** or **support@bankingcrowded.com** for: signature header + sample `payment.completed` (or equivalent) JSON.
+7. **Pass 4 / TRA-416 (after pay)**  
+   **Postman registration path:** done for sandbox — see [Pass 4 — Postman / registration status](#pass-4-postman-registration-status). **`GET …/deliveries`** not available (404) — skip.  
+   **Repo:** follow **[TRA-416 implementation checklist](#tra-416-implementation-checklist)** → then **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** for full **`dues_assignments`** / ledger mapping. Until shipped, **Crowded portal** may show paid while **Trailblaize** stays stale after checkout.  
+   - If **inbound** signature unclear: capture first **POST** after staging payment, or email **Kyle** / **support@bankingcrowded.com** for header + sample JSON.
 
 8. **Local env (no commit)**  
    Crowded: `CROWDED_API_BASE_URL`, `CROWDED_API_TOKEN`. For **DB upsert smoke**, add Supabase URL, **service_role** key, and **`CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID`** = Trailblaize **`chapters.id`** (see [Local CLI smoke — TRA-412 full upsert path](#local-cli-smoke--tra-412-full-upsert-path)). **`scripts/test-crowded-api.ts`** uses Bearer via `createCrowdedClientFromEnv()`.
@@ -664,6 +1077,8 @@ Share these in chat **with tokens blurred** or crop so secrets are not visible:
 | 5 | Any **401/403** with wrong base or auth | Debugging if regression. |
 | 6 | **400** `NO_CUSTOMER` on accounts (correct chapter UUID in URL) | Documents banking-customer gap vs path bugs. |
 | 7 | **401** `accept terms` on **POST collections** | Documents Collect gate before intents. |
+| 8 | **Webhooks → List available webhook event types** — 200 body (redact if needed) | Pass 4 event enum + subscription body hints. |
+| 9 | **Webhooks → Create subscription** — request body + 201/200 response (hide secrets) | Confirms registration contract for TRA-416. |
 
 ---
 

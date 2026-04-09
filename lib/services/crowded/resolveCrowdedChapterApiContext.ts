@@ -69,7 +69,7 @@ export async function resolveCrowdedChapterApiContext(
   request: NextRequest,
   trailblaizeChapterId: string
 ): Promise<
-  | { ok: true; crowdedChapterId: string }
+  | { ok: true; crowdedChapterId: string; supabase: SupabaseClient }
   | { ok: false; response: NextResponse }
 > {
   const auth = await authenticateCrowdedApiRequest(request);
@@ -129,5 +129,5 @@ export async function resolveCrowdedChapterApiContext(
     };
   }
 
-  return { ok: true, crowdedChapterId: crowdedChapterId.trim() };
+  return { ok: true, crowdedChapterId: crowdedChapterId.trim(), supabase };
 }

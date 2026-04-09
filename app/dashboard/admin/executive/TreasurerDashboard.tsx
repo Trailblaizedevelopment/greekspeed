@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingUp, Users, AlertTriangle, CheckCircle, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight, Link2, Loader2 } from "lucide-react";
+import { DollarSign, TrendingUp, Users, AlertTriangle, CheckCircle, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight, Link2, Loader2, Landmark, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import { Select, SelectItem, SelectContent } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProfile } from "@/lib/contexts/ProfileContext";
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
+import { useCrowdedChapterBalance } from '@/lib/hooks/useCrowdedChapterBalance';
 import { supabase } from '@/lib/supabase/client';
 import { QuickActions, QuickAction } from '@/components/features/dashboard/dashboards/ui/QuickActions';
 
@@ -123,6 +124,12 @@ export function TreasurerDashboard() {
   const { profile } = useProfile();
   const { enabled: crowdedIntegrationEnabled, loading: crowdedFlagLoading } =
     useFeatureFlag('crowded_integration_enabled');
+  const crowdedBalanceFetchEnabled =
+    !crowdedFlagLoading && crowdedIntegrationEnabled && Boolean(profile?.chapter_id);
+  const crowdedBalanceQuery = useCrowdedChapterBalance(
+    profile?.chapter_id ?? null,
+    crowdedBalanceFetchEnabled
+  );
   const [selectedTab, setSelectedTab] = useState("overview");
   const [cycles, setCycles] = useState<DuesCycle[]>([]);
   const [assignments, setAssignments] = useState<DuesAssignment[]>([]);
@@ -844,6 +851,123 @@ export function TreasurerDashboard() {
         </div>
 
         {!crowdedFlagLoading && crowdedIntegrationEnabled && profile?.chapter_id && (
+          <>
+          <Card className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
+            <CardHeader className="flex flex-col gap-2 border-b border-primary-100/30 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-primary-900 flex items-center gap-2">
+                  <Landmark className="h-5 w-5 text-brand-primary" />
+                  Crowded account balance
+                </CardTitle>
+                <p className="text-sm text-gray-600 mt-1">
+                  Live balance from Crowded (refreshes about every minute). Amounts are shown in USD.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={crowdedBalanceQuery.isFetching}
+                onClick={() => void crowdedBalanceQuery.refetch()}
+              >
+                {crowdedBalanceQuery.isFetching ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Refreshing
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Refresh
+                  </>
+                )}
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {crowdedBalanceQuery.isPending && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
+                  Loading balance from Crowded…
+                </div>
+              )}
+              {crowdedBalanceQuery.isError && (
+                <div className="rounded-lg border border-red-200 bg-red-50/80 p-3 text-sm text-red-800">
+                  <p className="font-medium">Could not load balance</p>
+                  <p className="mt-1">{crowdedBalanceQuery.error?.message ?? 'Something went wrong.'}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => void crowdedBalanceQuery.refetch()}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              )}
+              {crowdedBalanceQuery.data && !crowdedBalanceQuery.data.ok && crowdedBalanceQuery.data.code === 'no_customer' && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-900">
+                  <p className="font-medium">Banking not set up in Crowded</p>
+                  <p className="mt-1">{crowdedBalanceQuery.data.message}</p>
+                </div>
+              )}
+              {crowdedBalanceQuery.data && !crowdedBalanceQuery.data.ok && crowdedBalanceQuery.data.code === 'api_error' && (
+                <div className="rounded-lg border border-red-200 bg-red-50/80 p-3 text-sm text-red-800">
+                  <p className="font-medium">Crowded could not return balances</p>
+                  <p className="mt-1">{crowdedBalanceQuery.data.message}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => void crowdedBalanceQuery.refetch()}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              )}
+              {crowdedBalanceQuery.data?.ok === true && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Total balance</p>
+                    <p className="text-3xl font-semibold text-primary-900 tabular-nums">
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                      }).format(crowdedBalanceQuery.data.data.balanceUsd)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {crowdedBalanceQuery.data.data.accountCount === 0
+                        ? 'No Crowded accounts returned yet.'
+                        : `${crowdedBalanceQuery.data.data.accountCount} account${crowdedBalanceQuery.data.data.accountCount === 1 ? '' : 's'} · Updated ${new Date(crowdedBalanceQuery.data.data.syncedAt).toLocaleString()}`}
+                    </p>
+                  </div>
+                  {crowdedBalanceQuery.data.data.dbSyncError ? (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md p-2">
+                      Balance shown from Crowded; saving to Trailblaize failed: {crowdedBalanceQuery.data.data.dbSyncError}
+                    </p>
+                  ) : null}
+                  {crowdedBalanceQuery.data.data.accounts.length > 1 ? (
+                    <ul className="text-sm text-gray-700 space-y-1 border-t border-gray-100 pt-3">
+                      {crowdedBalanceQuery.data.data.accounts.map((a) => (
+                        <li key={a.crowdedAccountId} className="flex justify-between gap-2">
+                          <span className="truncate">{a.displayName}</span>
+                          <span className="tabular-nums shrink-0">
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                            }).format(a.balanceUsd)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
             <CardHeader className="border-b border-primary-100/30">
               <CardTitle className="text-primary-900 flex items-center gap-2">
@@ -922,6 +1046,7 @@ export function TreasurerDashboard() {
               )}
             </CardContent>
           </Card>
+          </>
         )}
         </>
       )}
