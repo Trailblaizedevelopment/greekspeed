@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrowdedClient } from './crowded-client';
+import { upsertCrowdedTransactionForCollectWebhook } from './reconcileCrowdedCollectWebhook';
 
 const COLLECTION_ID_KEYS = new Set([
   'collectionId',
@@ -141,8 +142,12 @@ export async function processCrowdedWebhookEvent(params: {
     }
 
     if (eventType === 'collect.payment.failed') {
-      await mark('skipped', 'payment.failed logged only');
-      return { ok: true, detail: 'collect.payment.failed acknowledged' };
+      const failResult = await handleCollectPaymentFailed(supabase, crowded, parsed);
+      await mark(
+        failResult.skipped ? 'skipped' : 'processed',
+        failResult.message
+      );
+      return { ok: true, detail: failResult.message };
     }
 
     await mark('skipped', `unhandled event type: ${eventType}`);
@@ -192,6 +197,20 @@ async function handleCollectPaymentSucceeded(
   }
 
   const crowdedChapterId = chapter.crowded_chapter_id.trim();
+
+  const txnRes = await upsertCrowdedTransactionForCollectWebhook({
+    supabase,
+    crowded,
+    trailblaizeChapterId: cycle.chapter_id,
+    parsed,
+    collectionId,
+    contactId,
+    amountMinor,
+    status: 'succeeded',
+  });
+  if (!txnRes.ok) {
+    console.warn('crowded_transactions (collect.payment.succeeded):', txnRes.reason);
+  }
 
   let contactEmail: string;
   try {
@@ -288,5 +307,55 @@ async function handleCollectPaymentSucceeded(
   return {
     skipped: false,
     message: `updated assignment ${assignment.id} status=${newStatus}`,
+  };
+}
+
+async function handleCollectPaymentFailed(
+  supabase: SupabaseClient,
+  crowded: CrowdedClient,
+  parsed: Record<string, unknown>
+): Promise<{ skipped: boolean; message: string }> {
+  const collectionId = extractByKeySet(parsed, COLLECTION_ID_KEYS);
+  const contactId = extractByKeySet(parsed, CONTACT_ID_KEYS);
+  const amountMinor = extractAmountMinor(parsed);
+
+  if (!collectionId || !contactId) {
+    return {
+      skipped: true,
+      message: 'collect.payment.failed: missing collectionId or contactId',
+    };
+  }
+
+  const { data: cycle, error: cycleErr } = await supabase
+    .from('dues_cycles')
+    .select('id, chapter_id')
+    .eq('crowded_collection_id', collectionId)
+    .maybeSingle();
+
+  if (cycleErr || !cycle?.chapter_id) {
+    return {
+      skipped: true,
+      message: 'collect.payment.failed: no dues_cycle for crowded_collection_id',
+    };
+  }
+
+  const txnRes = await upsertCrowdedTransactionForCollectWebhook({
+    supabase,
+    crowded,
+    trailblaizeChapterId: cycle.chapter_id,
+    parsed,
+    collectionId,
+    contactId,
+    amountMinor,
+    status: 'failed',
+  });
+
+  if (!txnRes.ok) {
+    return { skipped: true, message: `collect.payment.failed: ${txnRes.reason}` };
+  }
+
+  return {
+    skipped: false,
+    message: 'collect.payment.failed: recorded crowded_transactions row',
   };
 }

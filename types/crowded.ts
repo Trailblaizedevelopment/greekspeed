@@ -190,3 +190,27 @@ export interface CrowdedCollectIntent {
   failureUrl?: string | null;
   paymentUrl: string;
 }
+
+/**
+ * Ledger / transaction row from Crowded (GET …/accounts/:accountId/transactions).
+ * Shape varies by environment — normalized in {@link normalizeCrowdedTransactionListElement}.
+ */
+export interface CrowdedApiTransaction {
+  id?: string;
+  transactionId?: string;
+  transaction_id?: string;
+  uuid?: string;
+  amount?: number;
+  amountMinor?: number;
+  amount_minor?: number;
+  currency?: string;
+  description?: string;
+  memo?: string;
+  status?: string;
+  type?: string;
+  createdAt?: string;
+  occurredAt?: string;
+  occurred_at?: string;
+  postedAt?: string;
+  posted_at?: string;
+}

@@ -13,6 +13,7 @@ import type {
   CrowdedCreateCollectIntentRequest,
   CrowdedCreateCollectionRequest,
   CrowdedErrorBody,
+  CrowdedListMeta,
   CrowdedListResponse,
   CrowdedOrganization,
   CrowdedSingleResponse,
@@ -24,11 +25,16 @@ import {
   crowdedChapterListResponseSchema,
   crowdedCollectIntentSingleResponseSchema,
   crowdedCollectionSingleResponseSchema,
+  crowdedTransactionListResponseSchema,
   crowdedContactListResponseSchema,
   crowdedContactSingleResponseSchema,
   crowdedOrganizationListResponseSchema,
 } from './crowded-schemas';
 import { normalizeCrowdedAccountListElement } from './crowdedAccountMapping';
+import {
+  normalizeCrowdedTransactionListElement,
+  unwrapCrowdedTransactionsListPayload,
+} from './crowdedTransactionMapping';
 
 const API_PREFIX = '/api/v1';
 
@@ -367,6 +373,41 @@ export class CrowdedClient {
       crowdedAccountSingleResponseSchema,
       normalized
     ) as CrowdedSingleResponse<CrowdedAccount>;
+  }
+
+  /**
+   * GET /api/v1/chapters/:chapterId/accounts/:accountId/transactions
+   * Pull ledger rows for TRA-418. Returns **404** if the route is not registered for this API build — callers should catch.
+   */
+  async listAccountTransactions(
+    chapterId: string,
+    accountId: string,
+    query?: Record<string, string | number | boolean | undefined>
+  ): Promise<CrowdedListResponse<Record<string, unknown>>> {
+    const path = appendSearchParams(
+      `/chapters/${encodeURIComponent(chapterId)}/accounts/${encodeURIComponent(accountId)}/transactions`,
+      query
+    );
+    const raw = await this.getJson<unknown>(path);
+    const normalized = normalizeCrowdedListBody(unwrapCrowdedTransactionsListPayload(raw));
+    const body = normalized as { data?: unknown[]; meta?: unknown };
+    const data = Array.isArray(body.data)
+      ? body.data.map((item) => normalizeCrowdedTransactionListElement(item))
+      : [];
+    const parsed = maybeParse(crowdedTransactionListResponseSchema, {
+      ...body,
+      data,
+    }) as { data: Record<string, unknown>[]; meta?: CrowdedListMeta };
+    const meta: CrowdedListMeta = parsed.meta ?? {
+      pagination: {
+        total: parsed.data.length,
+        limit: parsed.data.length,
+        offset: 0,
+        sort: 'unknown',
+        order: 'desc',
+      },
+    };
+    return { data: parsed.data, meta };
   }
 
   /**

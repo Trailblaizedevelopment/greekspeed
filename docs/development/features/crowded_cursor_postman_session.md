@@ -6,6 +6,20 @@
 
 ---
 
+## Webhook lifetime (Crowded ↔ Trailblaize)
+
+**Does the webhook “last forever”?** Not automatically, and not in one piece of infrastructure alone.
+
+| Layer | What persists | What can break or change |
+|--------|----------------|---------------------------|
+| **Crowded subscription** | The object you created with **`POST /api/v1/webhooks`** keeps delivering to **`data.url`** while it remains **active** and Crowded’s platform policy allows it. | **DELETE / PATCH** the subscription, change **`url`** or **`secret`**, disable the org, or Crowded-side policy updates. You must **update Crowded** whenever your receiver URL changes (e.g. new Vercel preview branch unless you always use **production**). |
+| **Trailblaize route** | **`POST /api/webhooks/crowded`** is part of the Next.js app and deploys with each release. | Code regressions, missing env (`CROWDED_WEBHOOK_SECRET`, Supabase service role, Crowded token for `getContact`), or **Vercel Deployment Protection** blocking Crowded’s servers from reaching the URL. |
+| **Idempotency** | Table **`crowded_webhook_events`** (unique `idempotency_key`) prevents duplicate **processing** when Crowded retries (**`at_least_once`**). | DB migration not applied, or handler errors before the idempotency insert completes. |
+
+**Operational checklist:** Keep **`CROWDED_WEBHOOK_SECRET`** in Vercel (and local) **in sync** with Crowded’s subscription **`secret`**. Prefer a **stable production URL** for Crowded’s `data.url` so branch previews do not require re-registering webhooks. Rotate secrets in **both** places when compromised.
+
+---
+
 ## Confirmed working — sandbox (Mar 2026)
 
 | Setting | Value |
@@ -50,7 +64,9 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 | **GET single account** | **Best-effort in smoke only:** Crowded may return **400** `chapterId must be a positive integer` when using list `id` in `GET …/chapters/{uuid}/accounts/{id}` while **list** still returns **200**. Script logs a warning and continues; product sync should rely on **list**, not single GET, until Crowded confirms path/id rules. |
 | **Bulk create** | **POST** `…/chapters/:chapterId/accounts` — sandbox **200** + **repo:** `CrowdedClient.bulkCreateAccounts`, types/Zod, unit tests, optional `POST /api/chapters/[id]/crowded/accounts/bulk`. **[TRA-413](https://linear.app/trailblaize/issue/TRA-413/implement-crowded-chapter-account-creation-client-optional-api) Done.** |
 
-**Still open:** **POST collections** **401** *accept terms* for orgs not yet unblocked ([Pass 3](#pass-3--collect--collection-links-dues)); **Pass 4** — Crowded **registration** APIs verified (Apr 2026); **`GET …/webhooks/:id/deliveries`** **404** (ignored); **inbound** signature + payload from first real **POST** still TBD for hardening ([Pass 4](#pass-4--webhooks) → [TRA-416 checklist](#tra-416-implementation-checklist)); treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)); transaction sync ([TRA-418](https://linear.app/trailblaize/issue/TRA-418)). **TRA-414** code shipped — see implementation scan table.
+**Still open (hardening / org-specific):** **POST collections** **401** *accept terms* for orgs not yet unblocked ([Pass 3](#pass-3--collect--collection-links-dues)); **`GET …/webhooks/:id/deliveries`** **404** on sandbox (ignored). **Inbound:** capture **one real** `collect.payment.*` POST (headers + raw body) to confirm Crowded’s **signature header name and format** against `verifyCrowdedWebhookSignature` ([Pass 4](#pass-4--webhooks)). **Pull transactions:** `GET …/accounts/:id/transactions` may return **404** on some API builds — confirm path with Crowded or adjust `CrowdedClient.listAccountTransactions`.
+
+**Shipped (Apr 2026):** [TRA-416](https://linear.app/trailblaize/issue/TRA-416) inbound webhook + idempotency + dues/ledger; [TRA-417](https://linear.app/trailblaize/issue/TRA-417) treasurer **Crowded account balance**; [TRA-418](https://linear.app/trailblaize/issue/TRA-418) **`crowded_transactions`** from webhooks + **`POST …/crowded/transactions/sync`**. See [Next steps](#next-steps-post-tra-416-417-418-hardening) and [implementation scan](#implementation-scan--follow-ups-apr-2026).
 
 ---
 
@@ -76,12 +92,13 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 
 | Gap | Why it matters |
 |-----|----------------|
-| **No Crowded → Trailblaize webhook** | **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** not implemented. Paying on Collect does **not** automatically update `dues_assignments`, `profiles.current_dues_amount`, or `payments_ledger` in Supabase. |
-| **Success URL is UI-only** | `?success=true` on `/dashboard/dues` triggers a refetch only; data stays stale until something writes the DB. |
+| **Signature / payload hardening** | Webhook verifier assumes **HMAC-SHA256 hex** and common header names — align with **first live Crowded delivery** or Crowded docs ([TRA-416](https://linear.app/trailblaize/issue/TRA-416) follow-up). |
+| **Success URL is UI-only** | `?success=true` on `/dashboard/dues` triggers a refetch only; **authoritative** paid state is still the **webhook** (and DB), not the return URL alone. |
 | **Stripe / fallback** | Still not in repo for dues pay when Crowded is off. |
-| **Treasurer UX polish** | Bulk assign must use **positive amount** (API validation); optional UX hardening tracked under **[TRA-417](https://linear.app/trailblaize/issue/TRA-417)**. |
+| **Missed-webhook repair** | **`POST …/crowded/transactions/sync`** fills **`crowded_transactions`** from Crowded’s ledger API when available; it does **not** automatically re-run dues + **`payments_ledger`** if a webhook was never received — that remains a **product follow-up** if transaction payloads expose collection/contact. |
+| **Treasurer UX polish** | Bulk assign must use **positive amount** (API validation); further polish as needed. |
 
-**Bottom line:** The integration **does** handle **discovery → assign → member checkout handoff** on staging. It does **not** yet handle **post-payment reconciliation** in Trailblaize without new work (webhook + sync service, **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)**).
+**Bottom line:** The integration handles **discovery → assign → checkout → post-pay DB updates** via **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** (webhook) plus **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** (**`crowded_transactions`** + optional pull sync). Remaining work is **hardening** (signature, Vercel URL/secrets, Crowded API paths) and optional **reconciliation** features above.
 
 ### Code map (dues ↔ Crowded path)
 
@@ -738,7 +755,7 @@ After create, **list** (`GET /api/v1/webhooks`) — live sample (webhook **`id`*
 
 ### Manual walkthrough — Steps 1–5 (Postman + product; no Trailblaize code)
 
-Use this for **human-run** checks. Prefer **Agent mode** when you want the repo implementation (**TRA-416** / **TRA-418**).
+Use this for **human-run** checks. **Repo implementation** for TRA-416 / 417 / 418 is **shipped** — use Agent mode for **hardening** or new events (e.g. refunds).
 
 #### 1. Confirm webhook in the list
 
@@ -799,22 +816,20 @@ Postman turns **`{{webhook_id}}` red** when the **active environment** has no va
 
 **If nothing arrives:** wait for retries; re-run **step 3** deliveries list; confirm **`isActive`** and **`events`** include **`collect.payment.succeeded`**; ask Crowded for staging test payment guidance if needed.
 
-#### 5. TRA-416 / TRA-418 (implementation — use Agent mode in Cursor)
+#### 5. TRA-416 / TRA-418 (implementation — shipped Apr 2026)
 
-Not Postman work.
+Not Postman work — **done in repo**; use Agent mode only for follow-ups.
 
-**TRA-416**
+**TRA-416 (webhook)**
 
-- Add **`POST /api/webhooks/crowded`** (`app/api/webhooks/crowded/route.ts`).
-- Read **raw body** (`request.text()` or equivalent) **before** JSON parse; verify **signature** using headers from step 4.
-- **401/403** if invalid signature; **200** after safe handling (avoid long blocking work).
-- **Idempotency:** **`at_least_once`** → dedupe on event id (or stable key).
-- Env: **`CROWDED_WEBHOOK_SECRET`** = same value as **`data.secret`** at create (never commit).
+- **`POST /api/webhooks/crowded`** — `app/api/webhooks/crowded/route.ts`; raw body + **`verifyCrowdedWebhookSignature`**; optional **`CROWDED_WEBHOOK_SKIP_SIGNATURE_VERIFY`** for local debug only.
+- **Idempotency:** `crowded_webhook_events` + **`processCrowdedWebhookEvent`** in `lib/services/crowded/handleCrowdedWebhookEvent.ts`.
+- **`collect.payment.succeeded`:** dues + profiles + **`payments_ledger`** (same file); env **`CROWDED_WEBHOOK_SECRET`** = Crowded subscription **`data.secret`**.
 
-**TRA-418**
+**TRA-418 (transactions)**
 
-- Map **`collect.payment.succeeded`** (and failures/refunds if needed) → **`dues_assignments`**, optional **`payments_ledger`**, **`crowded_transactions`**, profile fields — **service role** server-side.
-- Map payload IDs → your rows (collection, contact, intent — depends on JSON from step 4).
+- **`crowded_transactions`:** `upsertCrowdedTransactionForCollectWebhook` (`lib/services/crowded/reconcileCrowdedCollectWebhook.ts`) on success/failed Collect webhooks; mapping helpers in `lib/services/crowded/crowdedTransactionMapping.ts`.
+- **Pull sync:** **`POST /api/chapters/[id]/crowded/transactions/sync`** + **`CrowdedClient.listAccountTransactions`** + `lib/services/crowded/syncCrowdedTransactions.ts` (404 per account if Crowded omits route).
 
 ### Postman — `Webhooks` folder inventory (Apr 2026)
 
@@ -830,7 +845,7 @@ Not Postman work.
 
 ### Findings — Pass 4
 
-**Incoming** delivery (what Crowded POSTs to *your* URL) still TBD — capture **headers + raw body** from webhook.site (or **`/api/webhooks/crowded`** on Vercel) after a **collect.payment.*** event fires.
+**Incoming** delivery: **handler is implemented** (`POST /api/webhooks/crowded`). For **production hardening**, still capture **headers + raw body** from the first real **`collect.payment.*** on your deployed URL (or webhook.site during trial) to confirm **signature** header names and algorithm vs `lib/services/crowded/crowdedWebhookSignature.ts`.
 
 | Item | Notes |
 |------|--------|
@@ -855,14 +870,15 @@ Not Postman work.
 - **`webhook_id`** for Crowded paths = **`data.id`** from list/create — **not** the UUID inside **`webhook.site/…`**.
 - **`GET …/webhooks/:id/deliveries`** — **404** with correct **`webhook_id`** — **treat as unavailable** on this host; **no further Postman required** for TRA-416 kickoff.
 
-**Still needed for a fully “closed” TRA-416 (inbound):**
+**Still recommended after go-live:**
 
-- One real **POST** to your callback URL (production: **`https://<vercel>/api/webhooks/crowded`**) after a **staging Collect** payment — capture **headers + raw body** (private notes) to lock **signature algorithm** and **payload shape**.
-- Until then, Linear allows **Day 1:** stub route + **idempotency placeholder** + signature adapter **TODO** ([TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler)).
+- One real **POST** to **`https://<production-host>/api/webhooks/crowded`** (or staging) after a **Collect** payment — store **headers + raw body** (private notes only) to confirm **signature** and **payload** fields against the implementation.
 
 <a id="tra-416-implementation-checklist"></a>
 
 ### TRA-416 implementation checklist (repo — [Linear TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler))
+
+**Status:** Implemented in repo (`app/api/webhooks/crowded/route.ts`, `lib/services/crowded/handleCrowdedWebhookEvent.ts`, `crowded_webhook_events` migration). The checklist below remains the **operations / verification** reference.
 
 Map to acceptance criteria on the issue. Suggested branch: `devin/tra-416-crowded-webhook-handler`.
 
@@ -884,8 +900,8 @@ Map to acceptance criteria on the issue. Suggested branch: `devin/tra-416-crowde
 6. **Idempotency**  
    **`deliveryMode: "at_least_once"`** — persist **event id** (or composite key) and **skip** duplicates. DB table or Supabase unique constraint.
 
-7. **`payments_ledger` / dues state (Linear AC)**  
-   **Minimum to close TRA-416:** call a **service** that updates DB (service role). **Heavy mapping** (intent → `dues_assignments`, `crowded_transactions`, profiles) may live in **[TRA-418](https://linear.app/trailblaize/issue/TRA-418/payment-status-tracking-and-sync)** — split PRs if needed, but the **webhook handler must not** leave success path as no-op forever; at least **enqueue** or **stub** with ticket reference.
+7. **`payments_ledger` / dues state + `crowded_transactions` (Linear AC)**  
+   **Shipped:** webhook updates **dues**, **profiles**, **`payments_ledger`**, and **`crowded_transactions`** (see [TRA-418](https://linear.app/trailblaize/issue/TRA-418)). Extend for **`collect.payment.refunded`** etc. when product requires it.
 
 8. **Manual verify**  
    Staging Collect payment → **200** from your route → DB / logs as expected → update Crowded subscription URL if you tested on webhook.site first.
@@ -910,21 +926,24 @@ After you receive a test webhook, add a **minimal** redacted example (no PII, no
 
 | Area | Notes |
 |------|--------|
-| Env | `CROWDED_API_BASE_URL=https://sandbox-api.crowdedfinance.com` (sandbox); Bearer token in env (e.g. `CROWDED_API_TOKEN`); webhook secret when known |
-| Client | `lib/services/crowded/crowded-client.ts` — `Authorization: Bearer`, base URL from env; accounts list **unwrap** (`unwrapCrowdedAccountsListPayload`); **`normalizeCrowdedErrorDetails`** + safe `hasDetail` on `CrowdedApiError`; **collect:** `createCollection`, `getCollection`, `createIntent`, `getCrowdedIntentPaymentUrl` |
+| Env | `CROWDED_API_BASE_URL=https://sandbox-api.crowdedfinance.com` (sandbox); Bearer `CROWDED_API_TOKEN`; inbound webhook **`CROWDED_WEBHOOK_SECRET`** (match Crowded subscription `secret`); optional `CROWDED_WEBHOOK_SKIP_SIGNATURE_VERIFY` for local debug only (see `.env.example`). |
+| Client | `lib/services/crowded/crowded-client.ts` — Bearer, unwrap helpers, **collect** (`createCollection`, `getCollection`, `createIntent`), **`listAccountTransactions`** (ledger pull for TRA-418). |
 | Chapter ↔ Crowded IDs | `public.chapters.crowded_chapter_id`, `crowded_organization_id` (nullable UUIDs). Set per chapter per environment (e.g. Supabase SQL `UPDATE`). Maps Trailblaize `chapters.id` → Crowded path segment for `/api/v1/chapters/:chapterId/...`. |
 | Resolver | `lib/services/crowded/chapterCrowdedMapping.ts` — `getCrowdedIdsForTrailblaizeChapter(supabase, trailblaizeChapterId)` returns `{ crowdedChapterId, crowdedOrganizationId }` or `null`. Use server-side with service role or RLS-safe client. |
 | Types | `types/chapter.ts` — `Chapter` includes optional `crowded_chapter_id` / `crowded_organization_id`. |
 | Test | `npm run test:crowded` — see [Local CLI smoke — TRA-412 full upsert](#local-cli-smoke--tra-412-full-upsert-path) for env sources (Supabase vs Postman). With smoke chapter id + service role: TRA-561 mapping + `listAccounts` + **`crowded_accounts` upsert** on **200**. |
 | Account sync (TRA-412) | `lib/services/crowded/syncCrowdedAccounts.ts` — `upsertCrowdedAccountsFromList`, `syncCrowdedAccountsForTrailblaizeChapter`, `syncCrowdedAccountByIds`. |
-| Unit tests | `npm run test:crowded:unit` — `crowded-client.accounts.test.ts` + `crowded-client.collections.test.ts` (bulk create, create collection / intent, `getCrowdedIntentPaymentUrl`). |
+| Unit tests | `npm run test:crowded:unit` — accounts, collections, **`crowdedTransactionMapping.test.ts`**, **`crowdedWebhookSignature.test.ts`**, contact matcher. |
 | DB (TRA-410 + TRA-561) | `chapters.crowded_*` mapping migration; `crowded_accounts` / `crowded_transactions` + RLS. **`20260408190000_crowded_account_id_to_text.sql`** — `crowded_account_id` **TEXT** on both tables (opaque Crowded ids). |
 | Account → DB row | `lib/services/crowded/crowdedAccountMapping.ts` — `mapCrowdedAccountToSyncFields` for future sync jobs (balances assumed minor units; confirm with Crowded before production). |
 | Supabase row types | `types/crowdedDb.ts` — `CrowdedAccountRow`, `CrowdedTransactionRow`. |
 | Feature flag (TRA-411) | `types/featureFlags.ts` — `crowded_integration_enabled` (default **false**). `app/dashboard/feature-flags/page.tsx` — exec toggle. Persisted via existing chapter feature-flags API. |
-| Crowded chapter API (auth) | `lib/services/crowded/resolveCrowdedChapterApiContext.ts` — Bearer/cookies + service role, `canManageChapterForContext`, flag + `crowded_chapter_id`. Used by bulk accounts + collections + intents routes. |
+| Crowded chapter API (auth) | `resolveCrowdedChapterApiContext.ts` — also returns **service-role `supabase`** on success for routes that write (`balance`, `transactions/sync`, webhooks use service client from auth helper). |
 | Next routes (TRA-413 / 414) | `POST /api/chapters/[id]/crowded/accounts/bulk`, `POST …/crowded/collections` (**201**), `POST …/crowded/collections/[collectionId]/intents`. |
-| Webhooks — Crowded API (Pass 4) | **Verified:** `GET …/webhooks/event-types`; **`GET/POST /api/v1/webhooks`** (list + create with `data` wrapper, **201**). **`at_least_once`** → idempotent handler. Postman **`…/subscriptions`** paths still wrong — duplicate requests. **Not in `crowded-client.ts` yet** — see [Pass 4](#pass-4--webhooks). |
+| Balance (TRA-417) | `GET /api/chapters/[id]/crowded/balance`, `useCrowdedChapterBalance`, treasurer **Crowded account balance** card. |
+| Transactions sync (TRA-418) | `POST /api/chapters/[id]/crowded/transactions/sync`, `syncCrowdedTransactions.ts`, `reconcileCrowdedCollectWebhook.ts`, `crowdedTransactionMapping.ts`. |
+| Webhooks — Crowded API (Pass 4) | **Verified:** `GET …/webhooks/event-types`; **`GET/POST /api/v1/webhooks`**. Postman **`…/subscriptions`** paths are **stale** (404). |
+| Webhooks — Trailblaize inbound | `POST /api/webhooks/crowded` — `crowdedWebhookSignature.ts`, `handleCrowdedWebhookEvent.ts`, migration **`crowded_webhook_events`**. |
 
 ---
 
@@ -981,21 +1000,45 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | [TRA-412](https://linear.app/trailblaize/issue/TRA-412) | Account management API methods | Done | `listAccounts` (unwrap + sync) proven in smoke; `getAccount` implemented but Crowded may reject list `id` on single GET — confirm with Crowded; `syncCrowdedAccounts.ts` upserts from **list** |
 | [TRA-413](https://linear.app/trailblaize/issue/TRA-413) | Chapter account creation (bulk) | Done | **`bulkCreateAccounts`** + types/Zod/tests + optional bulk API route; Postman **200** ([Pass 2](#bulk-create-accounts--verified-sandbox-apr-2026)) |
 | [TRA-414](https://linear.app/trailblaize/issue/TRA-414) | Collections + intents | Done | **`createCollection`**, **`getCollection`**, **`createIntent`**, **`getCrowdedIntentPaymentUrl`**; types + Zod; `crowded-client.collections.test.ts`; routes `POST …/crowded/collections`, `POST …/crowded/collections/[collectionId]/intents`; `resolveCrowdedChapterApiContext` shared with bulk accounts. |
-| [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | **Verified manual E2E** (Apr 2026) | **`POST /api/dues/pay`** + member redirect to **staging Collect** confirmed. **`PATCH /api/dues/cycles/[id]`** + treasurer **Crowded checkout** card link `crowded_collection_id`. **`DuesClient` / `DuesStatusCard`**: shared Supabase browser client + **`duesEmbeds`** unwrap. **503** `ONLINE_DUES_UNAVAILABLE` when misconfigured; **Stripe fallback** not in repo. Migration `20260409120000_*`. **Post-pay DB sync still out of scope** until webhooks. |
-| [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | Backlog | **Not implemented** in repo — no `/api/webhooks/crowded`. **Pass 4:** Crowded **register/list/create** verified; **`…/deliveries`** 404 — OK. **Next:** [implementation checklist](#tra-416-implementation-checklist). |
-| [TRA-417](https://linear.app/trailblaize/issue/TRA-417) | Treasurer balance UI | Backlog | **Partial:** Crowded link + dues cycles on **TreasurerDashboard**; full balances / **`GET …/accounts`** UI still **not implemented** |
-| [TRA-418](https://linear.app/trailblaize/issue/TRA-418) | Payment sync service | Backlog | **Not implemented** — `crowded_transactions` table exists; no sync job |
+| [TRA-415](https://linear.app/trailblaize/issue/TRA-415) | Dues `/api/dues/pay` Crowded path | **Verified manual E2E** (Apr 2026) | **`POST /api/dues/pay`** + member redirect to **staging Collect** confirmed. **`PATCH /api/dues/cycles/[id]`** + treasurer **Crowded checkout** card link `crowded_collection_id`. **`DuesClient` / `DuesStatusCard`**: shared Supabase browser client + **`duesEmbeds`** unwrap. **503** `ONLINE_DUES_UNAVAILABLE` when misconfigured; **Stripe fallback** not in repo. Migration `20260409120000_*`. **Post-pay:** webhook **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** updates dues/ledger. |
+| [TRA-416](https://linear.app/trailblaize/issue/TRA-416) | Webhook handler | **Done** (verify in prod) | **`POST /api/webhooks/crowded`**, signature + idempotency + `collect.payment.succeeded` / `failed`. Env **`CROWDED_WEBHOOK_SECRET`**. Apply **`crowded_webhook_events`** migration. **Pass 4:** Crowded **register/list/create** verified; **`…/deliveries`** 404 — OK. |
+| [TRA-417](https://linear.app/trailblaize/issue/TRA-417) | Treasurer balance UI | **Done** | **`GET /api/chapters/[id]/crowded/balance`**, **`useCrowdedChapterBalance`**, **Crowded account balance** card on **TreasurerDashboard** (60s refetch + Refresh). |
+| [TRA-418](https://linear.app/trailblaize/issue/TRA-418) | Payment sync / `crowded_transactions` | **Done** | Webhook upserts **`crowded_transactions`**; **`POST …/crowded/transactions/sync`** pull path; **`listAccountTransactions`** on client. Confirm DB **unique constraint** matches upsert `onConflict`. |
 
 **Revisit later (implementation notes)**
 
 1. **TRA-412 — Done for list + DB sync:** `syncCrowdedAccountsForTrailblaizeChapter` / `upsertCrowdedAccountsFromList` validated end-to-end. **`syncCrowdedAccountByIds` / `getAccount`:** verify Crowded’s expected `:accountId` with Kyle if single-GET keeps failing. Use **NO_CUSTOMER** in treasurer UI ([TRA-417](https://linear.app/trailblaize/issue/TRA-417)).
 2. **TRA-413 — Bulk create:** **Done** — `CrowdedClient.bulkCreateAccounts`, `types/crowded.ts`, `crowded-schemas.ts`, `crowded-client.accounts.test.ts`, `app/api/chapters/[id]/crowded/accounts/bulk/route.ts`.
 3. **TRA-414 — Collections / intents:** **Done** — `createCollection`, `getCollection`, `createIntent`, `getCrowdedIntentPaymentUrl`; `resolveCrowdedChapterApiContext`; Next routes under `app/api/chapters/[id]/crowded/collections/…`.
-4. **TRA-410 / sync — Use `mapCrowdedAccountToSyncFields`:** No cron or API route calls it yet; first sync should upsert `crowded_accounts` then populate `crowded_transactions` per TRA-418.
+4. **TRA-410 / sync:** `crowded_accounts` upserted from **`listAccounts`** (balance route + webhook reconciliation). **`crowded_transactions`** populated via **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** (webhook + optional **`POST …/transactions/sync`**).
 5. **TRA-411 — Gate server routes:** Flag exists in DB/UI; new Crowded routes use **`resolveCrowdedChapterApiContext`**; broader middleware TBD.
-6. **Collections / dues / webhooks:** **Pass 3** pay URL on **`data.paymentUrl`**; **TRA-415** **manually verified** to staging Collect (Apr 2026 — see [App ↔ Crowded E2E](#app--crowded-e2e--manual-verification-apr-2026)); **next:** **TRA-416** webhooks + **TRA-418** sync for post-pay state.
+6. **Collections / dues / webhooks:** **Pass 3** pay URL on **`data.paymentUrl`**; **TRA-415** **manually verified** to staging Collect (Apr 2026 — see [App ↔ Crowded E2E](#app--crowded-e2e--manual-verification-apr-2026)); **TRA-416 / 418** shipped for post-pay DB state — see [Next steps](#next-steps-post-tra-416-417-418-hardening).
 7. **`CROWDED_VALIDATE_RESPONSES`:** Optional strict Zod on all responses — off by default; turn on when stabilizing schemas against production payloads.
 8. **Later milestones** (e.g. TRA-423+): Expense/spending issues in Linear are **backlog**; no code in `lib/services/crowded` for cards/expenses yet.
+
+---
+
+<a id="next-steps-post-tra-416-417-418-hardening"></a>
+
+## Next steps (post–TRA-416 / 417 / 418 — hardening & ops)
+
+Use this list when planning the next integration slice (no strict order for items 2–5).
+
+1. **Production / staging webhook URL** — Register **`POST https://<stable-host>/api/webhooks/crowded`** in Crowded (not a throwaway preview URL unless you re-PATCH on every deploy). Add **Vercel [protection bypass](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation)** to the URL or disable protection for the deployment Crowded calls.
+
+2. **Signature verification** — After the first **real** Crowded `POST`, compare **headers + raw body** to `verifyCrowdedWebhookSignature` / `crowdedWebhookSignature.ts`. Adjust header names or algorithm if Crowded differs; remove **`CROWDED_WEBHOOK_SKIP_SIGNATURE_VERIFY`** outside local dev.
+
+3. **Database** — Apply migrations: **`crowded_webhook_events`**, **`crowded_transactions`** unique constraint must match **`onConflict: 'chapter_id,crowded_account_id,crowded_transaction_id'`** on upserts (TRA-410).
+
+4. **E2E payment QA** — Staging Collect payment → **200** webhook → Supabase: **`crowded_webhook_events`**, **`crowded_transactions`**, **`dues_assignments`**, **`payments_ledger`**, **`crowded_accounts`** (as applicable).
+
+5. **Pull transactions API** — Call **`POST /api/chapters/[id]/crowded/transactions/sync`** while authenticated. If response **`errors`** include **404** for `…/transactions`, confirm the correct Crowded path with Crowded and update **`listAccountTransactions`**.
+
+6. **Optional product** — Handle **`collect.payment.refunded`** (and related) in the webhook switch; **repair path** to apply dues from **API-only** sync if Crowded transaction payloads expose collection/contact.
+
+7. **Stripe / offline dues** — Still backlog if Crowded is disabled for a chapter.
+
+8. **Documentation hygiene** — Keep this file’s **Session log** and **implementation scan** table updated when Crowded or env behavior changes.
 
 ---
 
@@ -1034,6 +1077,7 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 | Apr 2026 | **Pass 4 — manual steps** | Added [click-by-click walkthrough](#manual-walkthrough-pass4): **`webhook_id`** env (**Crowded `data.id`** vs webhook.site UUID), no bogus **Headers**, deliveries URL without stray **`?`**. |
 | Apr 2026 | **Pass 4 — deliveries API** | **`GET /api/v1/webhooks/:id/deliveries`** → **404** with correct Crowded **`webhook_id`**; Postman phase treated **complete** without deliveries list. |
 | Apr 2026 | **TRA-416 doc** | [Implementation checklist](#tra-416-implementation-checklist) added — maps to [Linear TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler) AC; inbound sample still from staging payment or Crowded support. |
+| Apr 2026 | **TRA-416 / 417 / 418 shipped** | Inbound **`POST /api/webhooks/crowded`** (signature + idempotency + dues/ledger + **`crowded_transactions`**); treasurer **`GET …/crowded/balance`** + UI; **`POST …/crowded/transactions/sync`** + **`listAccountTransactions`**. Doc: **webhook lifetime**, **next steps**, tables + E2E gaps updated. |
 
 ---
 
@@ -1051,16 +1095,15 @@ WHERE chapter_id = '<your Trailblaize chapters.id>';
 
 6. **Optional:** If the collection has **GET** on a single collection, open it and note any `url` / `link` fields without paying.
 
-7. **Pass 4 / TRA-416 (after pay)**  
-   **Postman registration path:** done for sandbox — see [Pass 4 — Postman / registration status](#pass-4-postman-registration-status). **`GET …/deliveries`** not available (404) — skip.  
-   **Repo:** follow **[TRA-416 implementation checklist](#tra-416-implementation-checklist)** → then **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** for full **`dues_assignments`** / ledger mapping. Until shipped, **Crowded portal** may show paid while **Trailblaize** stays stale after checkout.  
-   - If **inbound** signature unclear: capture first **POST** after staging payment, or email **Kyle** / **support@bankingcrowded.com** for header + sample JSON.
+7. **Pass 4 / inbound webhook (after pay)**  
+   **Postman registration:** [Pass 4 — Postman / registration status](#pass-4-postman-registration-status). **`GET …/deliveries`** — skip if 404.  
+   **Repo:** TRA-416 / 417 / 418 **shipped** — run [Next steps](#next-steps-post-tra-416-417-418-hardening) (stable URL, signature capture, migrations, E2E). If **signature** unclear: capture first **POST** after staging payment, or email **Kyle** / **support@bankingcrowded.com** for header + sample JSON.
 
 8. **Local env (no commit)**  
-   Crowded: `CROWDED_API_BASE_URL`, `CROWDED_API_TOKEN`. For **DB upsert smoke**, add Supabase URL, **service_role** key, and **`CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID`** = Trailblaize **`chapters.id`** (see [Local CLI smoke — TRA-412 full upsert path](#local-cli-smoke--tra-412-full-upsert-path)). **`scripts/test-crowded-api.ts`** uses Bearer via `createCrowdedClientFromEnv()`.
+   Crowded: `CROWDED_API_BASE_URL`, `CROWDED_API_TOKEN`, **`CROWDED_WEBHOOK_SECRET`** (match Crowded webhook `secret`). For **DB smoke**, Supabase URL + **service_role** + **`CROWDED_SMOKE_TRAILBLAIZE_CHAPTER_ID`** (see [Local CLI smoke — TRA-412 full upsert path](#local-cli-smoke--tra-412-full-upsert-path)). **`scripts/test-crowded-api.ts`** uses Bearer via `createCrowdedClientFromEnv()`.
 
-9. **Linear**  
-   **TRA-415** member + treasurer handoff **verified on staging**. **Natural next focus:** **[TRA-416](https://linear.app/trailblaize/issue/TRA-416)** (webhooks) + **[TRA-418](https://linear.app/trailblaize/issue/TRA-418)** (transaction / payment sync) → then **[TRA-417](https://linear.app/trailblaize/issue/TRA-417)** (full treasurer financial UI). **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
+9. **Linear / project**  
+   **TRA-415** verified on staging; **TRA-416 / 417 / 418** closed in Linear — follow **project backlog** for refunds, Stripe fallback, expense milestones, etc. **Do not paste JWTs into Linear/GitHub** — describe status + error codes only.
 
 ---
 

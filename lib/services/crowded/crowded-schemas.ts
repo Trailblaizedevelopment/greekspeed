@@ -203,6 +203,12 @@ export const crowdedCollectIntentSingleResponseSchema = z.object({
   data: crowdedCollectIntentSchema,
 });
 
+/** Account transactions list — field names vary; validated loosely when CROWDED_VALIDATE_RESPONSES=1 */
+export const crowdedTransactionListResponseSchema = z.object({
+  data: z.array(z.record(z.string(), z.unknown())),
+  meta: crowdedListMetaSchema.optional(),
+});
+
 /** App route: create intent (Crowded `data` payload) */
 export const crowdedCreateCollectIntentAppRequestSchema = z.object({
   contactId: z.string().uuid(),
