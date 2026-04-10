@@ -179,6 +179,50 @@ describe('CrowdedClient.createIntent', () => {
   });
 });
 
+describe('CrowdedClient.listCollectionIntents', () => {
+  const originalFetch = globalThis.fetch;
+  const chapterId = 'aaaaaaaa-bbbb-cccc-dddd-aaaaaaaaaaaa';
+  const collectionId = '442650b1-05e2-4d33-8417-3df879ed0a2e';
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('GETs /api/v1/chapters/:id/collections/:collectionId/intents', async () => {
+    const expectedUrl = buildCrowdedUrl(
+      'https://crowded.test',
+      `/chapters/${chapterId}/collections/${collectionId}/intents`
+    );
+    const responseBody = {
+      data: [
+        {
+          id: 'e2e1a7c2-a9cc-4759-b9d8-079b5227e024',
+          contactId: '11111111-1111-1111-1111-111111111111',
+          requestedAmount: 50_000,
+          paidAmount: 0,
+          status: 'Not Paid',
+          createdAt: '2026-04-08T22:44:13.891Z',
+        },
+      ],
+      meta: {
+        pagination: { total: 1, limit: 10, offset: 0, sort: 'createdAt', order: 'desc' },
+      },
+    };
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      assert.equal(String(input), expectedUrl);
+      assert.equal(init?.method, 'GET');
+      return new Response(JSON.stringify(responseBody), { status: 200 });
+    }) as typeof fetch;
+
+    const client = new CrowdedClient({ baseUrl: 'https://crowded.test', token: 't' });
+    const out = await client.listCollectionIntents(chapterId, collectionId);
+    assert.equal(out.data.length, 1);
+    assert.equal(out.data[0]?.contactId, '11111111-1111-1111-1111-111111111111');
+    assert.equal(out.data[0]?.status, 'Not Paid');
+  });
+});
+
 describe('getCrowdedIntentPaymentUrl', () => {
   it('returns undefined when paymentUrl empty', () => {
     assert.equal(

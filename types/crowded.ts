@@ -191,6 +191,17 @@ export interface CrowdedCollectIntent {
   paymentUrl: string;
 }
 
+/** Normalized intent for list/overview (GET list may omit `paymentUrl`). */
+export interface CrowdedCollectIntentSummary {
+  id: string;
+  contactId: string;
+  status: string;
+  requestedAmount: number;
+  paidAmount: number;
+  paymentUrl?: string | null;
+  createdAt?: string | null;
+}
+
 /**
  * Ledger / transaction row from Crowded (GET …/accounts/:accountId/transactions).
  * Shape varies by environment — normalized in {@link normalizeCrowdedTransactionListElement}.

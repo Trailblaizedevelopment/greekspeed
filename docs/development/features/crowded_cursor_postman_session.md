@@ -81,7 +81,7 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 | Chapter config | `crowded_integration_enabled` + `chapters.crowded_chapter_id` + server `CROWDED_API_*` env. |
 | Treasurer — dues cycle | Create cycle via API/UI; RLS aligned with `canManageChapterForContext` (migration `20260408193000_dues_cycles_rls_unified_writes.sql`). |
 | Treasurer — link collection | **Crowded checkout** card on Exec Admin → Dues (Overview): `POST /api/chapters/[id]/crowded/collections` then **`PATCH /api/dues/cycles/[id]`** persists `dues_cycles.crowded_collection_id`. |
-| Treasurer — assign member | Bulk (or single) assign with **cycle id + amount &gt; 0** → `POST /api/dues/assignments` **200**. |
+| Treasurer — assign member | Bulk (or single) assign with **`cycleId` + `memberId`**; amount defaults from **`dues_cycles.base_amount`** unless `useCustomAmount` + `customAmount` (or **reduced** / **exempt** / **waived** rules) → `POST /api/dues/assignments` **200**. |
 | Member — dues page | `/dashboard/dues` loads assignments with embedded cycle (**shared `createBrowserClient`** + `unwrapDuesCycleEmbed` in `lib/utils/duesEmbeds.ts`; fixes null `cycle` / **Invalid Date**). |
 | Member — pay | Consent + **`POST /api/dues/pay`** **200** → redirect to **`https://staging.collect.crowdedme.xyz/collection/{collectionId}?collectintentuuid=…`**. |
 | Crowded portal | **`staging.portal.crowdedme.xyz`**: collection appears (e.g. **Crowded Cycle Two**); contact shows **Collect request** (Not Paid); dashboard feed; **email notifications** observed when flows run. |

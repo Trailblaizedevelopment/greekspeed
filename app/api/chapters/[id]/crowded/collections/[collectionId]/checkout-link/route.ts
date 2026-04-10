@@ -1,32 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
-import { authenticateCrowdedApiRequest } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
+import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 import { createCrowdedDuesPaymentIntent } from '@/lib/services/dues/crowdedDuesPaymentIntent';
 import { dollarsOutstandingToCents } from '@/lib/services/dues/duesOutstandingCents';
 import { isFeatureEnabled } from '@/types/featureFlags';
 import { clientIpFromRequest } from '@/lib/utils/clientIpFromRequest';
 import { getBaseUrl } from '@/lib/utils/urlUtils';
 
-const duesPayBodySchema = z.object({
+const bodySchema = z.object({
   duesAssignmentId: z.string().uuid(),
-  userConsented: z.literal(true),
 });
 
 const NON_PAYABLE_STATUSES = new Set(['paid', 'exempt', 'waived']);
 
 /**
- * Member dues checkout: Crowded intent when chapter flag + `crowded_chapter_id` + `dues_cycles.crowded_collection_id` are set.
- * Stripe fallback is not implemented in-repo yet — returns 503 with `code` when Crowded path is unavailable.
+ * Treasurer: create a Crowded collect intent (checkout URL) for a member’s dues assignment on this collection.
  */
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; collectionId: string }> }
+) {
   try {
-    const auth = await authenticateCrowdedApiRequest(request);
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { id: trailblaizeChapterId, collectionId } = await params;
+    const collectionIdTrim = collectionId?.trim();
+    if (!collectionIdTrim) {
+      return NextResponse.json({ error: 'Missing collection id' }, { status: 400 });
     }
 
-    const { user, supabase } = auth;
+    const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
+    if (!ctx.ok) {
+      return ctx.response;
+    }
 
     let json: unknown;
     try {
@@ -35,7 +40,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const parsed = duesPayBodySchema.safeParse(json);
+    const parsed = bodySchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Invalid request', issues: parsed.error.flatten() },
@@ -43,24 +48,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, chapter_id, email, first_name, last_name, full_name')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-    }
-
-    if (!profile.chapter_id?.trim()) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to a chapter for online dues payment.' },
-        { status: 403 }
-      );
-    }
-
-    const { data: assignment, error: assignError } = await supabase
+    const { data: assignment, error: assignError } = await ctx.supabase
       .from('dues_assignments')
       .select(
         `
@@ -69,12 +57,10 @@ export async function POST(request: NextRequest) {
         status,
         amount_due,
         amount_paid,
-        dues_cycle_id,
         cycle:dues_cycles!dues_assignments_dues_cycle_id_fkey (
           id,
           chapter_id,
-          crowded_collection_id,
-          name
+          crowded_collection_id
         )
       `
       )
@@ -85,29 +71,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dues assignment not found' }, { status: 404 });
     }
 
-    if (assignment.user_id !== user.id) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
     const cycleRaw = assignment.cycle;
     const cycle = (Array.isArray(cycleRaw) ? cycleRaw[0] : cycleRaw) as {
       id: string;
       chapter_id: string;
       crowded_collection_id: string | null;
-      name: string | null;
     } | null;
 
     if (!cycle?.chapter_id) {
       return NextResponse.json({ error: 'Dues cycle not found' }, { status: 404 });
     }
 
-    if (profile.chapter_id.trim() !== cycle.chapter_id.trim()) {
-      return NextResponse.json({ error: 'This dues assignment does not belong to your chapter.' }, { status: 403 });
+    if (cycle.chapter_id.trim() !== trailblaizeChapterId.trim()) {
+      return NextResponse.json({ error: 'Assignment does not belong to this chapter.' }, { status: 403 });
+    }
+
+    const linkedId = (cycle.crowded_collection_id as string | null)?.trim() ?? '';
+    if (linkedId !== collectionIdTrim) {
+      return NextResponse.json(
+        { error: 'This assignment’s cycle is not linked to this Crowded collection.' },
+        { status: 409 }
+      );
     }
 
     const status = typeof assignment.status === 'string' ? assignment.status : '';
     if (NON_PAYABLE_STATUSES.has(status)) {
-      return NextResponse.json({ error: 'This dues assignment is not payable online.' }, { status: 409 });
+      return NextResponse.json({ error: 'This assignment is not payable online.' }, { status: 409 });
     }
 
     const requestedAmount = dollarsOutstandingToCents(assignment.amount_due, assignment.amount_paid);
@@ -115,7 +104,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No outstanding balance for this assignment.' }, { status: 409 });
     }
 
-    const { data: chapter, error: chapterError } = await supabase
+    const { data: chapter, error: chapterError } = await ctx.supabase
       .from('chapters')
       .select('id, feature_flags, crowded_chapter_id')
       .eq('id', cycle.chapter_id)
@@ -127,19 +116,21 @@ export async function POST(request: NextRequest) {
 
     const crowdedEnabled = isFeatureEnabled(chapter.feature_flags, 'crowded_integration_enabled');
     const crowdedChapterId = (chapter.crowded_chapter_id as string | null)?.trim() ?? '';
-    const crowdedCollectionId = (cycle.crowded_collection_id as string | null)?.trim() ?? '';
-
-    const crowdedReady = crowdedEnabled && crowdedChapterId.length > 0 && crowdedCollectionId.length > 0;
-
-    if (!crowdedReady) {
+    if (!crowdedEnabled || !crowdedChapterId) {
       return NextResponse.json(
-        {
-          error:
-            'Online dues checkout is not configured for your chapter. Contact your treasurer, or try again later.',
-          code: 'ONLINE_DUES_UNAVAILABLE',
-        },
+        { error: 'Crowded checkout is not available for this chapter.' },
         { status: 503 }
       );
+    }
+
+    const { data: memberProfile, error: profErr } = await ctx.supabase
+      .from('profiles')
+      .select('id, email, first_name, last_name, full_name')
+      .eq('id', assignment.user_id)
+      .maybeSingle();
+
+    if (profErr || !memberProfile) {
+      return NextResponse.json({ error: 'Member profile not found' }, { status: 404 });
     }
 
     let crowdedClient;
@@ -154,7 +145,6 @@ export async function POST(request: NextRequest) {
     }
 
     const contactsResponse = await crowdedClient.listContacts(crowdedChapterId);
-
     const baseUrl = getBaseUrl().replace(/\/$/, '');
     const successUrl = `${baseUrl}/dashboard/dues?success=true`;
     const failureUrl = `${baseUrl}/dashboard/dues?canceled=true`;
@@ -162,24 +152,23 @@ export async function POST(request: NextRequest) {
     const payIntent = await createCrowdedDuesPaymentIntent({
       crowded: crowdedClient,
       crowdedChapterId,
-      crowdedCollectionId,
+      crowdedCollectionId: collectionIdTrim,
       contacts: contactsResponse.data,
       memberProfile: {
-        email: profile.email,
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        full_name: profile.full_name,
+        email: memberProfile.email,
+        first_name: memberProfile.first_name,
+        last_name: memberProfile.last_name,
+        full_name: memberProfile.full_name,
       },
       requestedAmountMinor: requestedAmount,
       payerIp: clientIpFromRequest(request),
       successUrl,
       failureUrl,
+      noProfileEmailMessage:
+        'This member has no email on their profile. Add an email before generating a Crowded checkout link.',
     });
 
     if (!payIntent.ok) {
-      if (payIntent.httpStatus === 400) {
-        return NextResponse.json({ error: payIntent.error }, { status: 400 });
-      }
       return NextResponse.json(
         { error: payIntent.error, ...(payIntent.code ? { code: payIntent.code } : {}) },
         { status: payIntent.httpStatus }
@@ -199,7 +188,7 @@ export async function POST(request: NextRequest) {
         { status: error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 502 }
       );
     }
-    console.error('Dues pay error:', error);
+    console.error('Crowded checkout-link error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

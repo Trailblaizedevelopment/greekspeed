@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingUp, Users, AlertTriangle, CheckCircle, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight, Link2, Loader2, Landmark, RefreshCw } from "lucide-react";
+import { DollarSign, TrendingUp, Users, AlertTriangle, CheckCircle, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight, Loader2, Landmark, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { useCrowdedChapterBalance } from '@/lib/hooks/useCrowdedChapterBalance';
 import { supabase } from '@/lib/supabase/client';
 import { QuickActions, QuickAction } from '@/components/features/dashboard/dashboards/ui/QuickActions';
+import { CrowdedCollectionsAdminPanel } from '@/components/features/dashboard/admin/CrowdedCollectionsAdminPanel';
 
 interface DuesCycle {
   id: string;
@@ -34,6 +35,7 @@ interface DuesCycle {
 
 interface DuesAssignment {
   id: string;
+  dues_cycle_id: string;
   user: {
     id: string;
     full_name: string;
@@ -61,6 +63,31 @@ interface ChapterMember {
   last_dues_assignment_date: string | null;
   role: string;
   chapter_role: string;
+}
+
+/**
+ * Default cycle for new assignments: newest active cycle, else newest cycle.
+ * Caller should load `cycles` with `created_at` descending so "first active" is the newest active.
+ */
+function getDefaultAssignmentCycleId(cyclesList: DuesCycle[]): string {
+  if (!cyclesList.length) return '';
+  const firstActive = cyclesList.find((c) => c.status === 'active');
+  if (firstActive) return firstActive.id;
+  return cyclesList[0].id;
+}
+
+function getCycleBaseAmount(cyclesList: DuesCycle[], cycleId: string): number | null {
+  const c = cyclesList.find((x) => x.id === cycleId);
+  if (!c) return null;
+  const n = Number(c.base_amount);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Suggested reduced dues: half of base, capped strictly below base. */
+function suggestedReducedAmount(base: number): number {
+  if (!Number.isFinite(base) || base <= 0) return 0;
+  if (base <= 1) return Math.round(base * 0.5 * 100) / 100;
+  return Math.min(Math.round((base / 2) * 100) / 100, base - 0.01);
 }
 
 // Add CSV export function for dues data
@@ -150,18 +177,98 @@ export function TreasurerDashboard() {
   });
   const [newAssignment, setNewAssignment] = useState({
     memberId: '',
-    amount: 0,
-    status: 'required' as const,
-    notes: ''
+    cycleId: '' as string,
+    status: 'required' as
+      | 'required'
+      | 'exempt'
+      | 'reduced'
+      | 'waived'
+      | 'paid',
+    notes: '',
+    useCustomAmount: false,
+    customAmount: 0,
   });
   const [bulkAssignment, setBulkAssignment] = useState({
     selectedMembers: [] as string[],
     cycleId: '' as string,
-    amount: 0,
     status: 'required' as 'required' | 'exempt' | 'reduced' | 'waived',
-    notes: ''
+    notes: '',
+    useCustomAmount: false,
+    customAmount: 0,
   });
   const [linkingCrowdedCycleId, setLinkingCrowdedCycleId] = useState<string | null>(null);
+
+  const openAssignDuesModal = useCallback(
+    (preset?: { memberId?: string }) => {
+      const cycleId = getDefaultAssignmentCycleId(cycles);
+      setNewAssignment({
+        memberId: preset?.memberId ?? '',
+        cycleId,
+        status: 'required',
+        notes: '',
+        useCustomAmount: false,
+        customAmount: 0,
+      });
+      setShowAssignDues(true);
+    },
+    [cycles]
+  );
+
+  const openBulkAssignDuesModal = useCallback(() => {
+    setBulkAssignment({
+      selectedMembers: [],
+      cycleId: getDefaultAssignmentCycleId(cycles),
+      status: 'required',
+      notes: '',
+      useCustomAmount: false,
+      customAmount: 0,
+    });
+    setShowBulkAssignDues(true);
+  }, [cycles]);
+
+  const singleAssignSubmitDisabled = useMemo(() => {
+    const { cycleId, memberId, status, useCustomAmount, customAmount } = newAssignment;
+    if (!cycleId.trim() || !memberId.trim()) return true;
+    const base = getCycleBaseAmount(cycles, cycleId);
+    if (status === 'exempt' || status === 'waived') return false;
+    if (status === 'reduced') {
+      return !(
+        base != null &&
+        base > 0 &&
+        Number.isFinite(customAmount) &&
+        customAmount > 0 &&
+        customAmount < base
+      );
+    }
+    if (useCustomAmount) {
+      if (!Number.isFinite(customAmount) || customAmount <= 0) return true;
+      if (base != null && customAmount > base * 2) return true;
+      return false;
+    }
+    return !(base != null && base > 0);
+  }, [newAssignment, cycles]);
+
+  const bulkAssignSubmitDisabled = useMemo(() => {
+    const { cycleId, selectedMembers, status, useCustomAmount, customAmount } = bulkAssignment;
+    if (!cycleId.trim() || selectedMembers.length === 0) return true;
+    const base = getCycleBaseAmount(cycles, cycleId);
+    if (status === 'exempt' || status === 'waived') return false;
+    if (status === 'reduced') {
+      return !(
+        base != null &&
+        base > 0 &&
+        Number.isFinite(customAmount) &&
+        customAmount > 0 &&
+        customAmount < base
+      );
+    }
+    if (useCustomAmount) {
+      if (!Number.isFinite(customAmount) || customAmount <= 0) return true;
+      if (base != null && customAmount > base * 2) return true;
+      return false;
+    }
+    return !(base != null && base > 0);
+  }, [bulkAssignment, cycles]);
 
   useEffect(() => {
     if (profile?.chapter_id) {
@@ -364,27 +471,59 @@ export function TreasurerDashboard() {
   };
 
   const handleAssignDues = async () => {
+    if (!newAssignment.cycleId.trim()) {
+      alert('Please select a dues cycle.');
+      return;
+    }
+    if (!newAssignment.memberId.trim()) {
+      alert('Please select a member.');
+      return;
+    }
     try {
+      const st = newAssignment.status;
+      const body: Record<string, unknown> = {
+        memberId: newAssignment.memberId,
+        cycleId: newAssignment.cycleId,
+        status: st,
+        notes: newAssignment.notes,
+      };
+      if (st === 'reduced') {
+        body.useCustomAmount = true;
+        body.customAmount = newAssignment.customAmount;
+      } else if (st === 'exempt' || st === 'waived') {
+        // Server resolves to $0 from cycle base_amount rules
+      } else if (newAssignment.useCustomAmount) {
+        body.useCustomAmount = true;
+        body.customAmount = newAssignment.customAmount;
+      } else {
+        body.useCustomAmount = false;
+      }
+
       const response = await fetch('/api/dues/assignments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          memberId: newAssignment.memberId,
-          amount: newAssignment.amount,
-          status: newAssignment.status,
-          notes: newAssignment.notes,
-          cycleId: cycles[0]?.id // Assign to current cycle
-        })
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
         setShowAssignDues(false);
-        setNewAssignment({ memberId: '', amount: 0, status: 'required', notes: '' });
+        setNewAssignment({
+          memberId: '',
+          cycleId: '',
+          status: 'required',
+          notes: '',
+          useCustomAmount: false,
+          customAmount: 0,
+        });
         loadDuesData();
         loadChapterMembers();
+      } else {
+        const errBody = (await response.json().catch(() => null)) as { error?: string } | null;
+        alert(errBody?.error || `Could not assign dues (${response.status})`);
       }
     } catch (error) {
       console.error('Error assigning dues:', error);
+      alert('Could not assign dues. Check your connection and try again.');
     }
   };
 
@@ -399,31 +538,64 @@ export function TreasurerDashboard() {
         return;
       }
       
-      const promises = bulkAssignment.selectedMembers.map(memberId => 
+      const st = bulkAssignment.status;
+      const buildBody = (memberId: string): Record<string, unknown> => {
+        const body: Record<string, unknown> = {
+          memberId,
+          cycleId: bulkAssignment.cycleId,
+          status: st,
+          notes: bulkAssignment.notes,
+        };
+        if (st === 'reduced') {
+          body.useCustomAmount = true;
+          body.customAmount = bulkAssignment.customAmount;
+        } else if (st === 'exempt' || st === 'waived') {
+          // amount from server rules
+        } else if (bulkAssignment.useCustomAmount) {
+          body.useCustomAmount = true;
+          body.customAmount = bulkAssignment.customAmount;
+        } else {
+          body.useCustomAmount = false;
+        }
+        return body;
+      };
+
+      const promises = bulkAssignment.selectedMembers.map((memberId) =>
         fetch('/api/dues/assignments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            memberId,
-            amount: bulkAssignment.amount,
-            status: bulkAssignment.status,
-            notes: bulkAssignment.notes,
-            cycleId: bulkAssignment.cycleId
-          })
+          body: JSON.stringify(buildBody(memberId)),
         })
       );
 
       const responses = await Promise.all(promises);
-      const allSuccessful = responses.every(response => response.ok);
+      const allSuccessful = responses.every((response) => response.ok);
 
       if (allSuccessful) {
         setShowBulkAssignDues(false);
-        setBulkAssignment({ selectedMembers: [], cycleId: '', amount: 0, status: 'required', notes: '' });
+        setBulkAssignment({
+          selectedMembers: [],
+          cycleId: '',
+          status: 'required',
+          notes: '',
+          useCustomAmount: false,
+          customAmount: 0,
+        });
         loadDuesData();
         loadChapterMembers();
         // Bulk dues assignment completed successfully
       } else {
         console.error('❌ Some bulk assignments failed');
+        const firstErr = await (async () => {
+          for (const res of responses) {
+            if (!res.ok) {
+              const j = (await res.json().catch(() => null)) as { error?: string } | null;
+              return j?.error || `HTTP ${res.status}`;
+            }
+          }
+          return 'Unknown error';
+        })();
+        alert(`Some assignments failed: ${firstErr}`);
       }
     } catch (error) {
       console.error('❌ Error in bulk dues assignment:', error);
@@ -522,8 +694,9 @@ export function TreasurerDashboard() {
 
   // NEW: Calculate dues collection progress for current cycle
   const getCurrentCycle = () => {
-    // Get the most recent active cycle
-    return cycles.find(cycle => cycle.status === 'active') || cycles[0];
+    const id = getDefaultAssignmentCycleId(cycles);
+    if (!id) return undefined;
+    return cycles.find((c) => c.id === id);
   };
 
   const getDuesCollectionProgress = () => {
@@ -591,7 +764,7 @@ export function TreasurerDashboard() {
       id: 'bulk-assign',
       label: 'Bulk Assign Dues',
       icon: Users,
-      onClick: () => setShowBulkAssignDues(true),
+      onClick: () => openBulkAssignDuesModal(),
       className: 'w-full justify-start text-sm whitespace-nowrap rounded-full bg-white/80 backdrop-blur-md border border-primary-300/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300',
       variant: 'outline',
     },
@@ -599,7 +772,7 @@ export function TreasurerDashboard() {
       id: 'assign-dues',
       label: 'Assign Dues',
       icon: UserPlus,
-      onClick: () => setShowAssignDues(true),
+      onClick: () => openAssignDuesModal(),
       className: 'w-full justify-start text-sm whitespace-nowrap rounded-full bg-white/80 backdrop-blur-md border border-primary-300/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300',
       variant: 'outline',
     },
@@ -968,84 +1141,16 @@ export function TreasurerDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
-            <CardHeader className="border-b border-primary-100/30">
-              <CardTitle className="text-primary-900 flex items-center gap-2">
-                <Link2 className="h-5 w-5 text-brand-primary" />
-                Crowded checkout
-              </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Create a Crowded collection for a cycle and save it so members can pay online from Dues. Requires chapter Crowded linking and the crowded integration feature flag.
-              </p>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-3">
-              {cycles.length === 0 ? (
-                <p className="text-sm text-gray-500">Create a dues cycle first, then link it here.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {cycles.map((cycle) => (
-                    <li
-                      key={cycle.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-gray-100 rounded-lg p-3"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">{cycle.name}</p>
-                        <p className="text-xs text-gray-500">
-                          ${Number(cycle.base_amount).toFixed(2)} · Due{' '}
-                          {new Date(cycle.due_date).toLocaleDateString()}
-                        </p>
-                        {cycle.crowded_collection_id ? (
-                          <Badge variant="outline" className="mt-1 text-green-700 border-green-200 bg-green-50">
-                            Linked
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="mt-1 text-amber-700 border-amber-200 bg-amber-50">
-                            Not linked
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {!cycle.crowded_collection_id ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={linkingCrowdedCycleId !== null}
-                            onClick={() => handleLinkCrowdedCollection(cycle)}
-                          >
-                            {linkingCrowdedCycleId === cycle.id ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                Linking…
-                              </>
-                            ) : (
-                              <>
-                                <Link2 className="h-4 w-4 mr-1" />
-                                Create and link collection
-                              </>
-                            )}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                            disabled={linkingCrowdedCycleId !== null}
-                            onClick={() => handleUnlinkCrowdedCollection(cycle)}
-                          >
-                            {linkingCrowdedCycleId === cycle.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              'Unlink'
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          {profile?.chapter_id?.trim() ? (
+            <CrowdedCollectionsAdminPanel
+              chapterId={profile.chapter_id.trim()}
+              cycles={cycles}
+              assignments={assignments}
+              linkingCrowdedCycleId={linkingCrowdedCycleId}
+              onCreateAndLink={(c) => void handleLinkCrowdedCollection(c as DuesCycle)}
+              onUnlink={(c) => void handleUnlinkCrowdedCollection(c as DuesCycle)}
+            />
+          ) : null}
           </>
         )}
         </>
@@ -1103,11 +1208,11 @@ export function TreasurerDashboard() {
                   </div>
                 )}
                 <div className="flex space-x-2">
-                  <Button onClick={() => setShowBulkAssignDues(true)} variant="outline">
+                  <Button onClick={() => openBulkAssignDuesModal()} variant="outline">
                     <Users className="h-4 w-4 mr-2" />
                     Bulk Assign Dues
                   </Button>
-                  <Button onClick={() => setShowAssignDues(true)} variant="outline">
+                  <Button onClick={() => openAssignDuesModal()} variant="outline">
                     <UserPlus className="h-4 w-4 mr-2" />
                     Assign Dues
                   </Button>
@@ -1120,7 +1225,7 @@ export function TreasurerDashboard() {
               <CardTitle className="text-lg mb-3 text-primary-900">All Chapter Members ({chapterMembers.length})</CardTitle>
               <div className="flex space-x-2">
                 <Button 
-                  onClick={() => setShowBulkAssignDues(true)} 
+                  onClick={() => openBulkAssignDuesModal()} 
                   variant="outline"
                   className="flex-1 justify-center text-sm py-2"
                 >
@@ -1128,7 +1233,7 @@ export function TreasurerDashboard() {
                   Bulk Assign
                 </Button>
                 <Button 
-                  onClick={() => setShowAssignDues(true)} 
+                  onClick={() => openAssignDuesModal()} 
                   variant="outline"
                   className="flex-1 justify-center text-sm py-2"
                 >
@@ -1193,15 +1298,11 @@ export function TreasurerDashboard() {
                                       <Button 
                                         size="sm" 
                                         variant="outline"
-                                        onClick={() => {
-                                          setNewAssignment({
+                                        onClick={() =>
+                                          openAssignDuesModal({
                                             memberId: member.id,
-                                            amount: member.current_dues_amount,
-                                            status: 'required',
-                                            notes: ''
-                                          });
-                                          setShowAssignDues(true);
-                                        }}
+                                          })
+                                        }
                                         className="hover:bg-green-50 hover:text-green-600"
                                       >
                                         <DollarSign className="h-4 w-4 mr-1 flex-shrink-0" />
@@ -1300,15 +1401,11 @@ export function TreasurerDashboard() {
                         <Button 
                           size="sm" 
                           variant="outline"
-                          onClick={() => {
-                            setNewAssignment({
+                          onClick={() =>
+                            openAssignDuesModal({
                               memberId: member.id,
-                              amount: member.current_dues_amount,
-                              status: 'required',
-                              notes: ''
-                            });
-                            setShowAssignDues(true);
-                          }}
+                            })
+                          }
                           className="h-7 px-2 text-xs hover:bg-green-50 hover:text-green-600"
                         >
                           <DollarSign className="h-3 w-3 mr-1 flex-shrink-0" />
@@ -1473,6 +1570,42 @@ export function TreasurerDashboard() {
               <div className="bg-white px-4 pt-3 pb-4 sm:px-6 sm:pt-4 sm:pb-4 flex-1 overflow-y-auto">
                 <div className="space-y-4 sm:space-y-3">
                   <div>
+                    <Label htmlFor="assign-cycle" className="block text-sm font-medium text-gray-700 mb-1">
+                      Dues cycle
+                    </Label>
+                    <Select
+                      value={newAssignment.cycleId || ''}
+                      onValueChange={(value: string) => {
+                        setNewAssignment((prev) => {
+                          const next = { ...prev, cycleId: value };
+                          const base = getCycleBaseAmount(cycles, value);
+                          if (prev.status === 'reduced' && base != null && base > 0) {
+                            next.useCustomAmount = true;
+                            next.customAmount = suggestedReducedAmount(base);
+                          } else if (prev.useCustomAmount && base != null && base > 0) {
+                            next.customAmount = base;
+                          }
+                          return next;
+                        });
+                      }}
+                      placeholder="Select a dues cycle"
+                    >
+                      <SelectItem value="">Select a dues cycle</SelectItem>
+                      {cycles.map((cycle) => (
+                        <SelectItem key={cycle.id} value={cycle.id}>
+                          {cycle.name} — ${Number(cycle.base_amount).toFixed(2)} (due{' '}
+                          {new Date(cycle.due_date).toLocaleDateString()}
+                          {cycle.status === 'active' ? ', active' : ''})
+                        </SelectItem>
+                      ))}
+                    </Select>
+                    {cycles.length === 0 && (
+                      <p className="text-sm text-red-600 mt-1">
+                        No dues cycles yet. Create a cycle first.
+                      </p>
+                    )}
+                  </div>
+                  <div>
                     <Label htmlFor="member" className="block text-sm font-medium text-gray-700 mb-1">
                       Select Member
                     </Label>
@@ -1488,26 +1621,119 @@ export function TreasurerDashboard() {
                       ))}
                     </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                      Dues Amount ($)
-                    </Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      value={newAssignment.amount}
-                      onChange={(e) => setNewAssignment({ ...newAssignment, amount: parseFloat(e.target.value) || 0 })}
-                      placeholder="150.00"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary text-sm h-9"
-                    />
-                  </div>
+                  {newAssignment.cycleId.trim() ? (
+                    <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2 text-sm text-gray-800">
+                      <span className="font-medium text-gray-700">Cycle amount: </span>
+                      {(() => {
+                        const b = getCycleBaseAmount(cycles, newAssignment.cycleId);
+                        return b != null && b >= 0
+                          ? `$${b.toFixed(2)} (from dues cycle)`
+                          : '— (invalid cycle base)';
+                      })()}
+                    </div>
+                  ) : null}
+                  {(newAssignment.status === 'exempt' || newAssignment.status === 'waived') && (
+                    <p className="text-sm text-gray-600">
+                      This assignment will record <span className="font-medium">$0.00</span> for the member.
+                    </p>
+                  )}
+                  {newAssignment.status === 'reduced' && (
+                    <div>
+                      <Label htmlFor="reduced-amount" className="block text-sm font-medium text-gray-700 mb-1">
+                        Reduced amount ($)
+                      </Label>
+                      <p className="text-xs text-gray-500 mb-1">
+                        Must be greater than $0 and less than the cycle base.
+                      </p>
+                      <Input
+                        id="reduced-amount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newAssignment.customAmount || ''}
+                        onChange={(e) =>
+                          setNewAssignment({
+                            ...newAssignment,
+                            useCustomAmount: true,
+                            customAmount: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary text-sm h-9"
+                      />
+                    </div>
+                  )}
+                  {(newAssignment.status === 'required' || newAssignment.status === 'paid') && (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="single-adjust-amount"
+                          checked={newAssignment.useCustomAmount}
+                          onCheckedChange={(checked) => {
+                            const on = Boolean(checked);
+                            setNewAssignment((prev) => {
+                              const base = getCycleBaseAmount(cycles, prev.cycleId);
+                              return {
+                                ...prev,
+                                useCustomAmount: on,
+                                customAmount:
+                                  on && base != null && base > 0
+                                    ? base
+                                    : prev.customAmount,
+                              };
+                            });
+                          }}
+                        />
+                        <Label htmlFor="single-adjust-amount" className="text-sm font-medium text-gray-700 cursor-pointer">
+                          Adjust amount (override cycle default)
+                        </Label>
+                      </div>
+                      {newAssignment.useCustomAmount && (
+                        <div>
+                          <Label htmlFor="custom-amount" className="block text-sm font-medium text-gray-700 mb-1">
+                            Custom amount ($)
+                          </Label>
+                          <Input
+                            id="custom-amount"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={newAssignment.customAmount || ''}
+                            onChange={(e) =>
+                              setNewAssignment({
+                                ...newAssignment,
+                                customAmount: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary text-sm h-9"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Max twice the cycle base (treasurer guardrail).
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <Label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
                       Status
                     </Label>
                     <Select
                       value={newAssignment.status}
-                      onValueChange={(value: any) => setNewAssignment({ ...newAssignment, status: value })}
+                      onValueChange={(value: string) => {
+                        const st = value as typeof newAssignment.status;
+                        setNewAssignment((prev) => {
+                          const base = getCycleBaseAmount(cycles, prev.cycleId);
+                          if (st === 'exempt' || st === 'waived') {
+                            return { ...prev, status: st, useCustomAmount: false, customAmount: 0 };
+                          }
+                          if (st === 'reduced') {
+                            const sug =
+                              base != null && base > 0 ? suggestedReducedAmount(base) : 0;
+                            return { ...prev, status: st, useCustomAmount: true, customAmount: sug };
+                          }
+                          return { ...prev, status: st, useCustomAmount: false, customAmount: 0 };
+                        });
+                      }}
                     >
                       <SelectItem value="required">Required</SelectItem>
                       <SelectItem value="exempt">Exempt</SelectItem>
@@ -1545,6 +1771,7 @@ export function TreasurerDashboard() {
                   <Button
                     type="button"
                     onClick={handleAssignDues}
+                    disabled={singleAssignSubmitDisabled}
                     className="rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm"
                   >
                     Assign Dues
@@ -1685,7 +1912,19 @@ export function TreasurerDashboard() {
                       </Label>
                       <Select 
                         value={bulkAssignment.cycleId || ''} 
-                        onValueChange={(value: string) => setBulkAssignment({ ...bulkAssignment, cycleId: value })}
+                        onValueChange={(value: string) => {
+                          setBulkAssignment((prev) => {
+                            const next = { ...prev, cycleId: value };
+                            const base = getCycleBaseAmount(cycles, value);
+                            if (prev.status === 'reduced' && base != null && base > 0) {
+                              next.useCustomAmount = true;
+                              next.customAmount = suggestedReducedAmount(base);
+                            } else if (prev.useCustomAmount && base != null && base > 0) {
+                              next.customAmount = base;
+                            }
+                            return next;
+                          });
+                        }}
                         placeholder="Select a dues cycle"
                       >
                         <SelectItem value="">Select a dues cycle</SelectItem>
@@ -1701,29 +1940,119 @@ export function TreasurerDashboard() {
                         </p>
                       )}
                     </div>
-                    
-                    <div>
-                      <Label htmlFor="bulkAmount" className="block text-sm font-medium text-gray-700 mb-1">
-                        Dues Amount ($)
-                      </Label>
-                      <Input
-                        id="bulkAmount"
-                        type="number"
-                        step="5"
-                        min="0"
-                        value={bulkAssignment.amount}
-                        onChange={(e) => setBulkAssignment({ ...bulkAssignment, amount: parseFloat(e.target.value) || 0 })}
-                        placeholder="150.00"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary text-sm h-9"
-                      />
-                    </div>
+
+                    {bulkAssignment.cycleId.trim() ? (
+                      <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2 text-sm text-gray-800">
+                        <span className="font-medium text-gray-700">Cycle amount: </span>
+                        {(() => {
+                          const b = getCycleBaseAmount(cycles, bulkAssignment.cycleId);
+                          return b != null && b >= 0
+                            ? `$${b.toFixed(2)} (default per member)`
+                            : '—';
+                        })()}
+                      </div>
+                    ) : null}
+
+                    {(bulkAssignment.status === 'exempt' || bulkAssignment.status === 'waived') && (
+                      <p className="text-sm text-gray-600">
+                        Each assignment will be <span className="font-medium">$0.00</span>.
+                      </p>
+                    )}
+
+                    {bulkAssignment.status === 'reduced' && (
+                      <div>
+                        <Label htmlFor="bulk-reduced-amount" className="block text-sm font-medium text-gray-700 mb-1">
+                          Reduced amount ($) — applies to all selected members
+                        </Label>
+                        <p className="text-xs text-gray-500 mb-1">
+                          Must be greater than $0 and less than the cycle base.
+                        </p>
+                        <Input
+                          id="bulk-reduced-amount"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={bulkAssignment.customAmount || ''}
+                          onChange={(e) =>
+                            setBulkAssignment({
+                              ...bulkAssignment,
+                              useCustomAmount: true,
+                              customAmount: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary text-sm h-9"
+                        />
+                      </div>
+                    )}
+
+                    {(bulkAssignment.status === 'required') && (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="bulk-adjust-amount"
+                            checked={bulkAssignment.useCustomAmount}
+                            onCheckedChange={(checked) => {
+                              const on = Boolean(checked);
+                              setBulkAssignment((prev) => {
+                                const base = getCycleBaseAmount(cycles, prev.cycleId);
+                                return {
+                                  ...prev,
+                                  useCustomAmount: on,
+                                  customAmount:
+                                    on && base != null && base > 0 ? base : prev.customAmount,
+                                };
+                              });
+                            }}
+                          />
+                          <Label htmlFor="bulk-adjust-amount" className="text-sm font-medium text-gray-700 cursor-pointer">
+                            Apply custom amount to all selected members
+                          </Label>
+                        </div>
+                        {bulkAssignment.useCustomAmount && (
+                          <div>
+                            <Label htmlFor="bulk-custom-amount" className="block text-sm font-medium text-gray-700 mb-1">
+                              Custom amount ($)
+                            </Label>
+                            <Input
+                              id="bulk-custom-amount"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={bulkAssignment.customAmount || ''}
+                              onChange={(e) =>
+                                setBulkAssignment({
+                                  ...bulkAssignment,
+                                  customAmount: parseFloat(e.target.value) || 0,
+                                })
+                              }
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary text-sm h-9"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div>
                       <Label htmlFor="bulkStatus" className="block text-sm font-medium text-gray-700 mb-1">
                         Status
                       </Label>
                       <Select 
                         value={bulkAssignment.status} 
-                        onValueChange={(value: string) => setBulkAssignment({ ...bulkAssignment, status: value as 'required' | 'exempt' | 'reduced' | 'waived' })}
+                        onValueChange={(value: string) => {
+                          const st = value as typeof bulkAssignment.status;
+                          setBulkAssignment((prev) => {
+                            const base = getCycleBaseAmount(cycles, prev.cycleId);
+                            if (st === 'exempt' || st === 'waived') {
+                              return { ...prev, status: st, useCustomAmount: false, customAmount: 0 };
+                            }
+                            if (st === 'reduced') {
+                              const sug =
+                                base != null && base > 0 ? suggestedReducedAmount(base) : 0;
+                              return { ...prev, status: st, useCustomAmount: true, customAmount: sug };
+                            }
+                            return { ...prev, status: st, useCustomAmount: false, customAmount: 0 };
+                          });
+                        }}
                         placeholder="Select status"
                       >
                         <SelectItem value="">Select status</SelectItem>
@@ -1767,7 +2096,7 @@ export function TreasurerDashboard() {
                     <Button
                       type="button"
                       onClick={handleBulkAssignDues}
-                      disabled={bulkAssignment.selectedMembers.length === 0 || !bulkAssignment.cycleId}
+                      disabled={bulkAssignSubmitDisabled}
                       className="rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Assign Dues to {bulkAssignment.selectedMembers.length} Members

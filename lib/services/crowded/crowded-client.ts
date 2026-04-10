@@ -8,6 +8,7 @@ import type {
   CrowdedBulkCreateAccountsResponse,
   CrowdedChapter,
   CrowdedCollectIntent,
+  CrowdedCollectIntentSummary,
   CrowdedCollection,
   CrowdedContact,
   CrowdedCreateCollectIntentRequest,
@@ -35,6 +36,7 @@ import {
   normalizeCrowdedTransactionListElement,
   unwrapCrowdedTransactionsListPayload,
 } from './crowdedTransactionMapping';
+import { normalizeCrowdedCollectIntentSummary } from './crowdedIntentSummary';
 
 const API_PREFIX = '/api/v1';
 
@@ -480,6 +482,40 @@ export class CrowdedClient {
       crowdedCollectIntentSingleResponseSchema,
       raw
     ) as CrowdedSingleResponse<CrowdedCollectIntent>;
+  }
+
+  /**
+   * GET /api/v1/chapters/:chapterId/collections/:collectionId/intents
+   * When Crowded does not expose this route, callers should catch {@link CrowdedApiError} **404** and treat as an empty list.
+   */
+  async listCollectionIntents(
+    chapterId: string,
+    collectionId: string
+  ): Promise<CrowdedListResponse<CrowdedCollectIntentSummary>> {
+    const path = `/chapters/${encodeURIComponent(chapterId)}/collections/${encodeURIComponent(collectionId)}/intents`;
+    const raw = await this.getJson<unknown>(path);
+    const normalized = normalizeCrowdedListBody(raw);
+    const body = normalized as { data?: unknown[]; meta?: unknown };
+    const rows = Array.isArray(body.data) ? body.data : [];
+    const data: CrowdedCollectIntentSummary[] = [];
+    for (const row of rows) {
+      const n = normalizeCrowdedCollectIntentSummary(row);
+      if (n) data.push(n);
+    }
+    const parsedMeta = body.meta as CrowdedListMeta | undefined;
+    const meta: CrowdedListMeta =
+      parsedMeta?.pagination != null
+        ? parsedMeta
+        : {
+            pagination: {
+              total: data.length,
+              limit: data.length,
+              offset: 0,
+              sort: 'unknown',
+              order: 'desc',
+            },
+          };
+    return { data, meta };
   }
 }
 

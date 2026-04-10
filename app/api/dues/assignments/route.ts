@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { canManageChapterForContext } from '@/lib/permissions';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
+import { duesAssignmentCreateBodySchema } from '@/lib/services/dues/duesAssignmentCreateBodySchema';
+import { resolveDuesAssignmentCreateAmount } from '@/lib/services/dues/resolveDuesAssignmentCreateAmount';
 
 // Create a session-aware Supabase client for API routes
 function createApiSupabaseClient(request: NextRequest) {
@@ -123,22 +125,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { memberId, amount, status, notes, cycleId } = body;
+    let json: unknown;
+    try {
+      json = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-    if (!memberId) {
-      return NextResponse.json({ error: 'Member ID is required' }, { status: 400 });
+    const parsed = duesAssignmentCreateBodySchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request', issues: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
-    }
-    if (!cycleId) {
-      return NextResponse.json({ error: 'Cycle ID is required' }, { status: 400 });
-    }
+
+    const { memberId, cycleId, status, notes, useCustomAmount, customAmount } = parsed.data;
 
     const { data: cycle, error: cycleError } = await supabase
       .from('dues_cycles')
-      .select('chapter_id')
+      .select('chapter_id, base_amount, name')
       .eq('id', cycleId)
       .single();
 
@@ -154,15 +160,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
+    const resolvedStatus = status || 'required';
+    const useCustom = useCustomAmount === true;
+
+    const resolved = resolveDuesAssignmentCreateAmount(
+      { base_amount: cycle.base_amount },
+      {
+        status: resolvedStatus,
+        useCustomAmount: useCustom,
+        customAmount: useCustom ? customAmount : undefined,
+      }
+    );
+
+    if (!resolved.ok) {
+      return NextResponse.json({ error: resolved.error }, { status: resolved.httpStatus });
+    }
+
+    const effectiveAmount = resolved.effectiveAmount;
+    const amountSource = resolved.source;
+
     // Create the dues assignment
     const { data: assignment, error: assignmentError } = await supabase
       .from('dues_assignments')
       .insert({
         dues_cycle_id: cycleId,
         user_id: memberId,
-        status: status || 'required',
-        amount_assessed: amount,
-        amount_due: amount,
+        status: resolvedStatus,
+        amount_assessed: effectiveAmount,
+        amount_due: effectiveAmount,
         amount_paid: 0,
         notes: notes || ''
       })
@@ -181,8 +206,8 @@ export async function POST(request: NextRequest) {
     const { error: profileUpdateError } = await supabase
       .from('profiles')
       .update({
-        current_dues_amount: amount,
-        dues_status: status || 'required',
+        current_dues_amount: effectiveAmount,
+        dues_status: resolvedStatus,
         last_dues_assignment_date: new Date().toISOString()
       })
       .eq('id', memberId);
@@ -195,7 +220,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       message: 'Dues assignment created successfully',
-      assignment
+      assignment,
+      resolvedAmount: effectiveAmount,
+      amountSource,
     });
   } catch (error) {
     console.error('❌ API error:', error);
