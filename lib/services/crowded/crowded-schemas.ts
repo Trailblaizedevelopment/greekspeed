@@ -180,6 +180,8 @@ export const crowdedCollectionSingleResponseSchema = z.object({
 export const crowdedCreateCollectionAppRequestSchema = z.object({
   title: z.string().min(1).max(500),
   requestedAmount: z.number().int().positive(),
+  /** When set, ensures the dues cycle is not already linked (avoids duplicate Crowded collections). */
+  duesCycleId: z.string().uuid().optional(),
 });
 
 /** POST …/collections/:id/intents — response (200) */

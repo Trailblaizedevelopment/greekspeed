@@ -21,7 +21,7 @@ function createApiSupabaseClient(request: NextRequest) {
 }
 
 const patchCycleBodySchema = z.object({
-  crowded_collection_id: z.union([z.string().uuid(), z.null()]),
+  crowded_collection_id: z.union([z.string().min(1).max(200), z.null()]),
 });
 
 /**
@@ -74,7 +74,7 @@ export async function PATCH(
 
     const { data: existing, error: fetchError } = await supabase
       .from('dues_cycles')
-      .select('id, chapter_id')
+      .select('id, chapter_id, crowded_collection_id')
       .eq('id', cycleId.trim())
       .maybeSingle();
 
@@ -89,6 +89,20 @@ export async function PATCH(
 
     if (!canManageChapterForContext(profile, existing.chapter_id, managedChapterIds)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const hadCrowdedLink = Boolean(
+      (existing.crowded_collection_id as string | null | undefined)?.trim()
+    );
+    if (parsed.data.crowded_collection_id === null && hadCrowdedLink) {
+      return NextResponse.json(
+        {
+          error:
+            'Removing a Crowded collection link is disabled to avoid orphaned duplicate collections in Crowded. Create a new dues cycle instead.',
+          code: 'UNLINK_NOT_ALLOWED',
+        },
+        { status: 409 }
+      );
     }
 
     const { data: cycle, error: updateError } = await supabase

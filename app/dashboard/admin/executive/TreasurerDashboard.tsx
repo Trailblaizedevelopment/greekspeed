@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createPortal } from 'react-dom';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { useCrowdedChapterBalance } from '@/lib/hooks/useCrowdedChapterBalance';
 import { supabase } from '@/lib/supabase/client';
 import { QuickActions, QuickAction } from '@/components/features/dashboard/dashboards/ui/QuickActions';
+import { CreateDuesCycleWizard } from '@/components/features/dashboard/admin/CreateDuesCycleWizard';
 import { CrowdedCollectionsAdminPanel } from '@/components/features/dashboard/admin/CrowdedCollectionsAdminPanel';
 
 interface DuesCycle {
@@ -31,6 +32,7 @@ interface DuesCycle {
   allow_payment_plans: boolean;
   created_at: string;
   crowded_collection_id?: string | null;
+  description?: string | null;
 }
 
 interface DuesAssignment {
@@ -164,17 +166,11 @@ export function TreasurerDashboard() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const membersPerPage = 10;
-  const [showCreateCycle, setShowCreateCycle] = useState(false);
+  const [showCreateCycleWizard, setShowCreateCycleWizard] = useState(false);
   const [showAssignDues, setShowAssignDues] = useState(false);
   const [showBulkAssignDues, setShowBulkAssignDues] = useState(false);
   const [showEditAssignment, setShowEditAssignment] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<DuesAssignment | null>(null);
-  const [newCycle, setNewCycle] = useState({
-    name: '',
-    base_amount: 0,
-    due_date: '',
-    allow_payment_plans: false
-  });
   const [newAssignment, setNewAssignment] = useState({
     memberId: '',
     cycleId: '' as string,
@@ -376,6 +372,7 @@ export function TreasurerDashboard() {
         body: JSON.stringify({
           title: cycle.name || 'Dues',
           requestedAmount,
+          duesCycleId: cycle.id,
         }),
       });
       const createJson = (await createRes.json().catch(() => null)) as {
@@ -392,18 +389,6 @@ export function TreasurerDashboard() {
         alert('Crowded did not return a collection id. Check server logs.');
         return;
       }
-      const patchRes = await fetch(`/api/dues/cycles/${cycle.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ crowded_collection_id: collectionId }),
-      });
-      const patchJson = (await patchRes.json().catch(() => null)) as { error?: string; details?: string } | null;
-      if (!patchRes.ok) {
-        console.error('PATCH dues cycle failed:', patchRes.status, patchJson);
-        alert(patchJson?.error || patchJson?.details || `Could not save collection on cycle (${patchRes.status})`);
-        return;
-      }
       await loadDuesData();
     } catch (e) {
       console.error('Link Crowded collection error:', e);
@@ -413,62 +398,6 @@ export function TreasurerDashboard() {
     }
   };
 
-  const handleUnlinkCrowdedCollection = async (cycle: DuesCycle) => {
-    if (!window.confirm('Remove Crowded collection from this cycle? Members will not be able to pay this cycle online until you link again.')) {
-      return;
-    }
-    setLinkingCrowdedCycleId(cycle.id);
-    try {
-      const patchRes = await fetch(`/api/dues/cycles/${cycle.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ crowded_collection_id: null }),
-      });
-      const patchJson = (await patchRes.json().catch(() => null)) as { error?: string } | null;
-      if (!patchRes.ok) {
-        alert(patchJson?.error || `Could not unlink (${patchRes.status})`);
-        return;
-      }
-      await loadDuesData();
-    } catch (e) {
-      console.error('Unlink Crowded error:', e);
-      alert('Could not unlink. Try again.');
-    } finally {
-      setLinkingCrowdedCycleId(null);
-    }
-  };
-
-  const handleCreateCycle = async () => {
-    if (!profile?.chapter_id?.trim()) {
-      alert('Your profile is not linked to a chapter. Cannot create a dues cycle.');
-      return;
-    }
-    try {
-      const response = await fetch('/api/dues/cycles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          ...newCycle,
-          chapterId: profile.chapter_id,
-        }),
-      });
-
-      if (response.ok) {
-        setShowCreateCycle(false);
-        setNewCycle({ name: '', base_amount: 0, due_date: '', allow_payment_plans: false });
-        loadDuesData();
-      } else {
-        const errBody = (await response.json().catch(() => null)) as { error?: string } | null;
-        console.error('Create dues cycle failed:', response.status, errBody);
-        alert(errBody?.error || `Could not create cycle (${response.status})`);
-      }
-    } catch (error) {
-      console.error('Error creating cycle:', error);
-      alert('Could not create cycle. Check your connection and try again.');
-    }
-  };
 
   const handleAssignDues = async () => {
     if (!newAssignment.cycleId.trim()) {
@@ -780,7 +709,7 @@ export function TreasurerDashboard() {
       id: 'create-cycle',
       label: 'Create Dues Cycle',
       icon: Plus,
-      onClick: () => setShowCreateCycle(true),
+      onClick: () => setShowCreateCycleWizard(true),
       className: 'w-full justify-start text-sm whitespace-nowrap rounded-full bg-white/80 backdrop-blur-md border border-primary-300/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300',
       variant: 'outline',
     },
@@ -1148,7 +1077,6 @@ export function TreasurerDashboard() {
               assignments={assignments}
               linkingCrowdedCycleId={linkingCrowdedCycleId}
               onCreateAndLink={(c) => void handleLinkCrowdedCollection(c as DuesCycle)}
-              onUnlink={(c) => void handleUnlinkCrowdedCollection(c as DuesCycle)}
             />
           ) : null}
           </>
@@ -1470,70 +1398,22 @@ export function TreasurerDashboard() {
         </Card>
       )}
 
-      {/* Create Cycle Dialog */}
-      <Dialog open={showCreateCycle} onOpenChange={setShowCreateCycle}>
-        <DialogContent className="bg-white border border-gray-200 shadow-lg">
-          <DialogHeader>
-            <DialogTitle>Create New Dues Cycle</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Cycle Name</Label>
-              <Input
-                id="name"
-                value={newCycle.name}
-                onChange={(e) => setNewCycle({ ...newCycle, name: e.target.value })}
-                placeholder="e.g., Spring 2024"
-              />
-            </div>
-            <div>
-              <Label htmlFor="amount">Base Amount ($)</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={newCycle.base_amount}
-                onChange={(e) => setNewCycle({ ...newCycle, base_amount: parseFloat(e.target.value) || 0 })}
-                placeholder="150.00"
-              />
-            </div>
-            <div>
-              <Label htmlFor="dueDate">Due Date</Label>
-              <Input
-                id="dueDate"
-                type="date"
-                value={newCycle.due_date}
-                onChange={(e) => setNewCycle({ ...newCycle, due_date: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="paymentPlans"
-                checked={newCycle.allow_payment_plans}
-                onChange={(e) => setNewCycle({ ...newCycle, allow_payment_plans: e.target.checked })}
-              />
-              <Label htmlFor="paymentPlans">Allow Payment Plans</Label>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCreateCycle(false)}
-                className="rounded-full bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleCreateCycle}
-                className="rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300 h-12 sm:h-10 w-full sm:w-auto text-base sm:text-sm"
-              >
-                Create Cycle
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {profile?.chapter_id?.trim() ? (
+        <CreateDuesCycleWizard
+          open={showCreateCycleWizard}
+          onOpenChange={setShowCreateCycleWizard}
+          chapterId={profile.chapter_id.trim()}
+          crowdedIntegrationEnabled={crowdedIntegrationEnabled && !crowdedFlagLoading}
+          members={chapterMembers.map((m) => ({
+            id: m.id,
+            full_name: m.full_name,
+            email: m.email,
+          }))}
+          onSuccess={async () => {
+            await loadDuesData();
+          }}
+        />
+      ) : null}
 
       {/* Assign Dues Dialog */}
       {showAssignDues && typeof window !== 'undefined' && createPortal(

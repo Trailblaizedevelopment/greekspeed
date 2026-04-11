@@ -126,7 +126,6 @@ export interface CrowdedCollectionsAdminPanelProps {
   assignments: CrowdedAdminAssignment[];
   linkingCrowdedCycleId: string | null;
   onCreateAndLink: (cycle: CrowdedAdminDuesCycle) => void | Promise<void>;
-  onUnlink: (cycle: CrowdedAdminDuesCycle) => void | Promise<void>;
 }
 
 export function CrowdedCollectionsAdminPanel({
@@ -135,7 +134,6 @@ export function CrowdedCollectionsAdminPanel({
   assignments,
   linkingCrowdedCycleId,
   onCreateAndLink,
-  onUnlink,
 }: CrowdedCollectionsAdminPanelProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -234,9 +232,9 @@ export function CrowdedCollectionsAdminPanel({
               Crowded collections
             </CardTitle>
             <p className="text-sm text-gray-600 mt-1 max-w-2xl">
-              Manage Crowded collect campaigns linked to dues cycles. Expand a linked cycle to see
-              assigned members, live Crowded intent status (refreshes automatically), and treasurer
-              checkout links.
+              Manage Crowded collect campaigns linked to dues cycles. Links cannot be removed from
+              here (to avoid duplicate collections). Expand a linked cycle to see assigned members,
+              live Crowded intent status (refreshes automatically), and treasurer checkout links.
             </p>
           </div>
         </div>
@@ -354,22 +352,19 @@ export function CrowdedCollectionsAdminPanel({
                         <TableCell className="text-right pr-2">
                           <div className="flex flex-wrap justify-end gap-1">
                             {linked && cycle.crowded_collection_id ? (
-                              <>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-2"
-                                  onClick={() =>
-                                    void copyText('Collection id', cycle.crowded_collection_id!)
-                                  }
-                                >
-                                  <Copy className="h-3.5 w-3.5 sm:mr-1" />
-                                  <span className="hidden sm:inline">ID</span>
-                                </Button>
-                              </>
-                            ) : null}
-                            {!linked ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={() =>
+                                  void copyText('Collection id', cycle.crowded_collection_id!)
+                                }
+                              >
+                                <Copy className="h-3.5 w-3.5 sm:mr-1" />
+                                <span className="hidden sm:inline">ID</span>
+                              </Button>
+                            ) : (
                               <Button
                                 type="button"
                                 variant="default"
@@ -388,21 +383,6 @@ export function CrowdedCollectionsAdminPanel({
                                     <Link2 className="h-3.5 w-3.5 mr-1" />
                                     Create & link
                                   </>
-                                )}
-                              </Button>
-                            ) : (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-red-600 hover:text-red-700"
-                                disabled={linkingCrowdedCycleId !== null}
-                                onClick={() => void onUnlink(cycle)}
-                              >
-                                {linkingCrowdedCycleId === cycle.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  'Unlink'
                                 )}
                               </Button>
                             )}
