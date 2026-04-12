@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { DollarSign, TrendingUp, Users, AlertTriangle, CheckCircle, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight, Loader2, Landmark, RefreshCw } from "lucide-react";
+import { toast } from 'react-toastify';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -534,7 +535,13 @@ export function TreasurerDashboard() {
         loadDuesData();
         loadChapterMembers();
       } else {
-        const errBody = (await response.json().catch(() => null)) as { error?: string } | null;
+        const errBody = (await response.json().catch(() => null)) as { error?: string; code?: string } | null;
+        if (response.status === 409 || errBody?.code === 'DUPLICATE_DUES_ASSIGNMENT') {
+          const message = errBody?.error || 'This member already has dues assigned for this cycle.';
+          toast.warn(message);
+          alert(message);
+          return;
+        }
         alert(errBody?.error || `Could not assign dues (${response.status})`);
       }
     } catch (error) {

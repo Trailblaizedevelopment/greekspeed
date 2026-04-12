@@ -196,6 +196,15 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (assignmentError) {
+      if (assignmentError.code === '23505') {
+        return NextResponse.json(
+          {
+            error: 'This member already has dues assigned for this cycle.',
+            code: 'DUPLICATE_DUES_ASSIGNMENT',
+          },
+          { status: 409 }
+        );
+      }
       console.error('❌ Error creating dues assignment:', assignmentError);
       return NextResponse.json({ 
         error: 'Failed to create dues assignment', 
