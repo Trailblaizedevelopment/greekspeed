@@ -62,6 +62,25 @@ export interface CrowdedContact {
   archivedAt?: string | null;
 }
 
+/** One row in POST /api/v1/chapters/:chapterId/contacts (bulk create). */
+export interface CrowdedBulkCreateContactItem {
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobile?: string;
+  dateOfBirth?: string;
+}
+
+/** Wire body for POST /api/v1/chapters/:chapterId/contacts (bulk create contacts). */
+export interface CrowdedBulkCreateContactsRequest {
+  data: CrowdedBulkCreateContactItem[];
+}
+
+/** Crowded may return created contacts under `data` (shape varies by API version). */
+export interface CrowdedBulkCreateContactsResponse {
+  data?: CrowdedContact[];
+}
+
 /** Chapter-scoped banking account (GET …/chapters/:chapterId/accounts). @see docs/development/features/crowded_cursor_postman_session.md */
 export interface CrowdedAccount {
   /**

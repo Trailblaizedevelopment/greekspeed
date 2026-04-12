@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { canManageChapterForContext } from '@/lib/permissions';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
+import { maybeSyncCrowdedChapterContacts } from '@/lib/services/crowded/maybeSyncCrowdedChapterContacts';
 import { duesAssignmentCreateBodySchema } from '@/lib/services/dues/duesAssignmentCreateBodySchema';
 import { resolveDuesAssignmentCreateAmount } from '@/lib/services/dues/resolveDuesAssignmentCreateAmount';
 
@@ -215,6 +216,12 @@ export async function POST(request: NextRequest) {
     if (profileUpdateError) {
       console.error('⚠️ Error updating member profile:', profileUpdateError);
     }
+
+    await maybeSyncCrowdedChapterContacts({
+      supabase,
+      trailblaizeChapterId: cycle.chapter_id,
+      memberIds: [memberId],
+    });
 
     // Dues assignment created successfully
 

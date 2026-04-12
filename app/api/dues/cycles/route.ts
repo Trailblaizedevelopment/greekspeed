@@ -5,6 +5,7 @@ import { getManagedChapterIds } from '@/lib/services/governanceService';
 import { bulkAssignMembersToNewCycle } from '@/lib/services/dues/bulkAssignMembersToNewCycle';
 import { deleteDuesCycleByIdAdmin } from '@/lib/services/dues/deleteDuesCycleAdmin';
 import { duesCyclePostBodySchema } from '@/lib/services/dues/duesCyclePostBodySchema';
+import { maybeSyncCrowdedChapterContacts } from '@/lib/services/crowded/maybeSyncCrowdedChapterContacts';
 import { createCrowdedCollectionAndLinkDuesCycle } from '@/lib/services/dues/linkCrowdedCollectionForDuesCycle';
 import { isFeatureEnabled } from '@/types/featureFlags';
 
@@ -233,6 +234,11 @@ export async function POST(request: NextRequest) {
         duesCycleId: cycle.id,
         memberIds: body.assignMemberIds,
         cycleBaseAmount: baseAmountNum,
+      });
+      await maybeSyncCrowdedChapterContacts({
+        supabase,
+        trailblaizeChapterId: chapterId,
+        memberIds: body.assignMemberIds,
       });
     }
 

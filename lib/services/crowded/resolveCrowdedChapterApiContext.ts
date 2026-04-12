@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { canManageChapterForContext, type ProfileForPermission } from '@/lib/permissions';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
-import { isFeatureEnabled } from '@/types/featureFlags';
+import { isFeatureEnabled, type ChapterFeatureFlags } from '@/types/featureFlags';
 
 /** Shared for Crowded API routes: Bearer or cookies + service-role client for DB checks. */
 export async function authenticateCrowdedApiRequest(request: NextRequest): Promise<{
@@ -69,7 +69,12 @@ export async function resolveCrowdedChapterApiContext(
   request: NextRequest,
   trailblaizeChapterId: string
 ): Promise<
-  | { ok: true; crowdedChapterId: string; supabase: SupabaseClient }
+  | {
+      ok: true;
+      crowdedChapterId: string;
+      supabase: SupabaseClient;
+      featureFlags: ChapterFeatureFlags;
+    }
   | { ok: false; response: NextResponse }
 > {
   const auth = await authenticateCrowdedApiRequest(request);
@@ -129,5 +134,10 @@ export async function resolveCrowdedChapterApiContext(
     };
   }
 
-  return { ok: true, crowdedChapterId: crowdedChapterId.trim(), supabase };
+  return {
+    ok: true,
+    crowdedChapterId: crowdedChapterId.trim(),
+    supabase,
+    featureFlags: (chapter.feature_flags ?? {}) as ChapterFeatureFlags,
+  };
 }

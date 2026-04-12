@@ -197,6 +197,230 @@ End-to-end **`npm run test:crowded`** now completes successfully when Crowded re
 
 **404** `Contact with ID contact_id not found…` means the path still sent the literal string `contact_id` — use **`{{contact_id}}`** in Path Variables, not plain text.
 
+### Bulk create contacts — verified in Postman, failing in app batch (Apr 2026)
+
+**Status:** the endpoint and baseline request shape are now **verified in Postman**. The remaining Trailblaize failure is more likely caused by **one or more bad rows**, **batch size**, or a stricter validation rule triggered by real member data.
+
+| Source | Result |
+|--------|--------|
+| Postman — `POST {{base_url}}/api/v1/chapters/{{chapter_id}}/contacts` | **`201 Created`** with a created contact in `data[]`. |
+| Trailblaize admin UI → **Sync chapter contacts to Crowded** | **`POST /api/chapters/[id]/crowded/contacts/sync`** returns **`200`** with `ok: true` and a summary payload. |
+| Live summary seen in app | `alreadyInCrowded: 1`, `created: 0`, `skippedNoEmail: 0`, `skippedDuplicateEmailInProfiles: 0`, `skippedNoName: 0`, `errors: ["Crowded bulk create (35): Invalid batch create users request"]` |
+| Implication | The core endpoint is valid, but the Trailblaize sync payload at scale is still rejected by Crowded. |
+
+**Important UI note:** Trailblaize currently shows a green success toast when the route returns **`{ ok: true, summary }`**, even if `summary.errors` contains Crowded API failures. Treat the yellow warning toast / `summary.errors[]` as the authoritative sync result until the UI is hardened.
+
+**Verified Postman request body**:
+
+```json
+{
+  "data": [
+    {
+      "firstName": "John",
+      "lastName": "Claude",
+      "mobile": "+15675671234",
+      "email": "john@example.com",
+      "dateOfBirth": "1900-01-01"
+    }
+  ]
+}
+```
+
+**Verified Postman success response**:
+
+```json
+{
+  "data": [
+    {
+      "id": "c5eabaea-fb96-4091-ab9a-1ea3fb855b8a",
+      "chapterId": "c651e8dd-a3b0-4756-91a0-30d18e22d714",
+      "firstName": "John",
+      "lastName": "Claude",
+      "mobile": "+15675671234",
+      "email": "john@example.com",
+      "dateOfBirth": "1900-01-01T00:00:00.000Z",
+      "status": "Active",
+      "createdAt": "2026-04-11T22:27:59.025Z",
+      "updatedAt": "2026-04-11T22:27:59.025Z",
+      "archivedAt": null
+    }
+  ]
+}
+```
+
+**Current app payload shape** (from `syncChapterContactsToCrowded.ts`) is:
+
+```json
+{
+  "data": [
+    {
+      "firstName": "John",
+      "lastName": "Claude",
+      "email": "john@example.com",
+      "mobile": "+15675671234"
+    }
+  ]
+}
+```
+
+This confirms the top-level **`data: []`** wrapper is correct. The Trailblaize payload is close to the working Postman payload, but it currently does **not** send `dateOfBirth`. The more likely causes to verify are:
+
+| Hypothesis | Why it is plausible |
+|-----------|---------------------|
+| **One or more rows in the batch are invalid** | Crowded’s error message is batch-level and may reject the entire request when a single contact has a bad field. |
+| **Batch size is too large** | Trailblaize sends up to **35** or **40** rows at once; Crowded may accept the schema but reject larger batches. |
+| **`mobile` formatting is stricter than expected** | Trailblaize sends best-effort E.164, but some stored phone values may still be invalid for Crowded. |
+| **Duplicate / already-existing emails inside the request** | Trailblaize de-dupes within profiles and against existing Crowded contacts by normalized email, but Crowded may apply stricter uniqueness or other user-level validation. |
+| **`dateOfBirth` may matter for some create flows** | Postman success included `dateOfBirth`, and Crowded’s manual CSV flow treats DOB as required for some downstream user/card workflows. |
+| **Hidden required constraints in Crowded’s “users” layer** | The error says **`Invalid batch create users request`**, which suggests server-side validation deeper than the visible contact schema. |
+
+### Crowded portal / manual contact paths
+
+Crowded’s support article confirms the portal supports two manual paths in addition to the API:
+
+| Path | Notes |
+|------|-------|
+| **Invite link** | Portal → **Contacts** → **Invite Contacts** → copy the registration link and send it to members. |
+| **Upload CSV** | Portal → **Contacts** → **Invite Contacts** → **Upload CSV**. Crowded support says upload up to **500** contacts at a time. Required columns: **First name**, **Last name**, **Mobile number** (with country code), **Email**, **Date of birth**. |
+
+**Support article:** [Adding Contacts](https://support.bankingcrowded.com/hc/en-us/articles/26166770234257-Adding-Contacts)
+
+**Interpretation for Trailblaize:** API-created contacts may still be valid even if the portal UI emphasizes invite / CSV workflows. Use **`GET /chapters/{{chapter_id}}/contacts`** as the source of truth for API verification before assuming the portal failed to save the contact.
+
+### Recommended Postman verification order — bulk create contacts
+
+Before changing Trailblaize code, prove exactly what Crowded accepts in Postman for **this same chapter**.
+
+1. **Verify chapter and current contacts**
+   Run `GET {{base_url}}/api/v1/chapters/{{chapter_id}}/contacts` and keep the response open.
+   Confirm whether the email counted as `alreadyInCrowded: 1` actually exists in the chapter you are viewing in the Crowded portal.
+
+2. **Send a single known-good contact**
+   Use one member with a clean email and simple ASCII first/last name.
+   Start with the exact shape that already succeeded in Postman.
+
+   ```json
+   {
+     "data": [
+       {
+         "firstName": "Test",
+         "lastName": "Member",
+          "email": "you+crowded-contact-1@example.com",
+          "mobile": "+14105550100",
+          "dateOfBirth": "1990-01-01"
+       }
+     ]
+   }
+   ```
+
+3. **Remove optional-looking fields one at a time**
+   Retry without `dateOfBirth`, then without `mobile`.
+   This will tell you which fields are truly required for this path vs merely accepted.
+
+4. **Try 2-3 contacts, then 10, then 35**
+   Keep the payload otherwise identical to what Trailblaize sends.
+   If small batches work and 35 fails, the issue is probably a Crowded batch-size or row-validation threshold, not route wiring.
+
+5. **Introduce one real Trailblaize member at a time**
+   Copy a real member payload from your DB fields conceptually:
+   `first_name`, `last_name`, `full_name`, `email`, `phone`.
+   The goal is to identify the first real record that makes Crowded reject the batch.
+
+6. **After each successful POST, re-run list contacts**
+   Verify the newly-created contact appears via:
+   `GET {{base_url}}/api/v1/chapters/{{chapter_id}}/contacts`
+   and then verify it in the Crowded portal UI for the same chapter. If the API list shows the contact but the portal still does not, treat that as a portal/UI visibility question, not an API create failure.
+
+### Postman checklist for matching Trailblaize behavior
+
+Use the same chapter and auth context that the app uses:
+
+- `base_url`: your active Crowded sandbox/staging API host
+- `chapter_id`: the exact value stored in Trailblaize `chapters.crowded_chapter_id`
+- `Authorization`: Bearer token
+- `Content-Type`: `application/json`
+
+Then test these payload variants in order:
+
+1. Verified single contact
+
+```json
+{
+  "data": [
+    {
+      "firstName": "Test",
+      "lastName": "One",
+      "email": "you+crowded-minimal@example.com",
+      "mobile": "+14105550100",
+      "dateOfBirth": "1990-01-01"
+    }
+  ]
+}
+```
+
+2. Same contact without `dateOfBirth`
+
+```json
+{
+  "data": [
+    {
+      "firstName": "Test",
+      "lastName": "NoDob",
+      "email": "you+crowded-nodob@example.com",
+      "mobile": "+14105550100"
+    }
+  ]
+}
+```
+
+3. Same contact without `mobile`
+
+```json
+{
+  "data": [
+    {
+      "firstName": "Test",
+      "lastName": "NoPhone",
+      "email": "you+crowded-nophone@example.com",
+      "dateOfBirth": "1990-01-01"
+    }
+  ]
+}
+```
+
+4. Small realistic batch
+
+```json
+{
+  "data": [
+    {
+      "firstName": "Alpha",
+      "lastName": "Member",
+      "email": "you+alpha@example.com",
+      "mobile": "+14105550100"
+    },
+    {
+      "firstName": "Beta",
+      "lastName": "Member",
+      "email": "you+beta@example.com",
+      "mobile": "+14105550101"
+    }
+  ]
+}
+```
+
+**Capture for the doc / implementation before changing code:**
+
+- exact request body that succeeds
+- exact request body that fails
+- response status code
+- full error body from Crowded
+- whether failure changes when `mobile` is removed
+- whether failure changes when `dateOfBirth` is included or removed
+- whether failure changes when batch size is reduced
+
+**Likely app follow-up after Postman verification:** reduce batch size, send single-contact retries for failures, remove/guard `mobile`, add `dateOfBirth` if required and available, validate inputs more aggressively, or adapt to any stricter request shape Crowded actually enforces.
+
 ---
 
 ## Pass 2 — Accounts (create / list)

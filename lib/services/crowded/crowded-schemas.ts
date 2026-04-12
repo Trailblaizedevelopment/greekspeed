@@ -67,6 +67,26 @@ export const crowdedContactSingleResponseSchema = z.object({
   data: crowdedContactSchema,
 });
 
+/** POST …/chapters/:chapterId/contacts — bulk create (Crowded API Docs). */
+export const crowdedBulkCreateContactItemWireSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().min(3),
+  mobile: z.string().min(3).optional(),
+  dateOfBirth: z.string().optional(),
+});
+
+export const crowdedBulkCreateContactsWireRequestSchema = z.object({
+  data: z.array(crowdedBulkCreateContactItemWireSchema).min(1),
+});
+
+/** Response shape varies; validate loosely when `CROWDED_VALIDATE_RESPONSES=1`. */
+export const crowdedBulkCreateContactsResponseSchema = z
+  .object({
+    data: z.unknown().optional(),
+  })
+  .passthrough();
+
 /** List/single account: Crowded may send `accountId`, snake_case, `uuid`, JSON:API `attributes`, or nested `account` (normalized before parse in the client). */
 export const crowdedAccountSchema = z
   .object({

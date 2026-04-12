@@ -232,7 +232,7 @@ export default function FeatureFlagsPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                         {/* Financial Tools Toggle */}
                         <div className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex items-center space-x-2">
@@ -318,6 +318,35 @@ export default function FeatureFlagsPage() {
                             <span
                               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                                 flags.crowded_integration_enabled ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Crowded: auto-create chapter contacts from member profiles (opt-in) */}
+                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <Flag className="h-4 w-4 text-gray-400 shrink-0" />
+                            <span className="text-sm font-medium leading-tight">
+                              Crowded contact sync
+                            </span>
+                          </div>
+                          <button
+                            onClick={() =>
+                              toggleFlag(
+                                chapter.id,
+                                'crowded_contact_sync_enabled',
+                                flags.crowded_contact_sync_enabled ?? false
+                              )
+                            }
+                            disabled={isSaving}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                              flags.crowded_contact_sync_enabled ? 'bg-green-500' : 'bg-gray-300'
+                            } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                flags.crowded_contact_sync_enabled ? 'translate-x-6' : 'translate-x-1'
                               }`}
                             />
                           </button>

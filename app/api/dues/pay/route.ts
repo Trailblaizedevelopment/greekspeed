@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
 import { authenticateCrowdedApiRequest } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
+import { maybeSyncCrowdedChapterContacts } from '@/lib/services/crowded/maybeSyncCrowdedChapterContacts';
 import { createCrowdedDuesPaymentIntent } from '@/lib/services/dues/crowdedDuesPaymentIntent';
 import { dollarsOutstandingToCents } from '@/lib/services/dues/duesOutstandingCents';
 import { isFeatureEnabled } from '@/types/featureFlags';
@@ -130,6 +131,14 @@ export async function POST(request: NextRequest) {
     const crowdedCollectionId = (cycle.crowded_collection_id as string | null)?.trim() ?? '';
 
     const crowdedReady = crowdedEnabled && crowdedChapterId.length > 0 && crowdedCollectionId.length > 0;
+
+    if (crowdedEnabled && crowdedChapterId.length > 0) {
+      await maybeSyncCrowdedChapterContacts({
+        supabase,
+        trailblaizeChapterId: cycle.chapter_id.trim(),
+        memberIds: [user.id],
+      });
+    }
 
     if (!crowdedReady) {
       return NextResponse.json(

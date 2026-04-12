@@ -2,13 +2,16 @@ export type FeatureFlagName =
   | 'financial_tools_enabled'
   | 'recruitment_crm_enabled'
   | 'events_management_enabled'
-  | 'crowded_integration_enabled';
+  | 'crowded_integration_enabled'
+  | 'crowded_contact_sync_enabled';
 
 export interface ChapterFeatureFlags {
   financial_tools_enabled?: boolean;
   recruitment_crm_enabled?: boolean;
   events_management_enabled?: boolean;
   crowded_integration_enabled?: boolean;
+  /** When true, Trailblaize may bulk-create missing Crowded chapter contacts from member profiles (opt-in). */
+  crowded_contact_sync_enabled?: boolean;
 }
 
 /**
@@ -20,6 +23,7 @@ export const DEFAULT_FEATURE_FLAGS: ChapterFeatureFlags = {
   recruitment_crm_enabled: true,
   events_management_enabled: true,
   crowded_integration_enabled: false,
+  crowded_contact_sync_enabled: false,
 };
 
 /** When a flag key is absent from stored JSON, use this (differs for opt-in flags). */
@@ -28,6 +32,7 @@ const DEFAULT_WHEN_FLAG_MISSING: Record<FeatureFlagName, boolean> = {
   recruitment_crm_enabled: true,
   events_management_enabled: true,
   crowded_integration_enabled: false,
+  crowded_contact_sync_enabled: false,
 };
 
 // Valid flag names for validation
@@ -36,6 +41,7 @@ export const VALID_FEATURE_FLAGS: FeatureFlagName[] = [
   'recruitment_crm_enabled',
   'events_management_enabled',
   'crowded_integration_enabled',
+  'crowded_contact_sync_enabled',
 ];
 
 /**

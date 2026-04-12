@@ -12,6 +12,7 @@ import {
   QrCode,
   RefreshCw,
   Search,
+  UserPlus,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'react-toastify';
@@ -126,6 +127,10 @@ export interface CrowdedCollectionsAdminPanelProps {
   assignments: CrowdedAdminAssignment[];
   linkingCrowdedCycleId: string | null;
   onCreateAndLink: (cycle: CrowdedAdminDuesCycle) => void | Promise<void>;
+  /** When true, show “Sync contacts to Crowded” (requires `crowded_contact_sync_enabled` chapter flag). */
+  contactSyncEnabled?: boolean;
+  /** After a successful contact sync (optional refresh of dues data). */
+  onContactsSynced?: () => void | Promise<void>;
 }
 
 export function CrowdedCollectionsAdminPanel({
@@ -134,12 +139,15 @@ export function CrowdedCollectionsAdminPanel({
   assignments,
   linkingCrowdedCycleId,
   onCreateAndLink,
+  contactSyncEnabled = false,
+  onContactsSynced,
 }: CrowdedCollectionsAdminPanelProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [expandedCycleId, setExpandedCycleId] = useState<string | null>(null);
   const [qrTarget, setQrTarget] = useState<{ label: string; url: string } | null>(null);
   const [checkoutLoadingId, setCheckoutLoadingId] = useState<string | null>(null);
+  const [contactSyncLoading, setContactSyncLoading] = useState(false);
 
   const filteredCycles = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -187,6 +195,54 @@ export function CrowdedCollectionsAdminPanel({
       toast.error('Could not copy to clipboard');
     }
   }, []);
+
+  const runContactSync = useCallback(async () => {
+    if (!contactSyncEnabled || contactSyncLoading) return;
+    setContactSyncLoading(true);
+    try {
+      const res = await fetch(`/api/chapters/${chapterId}/crowded/contacts/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            summary?: {
+              alreadyInCrowded: number;
+              created: number;
+              skippedNoEmail: number;
+              skippedDuplicateEmailInProfiles: number;
+              skippedNoName: number;
+              errors: string[];
+            };
+            error?: string;
+          }
+        | null;
+      if (!res.ok || !json?.ok) {
+        toast.error(json?.error || `Contact sync failed (${res.status})`);
+        return;
+      }
+      const s = json.summary;
+      if (s) {
+        toast.success(
+          `Crowded contacts: ${s.created} created, ${s.alreadyInCrowded} already linked, ${s.skippedNoEmail} no email, ${s.skippedNoName} no name.`
+        );
+        if (s.errors.length > 0) {
+          toast.warn(s.errors.slice(0, 2).join(' '));
+        }
+      } else {
+        toast.success('Crowded contact sync finished.');
+      }
+      await onContactsSynced?.();
+      await queryClient.invalidateQueries({ queryKey: ['crowded-collect-overview', chapterId] });
+    } catch {
+      toast.error('Network error syncing contacts');
+    } finally {
+      setContactSyncLoading(false);
+    }
+  }, [chapterId, contactSyncEnabled, contactSyncLoading, onContactsSynced, queryClient]);
 
   const requestCheckoutLink = useCallback(
     async (duesAssignmentId: string, collectionId: string) => {
@@ -237,6 +293,23 @@ export function CrowdedCollectionsAdminPanel({
               live Crowded intent status (refreshes automatically), and treasurer checkout links.
             </p>
           </div>
+          {contactSyncEnabled ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 border-brand-primary/40 text-brand-primary-hover"
+              disabled={contactSyncLoading}
+              onClick={() => void runContactSync()}
+            >
+              {contactSyncLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-2" />
+              )}
+              Sync chapter contacts to Crowded
+            </Button>
+          ) : null}
         </div>
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

@@ -67,6 +67,16 @@ interface ChapterMember {
   chapter_role: string;
 }
 
+interface MemberCrowdedSyncResult {
+  tone: 'success' | 'warning' | 'error';
+  message: string;
+}
+
+interface MemberCrowdedContactState {
+  status: 'matched' | 'no_match' | 'no_profile_email' | 'ambiguous';
+  contactId?: string;
+}
+
 /**
  * Default cycle for new assignments: newest active cycle, else newest cycle.
  * Caller should load `cycles` with `created_at` descending so "first active" is the newest active.
@@ -153,6 +163,8 @@ export function TreasurerDashboard() {
   const { profile } = useProfile();
   const { enabled: crowdedIntegrationEnabled, loading: crowdedFlagLoading } =
     useFeatureFlag('crowded_integration_enabled');
+  const { enabled: crowdedContactSyncEnabled, loading: crowdedContactSyncFlagLoading } =
+    useFeatureFlag('crowded_contact_sync_enabled');
   const crowdedBalanceFetchEnabled =
     !crowdedFlagLoading && crowdedIntegrationEnabled && Boolean(profile?.chapter_id);
   const crowdedBalanceQuery = useCrowdedChapterBalance(
@@ -193,6 +205,23 @@ export function TreasurerDashboard() {
     customAmount: 0,
   });
   const [linkingCrowdedCycleId, setLinkingCrowdedCycleId] = useState<string | null>(null);
+  const [syncingCrowdedMemberId, setSyncingCrowdedMemberId] = useState<string | null>(null);
+  const [memberCrowdedSyncResults, setMemberCrowdedSyncResults] = useState<
+    Record<string, MemberCrowdedSyncResult>
+  >({});
+  const [memberCrowdedContactStates, setMemberCrowdedContactStates] = useState<
+    Record<string, MemberCrowdedContactState>
+  >({});
+  const crowdedContactStatusEnabled =
+    crowdedIntegrationEnabled &&
+    !crowdedFlagLoading &&
+    Boolean(profile?.chapter_id?.trim());
+  const rowLevelCrowdedSyncEnabled =
+    crowdedContactSyncEnabled &&
+    !crowdedContactSyncFlagLoading &&
+    crowdedIntegrationEnabled &&
+    !crowdedFlagLoading &&
+    Boolean(profile?.chapter_id?.trim());
 
   const openAssignDuesModal = useCallback(
     (preset?: { memberId?: string }) => {
@@ -272,6 +301,64 @@ export function TreasurerDashboard() {
       loadChapterMembers();
     }
   }, [profile?.chapter_id]);
+
+  useEffect(() => {
+    if (selectedTab !== "members" || !crowdedContactStatusEnabled) {
+      return;
+    }
+
+    const chapterId = profile?.chapter_id?.trim();
+    if (!chapterId) return;
+
+    let cancelled = false;
+
+    const loadMemberCrowdedStatuses = async () => {
+      try {
+        const response = await fetch(`/api/chapters/${chapterId}/crowded/contacts/status`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        const json = (await response.json().catch(() => null)) as
+          | {
+              ok?: boolean;
+              members?: Array<{
+                memberId: string;
+                status: MemberCrowdedContactState['status'];
+                contactId?: string;
+              }>;
+              error?: string;
+            }
+          | null;
+
+        if (!response.ok || !json?.ok || !Array.isArray(json.members)) {
+          console.error('Could not preload Crowded contact statuses:', json?.error || response.status);
+          return;
+        }
+
+        if (cancelled) return;
+
+        const next: Record<string, MemberCrowdedContactState> = {};
+        for (const row of json.members) {
+          next[row.memberId] = {
+            status: row.status,
+            ...(row.contactId ? { contactId: row.contactId } : {}),
+          };
+        }
+        setMemberCrowdedContactStates(next);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Could not preload Crowded contact statuses:', error);
+        }
+      }
+    };
+
+    void loadMemberCrowdedStatuses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTab, crowdedContactStatusEnabled, profile?.chapter_id]);
 
   // Reset to page 1 when chapterMembers changes
   useEffect(() => {
@@ -583,6 +670,129 @@ export function TreasurerDashboard() {
       alert('Failed to delete dues assignment. Please try again.');
     }
   };
+
+  const handleSyncMemberToCrowded = useCallback(async (member: ChapterMember) => {
+    const chapterId = profile?.chapter_id?.trim();
+    if (!chapterId) {
+      alert('Your profile is not linked to a chapter.');
+      return;
+    }
+    if (!rowLevelCrowdedSyncEnabled) {
+      alert('Crowded contact sync is not enabled for this chapter.');
+      return;
+    }
+
+    setSyncingCrowdedMemberId(member.id);
+    setMemberCrowdedSyncResults((prev) => {
+      const next = { ...prev };
+      delete next[member.id];
+      return next;
+    });
+
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}/crowded/contacts/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ memberIds: [member.id] }),
+      });
+
+      const json = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            summary?: {
+              alreadyInCrowded: number;
+              created: number;
+              skippedNoEmail: number;
+              skippedDuplicateEmailInProfiles: number;
+              skippedNoName: number;
+              errors: string[];
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !json?.ok || !json.summary) {
+        setMemberCrowdedSyncResults((prev) => ({
+          ...prev,
+          [member.id]: {
+            tone: 'error',
+            message: json?.error || `Crowded sync failed (${response.status})`,
+          },
+        }));
+        return;
+      }
+
+      const summary = json.summary;
+      let result: MemberCrowdedSyncResult;
+      if (summary.errors.length > 0) {
+        result = {
+          tone: 'error',
+          message: summary.errors[0] || 'Crowded API error',
+        };
+      } else if (summary.created > 0) {
+        result = {
+          tone: 'success',
+          message: 'Crowded contact created',
+        };
+      } else if (summary.alreadyInCrowded > 0) {
+        result = {
+          tone: 'success',
+          message: 'Already exists in Crowded',
+        };
+      } else if (summary.skippedNoEmail > 0) {
+        result = {
+          tone: 'warning',
+          message: 'Skipped: no email',
+        };
+      } else if (summary.skippedNoName > 0) {
+        result = {
+          tone: 'warning',
+          message: 'Skipped: no name',
+        };
+      } else if (summary.skippedDuplicateEmailInProfiles > 0) {
+        result = {
+          tone: 'warning',
+          message: 'Skipped: duplicate profile email',
+        };
+      } else {
+        result = {
+          tone: 'warning',
+          message: 'No sync change reported',
+        };
+      }
+
+      setMemberCrowdedSyncResults((prev) => ({
+        ...prev,
+        [member.id]: result,
+      }));
+      if (summary.created > 0 || summary.alreadyInCrowded > 0) {
+        setMemberCrowdedContactStates((prev) => ({
+          ...prev,
+          [member.id]: {
+            status: 'matched',
+            ...(prev[member.id]?.contactId ? { contactId: prev[member.id]?.contactId } : {}),
+          },
+        }));
+      } else if (summary.skippedNoEmail > 0) {
+        setMemberCrowdedContactStates((prev) => ({
+          ...prev,
+          [member.id]: { status: 'no_profile_email' },
+        }));
+      }
+    } catch (error) {
+      console.error('Crowded member sync failed:', error);
+      setMemberCrowdedSyncResults((prev) => ({
+        ...prev,
+        [member.id]: {
+          tone: 'error',
+          message: 'Network error syncing member',
+        },
+      }));
+    } finally {
+      setSyncingCrowdedMemberId(null);
+    }
+  }, [profile?.chapter_id, rowLevelCrowdedSyncEnabled]);
 
   const handleMemberSelection = (memberId: string, checked: boolean) => {
     if (checked) {
@@ -1076,7 +1286,11 @@ export function TreasurerDashboard() {
               cycles={cycles}
               assignments={assignments}
               linkingCrowdedCycleId={linkingCrowdedCycleId}
+              contactSyncEnabled={false}
               onCreateAndLink={(c) => void handleLinkCrowdedCollection(c as DuesCycle)}
+              onContactsSynced={async () => {
+                await loadDuesData();
+              }}
             />
           ) : null}
           </>
@@ -1203,12 +1417,40 @@ export function TreasurerDashboard() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {paginatedMembers.map((member) => (
+                                {paginatedMembers.map((member) => {
+                                  const syncResult = memberCrowdedSyncResults[member.id];
+                                  const contactState = memberCrowdedContactStates[member.id];
+                                  const isSyncing = syncingCrowdedMemberId === member.id;
+                                  const isConnectedInCrowded = contactState?.status === 'matched';
+                                  const displayBadge =
+                                    syncResult ??
+                                    (contactState?.status === 'matched'
+                                      ? { tone: 'success' as const, message: 'Connected in Crowded' }
+                                      : contactState?.status === 'no_profile_email'
+                                        ? { tone: 'warning' as const, message: 'Missing email' }
+                                        : contactState?.status === 'ambiguous'
+                                          ? { tone: 'warning' as const, message: 'Ambiguous Crowded match' }
+                                          : null);
+                                  return (
                                   <tr key={member.id} className="border-b hover:bg-gray-50 whitespace-nowrap">
                                     <td className="p-3 max-w-[250px]">
                                       <div>
                                         <p className="font-medium truncate" title={member.full_name}>{member.full_name}</p>
                                         <p className="text-sm text-gray-600 truncate" title={member.email}>{member.email}</p>
+                                        {displayBadge ? (
+                                          <Badge
+                                            variant="outline"
+                                            className={`mt-2 ${
+                                              displayBadge.tone === 'success'
+                                                ? 'border-green-200 bg-green-50 text-green-700'
+                                                : displayBadge.tone === 'warning'
+                                                  ? 'border-yellow-200 bg-yellow-50 text-yellow-700'
+                                                  : 'border-red-200 bg-red-50 text-red-700'
+                                            }`}
+                                          >
+                                            {displayBadge.message}
+                                          </Badge>
+                                        ) : null}
                                       </div>
                                     </td>
                                     <td className="p-3">
@@ -1223,22 +1465,42 @@ export function TreasurerDashboard() {
                                       </p>
                                     </td>
                                     <td className="p-3">
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        onClick={() =>
-                                          openAssignDuesModal({
-                                            memberId: member.id,
-                                          })
-                                        }
-                                        className="hover:bg-green-50 hover:text-green-600"
-                                      >
-                                        <DollarSign className="h-4 w-4 mr-1 flex-shrink-0" />
-                                        Assign
-                                      </Button>
+                                      <div className="flex items-center gap-2">
+                                        {rowLevelCrowdedSyncEnabled ? (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={isSyncing || isConnectedInCrowded}
+                                            onClick={() => void handleSyncMemberToCrowded(member)}
+                                            className="hover:bg-blue-50 hover:text-blue-600"
+                                          >
+                                            {isSyncing ? (
+                                              <Loader2 className="h-4 w-4 mr-1 flex-shrink-0 animate-spin" />
+                                            ) : isConnectedInCrowded ? (
+                                              <Lock className="h-4 w-4 mr-1 flex-shrink-0" />
+                                            ) : (
+                                              <RefreshCw className="h-4 w-4 mr-1 flex-shrink-0" />
+                                            )}
+                                            {isConnectedInCrowded ? 'Connected' : 'Sync to Crowded'}
+                                          </Button>
+                                        ) : null}
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline"
+                                          onClick={() =>
+                                            openAssignDuesModal({
+                                              memberId: member.id,
+                                            })
+                                          }
+                                          className="hover:bg-green-50 hover:text-green-600"
+                                        >
+                                          <DollarSign className="h-4 w-4 mr-1 flex-shrink-0" />
+                                          Assign
+                                        </Button>
+                                      </div>
                                     </td>
                                   </tr>
-                                ))}
+                                )})}
                               </tbody>
                             </table>
                           </div>
@@ -1295,7 +1557,21 @@ export function TreasurerDashboard() {
 
                       {/* Mobile Card Layout */}
                       <div className="md:hidden space-y-3">
-                        {paginatedMembers.map((member) => (
+                        {paginatedMembers.map((member) => {
+                          const syncResult = memberCrowdedSyncResults[member.id];
+                          const contactState = memberCrowdedContactStates[member.id];
+                          const isSyncing = syncingCrowdedMemberId === member.id;
+                          const isConnectedInCrowded = contactState?.status === 'matched';
+                          const displayBadge =
+                            syncResult ??
+                            (contactState?.status === 'matched'
+                              ? { tone: 'success' as const, message: 'Connected in Crowded' }
+                              : contactState?.status === 'no_profile_email'
+                                ? { tone: 'warning' as const, message: 'Missing email' }
+                                : contactState?.status === 'ambiguous'
+                                  ? { tone: 'warning' as const, message: 'Ambiguous Crowded match' }
+                                  : null);
+                          return (
                     <div key={member.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
                       <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0">
@@ -1305,6 +1581,20 @@ export function TreasurerDashboard() {
                           <p className="text-xs text-gray-600 mt-1 truncate" title={member.email}>
                             {member.email}
                           </p>
+                          {displayBadge ? (
+                            <Badge
+                              variant="outline"
+                              className={`mt-2 ${
+                                displayBadge.tone === 'success'
+                                  ? 'border-green-200 bg-green-50 text-green-700'
+                                  : displayBadge.tone === 'warning'
+                                    ? 'border-yellow-200 bg-yellow-50 text-yellow-700'
+                                    : 'border-red-200 bg-red-50 text-red-700'
+                              }`}
+                            >
+                              {displayBadge.message}
+                            </Badge>
+                          ) : null}
                         </div>
                         <div className="flex flex-col items-end space-y-1 ml-2">
                           <p className="text-sm font-medium text-gray-900">
@@ -1313,7 +1603,7 @@ export function TreasurerDashboard() {
                         </div>
                       </div>
                       
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                      <div className="flex justify-between items-center gap-2 pt-2 border-t border-gray-100">
                         <div className="text-xs text-gray-600">
                           <span>
                             Last assigned: {member.last_dues_assignment_date 
@@ -1326,22 +1616,42 @@ export function TreasurerDashboard() {
                           </span>
                         </div>
                         
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() =>
-                            openAssignDuesModal({
-                              memberId: member.id,
-                            })
-                          }
-                          className="h-7 px-2 text-xs hover:bg-green-50 hover:text-green-600"
-                        >
-                          <DollarSign className="h-3 w-3 mr-1 flex-shrink-0" />
-                          Assign
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {rowLevelCrowdedSyncEnabled ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isSyncing || isConnectedInCrowded}
+                              onClick={() => void handleSyncMemberToCrowded(member)}
+                              className="h-7 px-2 text-xs hover:bg-blue-50 hover:text-blue-600"
+                            >
+                              {isSyncing ? (
+                                <Loader2 className="h-3 w-3 mr-1 flex-shrink-0 animate-spin" />
+                              ) : isConnectedInCrowded ? (
+                                <Lock className="h-3 w-3 mr-1 flex-shrink-0" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3 mr-1 flex-shrink-0" />
+                              )}
+                              {isConnectedInCrowded ? 'Connected' : 'Sync'}
+                            </Button>
+                          ) : null}
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() =>
+                              openAssignDuesModal({
+                                memberId: member.id,
+                              })
+                            }
+                            className="h-7 px-2 text-xs hover:bg-green-50 hover:text-green-600"
+                          >
+                            <DollarSign className="h-3 w-3 mr-1 flex-shrink-0" />
+                            Assign
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                   
                         {/* Mobile Pagination */}
                         {totalPages > 1 && (

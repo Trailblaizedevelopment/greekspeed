@@ -6,6 +6,8 @@ import type {
   CrowdedAccount,
   CrowdedBulkCreateAccountsRequest,
   CrowdedBulkCreateAccountsResponse,
+  CrowdedBulkCreateContactsRequest,
+  CrowdedBulkCreateContactsResponse,
   CrowdedChapter,
   CrowdedCollectIntent,
   CrowdedCollectIntentSummary,
@@ -23,6 +25,7 @@ import {
   crowdedAccountListResponseSchema,
   crowdedAccountSingleResponseSchema,
   crowdedBulkCreateAccountsResponseSchema,
+  crowdedBulkCreateContactsResponseSchema,
   crowdedChapterListResponseSchema,
   crowdedCollectIntentSingleResponseSchema,
   crowdedCollectionSingleResponseSchema,
@@ -328,9 +331,36 @@ export class CrowdedClient {
   }
 
   /** GET /api/v1/chapters/:chapterId/contacts */
-  async listContacts(chapterId: string): Promise<CrowdedListResponse<CrowdedContact>> {
-    const raw = await this.getJson<unknown>(`/chapters/${encodeURIComponent(chapterId)}/contacts`);
+  async listContacts(
+    chapterId: string,
+    query?: Record<string, string | number | boolean | undefined>
+  ): Promise<CrowdedListResponse<CrowdedContact>> {
+    const path = appendSearchParams(
+      `/chapters/${encodeURIComponent(chapterId)}/contacts`,
+      query
+    );
+    const raw = await this.getJson<unknown>(path);
     return maybeParse(crowdedContactListResponseSchema, raw) as CrowdedListResponse<CrowdedContact>;
+  }
+
+  /**
+   * POST /api/v1/chapters/:chapterId/contacts — bulk create chapter contacts.
+   * @see Crowded API Docs (Postman) — Bulk Create Contacts
+   */
+  async bulkCreateContacts(
+    chapterId: string,
+    body: CrowdedBulkCreateContactsRequest
+  ): Promise<CrowdedBulkCreateContactsResponse> {
+    const raw = await this.postJson<unknown>(
+      `/chapters/${encodeURIComponent(chapterId)}/contacts`,
+      body
+    );
+    const parsed = maybeParse(crowdedBulkCreateContactsResponseSchema, raw) as {
+      data?: CrowdedContact | CrowdedContact[];
+    };
+    const d = parsed.data;
+    const list = Array.isArray(d) ? d : d ? [d] : [];
+    return { data: list };
   }
 
   /** GET /api/v1/chapters/:chapterId/contacts/:contactId */
