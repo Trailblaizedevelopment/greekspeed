@@ -14,6 +14,10 @@ export function crowdedMinorToUsd(minor: number): number {
   return minor / 100;
 }
 
+function isClosedStatus(status: string | null | undefined): boolean {
+  return (status ?? '').trim().toLowerCase() === 'closed';
+}
+
 function safeMinorBalance(account: CrowdedAccount): number {
   const n = Number(account.balance);
   if (!Number.isFinite(n) || n < 0) return 0;
@@ -97,9 +101,11 @@ export async function getCrowdedChapterBalanceForChapter(
     }
   }
 
-  const totalBalanceMinor = accounts.reduce((sum, acc) => sum + safeMinorBalance(acc), 0);
+  const activeAccounts = accounts.filter((acc) => !isClosedStatus(acc.status));
 
-  const rows: CrowdedChapterBalanceAccountRow[] = accounts.map((acc) => {
+  const totalBalanceMinor = activeAccounts.reduce((sum, acc) => sum + safeMinorBalance(acc), 0);
+
+  const rows: CrowdedChapterBalanceAccountRow[] = activeAccounts.map((acc) => {
     const crowdedAccountId = resolveCrowdedAccountApiId(acc) ?? 'unknown';
     const minor = safeMinorBalance(acc);
     const name =
@@ -139,7 +145,7 @@ export async function getCrowdedChapterBalanceForChapter(
     balanceUsd: crowdedMinorToUsd(totalBalanceMinor),
     totalBalanceMinor,
     syncedAt,
-    accountCount: accounts.length,
+    accountCount: activeAccounts.length,
     accounts: rows,
     dbSyncError,
   };
