@@ -109,7 +109,29 @@ export async function getCrowdedChapterBalanceForChapter(
       displayName: name,
       balanceUsd: crowdedMinorToUsd(minor),
       currency: acc.currency ?? null,
+      product: typeof acc.product === 'string' ? acc.product : null,
+      status: typeof acc.status === 'string' ? acc.status : null,
+      contactId:
+        typeof acc.contactId === 'string'
+          ? acc.contactId
+          : typeof acc.contact_id === 'string'
+            ? acc.contact_id
+            : null,
     };
+  }).sort((a, b) => {
+    const rank = (product: string | null) => {
+      switch ((product ?? '').toLowerCase()) {
+        case 'checking':
+          return 0;
+        case 'wallet':
+          return 1;
+        case 'perdiem':
+          return 2;
+        default:
+          return 3;
+      }
+    };
+    return rank(a.product) - rank(b.product);
   });
 
   return {

@@ -285,12 +285,11 @@ export function CrowdedCollectionsAdminPanel({
           <div>
             <CardTitle className="text-primary-900 flex items-center gap-2 text-lg sm:text-xl">
               <Link2 className="h-5 w-5 text-brand-primary shrink-0" />
-              Crowded collections
+              Chapter Collections
             </CardTitle>
             <p className="text-sm text-gray-600 mt-1 max-w-2xl">
-              Manage Crowded collect campaigns linked to dues cycles. Links cannot be removed from
-              here (to avoid duplicate collections). Expand a linked cycle to see assigned members,
-              live Crowded intent status (refreshes automatically), and treasurer checkout links.
+              Manage chapter collections and dues cycles. Link directly to Crowded to assign to members.
+              Expand a linked cycle to see assigned members, live collection statuses refresh automatically.
             </p>
           </div>
           {contactSyncEnabled ? (

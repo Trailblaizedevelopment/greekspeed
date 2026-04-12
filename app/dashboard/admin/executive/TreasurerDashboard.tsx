@@ -103,6 +103,20 @@ function suggestedReducedAmount(base: number): number {
   return Math.min(Math.round((base / 2) * 100) / 100, base - 0.01);
 }
 
+function formatCrowdedProductLabel(product: string | null | undefined): string {
+  const value = (product ?? '').trim().toLowerCase();
+  switch (value) {
+    case 'checking':
+      return 'Checking';
+    case 'perdiem':
+      return 'Per Diem';
+    case 'wallet':
+      return 'Wallet';
+    default:
+      return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Unknown';
+  }
+}
+
 // Add CSV export function for dues data
 const exportDuesToCSV = (assignments: DuesAssignment[], filename: string = "dues-export.csv") => {
   // Define the CSV headers
@@ -1176,17 +1190,14 @@ export function TreasurerDashboard() {
               <div>
                 <CardTitle className="text-primary-900 flex items-center gap-2">
                   <Landmark className="h-5 w-5 text-brand-primary" />
-                  Crowded account balance
+                  Chapter Account Balance
                 </CardTitle>
-                <p className="text-sm text-gray-600 mt-1">
-                  Live balance from Crowded (refreshes about every minute). Amounts are shown in USD.
-                </p>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="shrink-0"
+                className="shrink-0 rounded-full"
                 disabled={crowdedBalanceQuery.isFetching}
                 onClick={() => void crowdedBalanceQuery.refetch()}
               >
@@ -1270,8 +1281,20 @@ export function TreasurerDashboard() {
                   {crowdedBalanceQuery.data.data.accounts.length > 1 ? (
                     <ul className="text-sm text-gray-700 space-y-1 border-t border-gray-100 pt-3">
                       {crowdedBalanceQuery.data.data.accounts.map((a) => (
-                        <li key={a.crowdedAccountId} className="flex justify-between gap-2">
-                          <span className="truncate">{a.displayName}</span>
+                        <li key={a.crowdedAccountId} className="flex justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{a.displayName}</div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              <Badge variant="outline" className="text-[11px]">
+                                {formatCrowdedProductLabel(a.product)}
+                              </Badge>
+                              {a.status ? (
+                                <Badge variant="outline" className="text-[11px]">
+                                  {a.status}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
                           <span className="tabular-nums shrink-0">
                             {new Intl.NumberFormat('en-US', {
                               style: 'currency',

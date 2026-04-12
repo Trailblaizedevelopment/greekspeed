@@ -3,6 +3,9 @@ export type CrowdedChapterBalanceAccountRow = {
   displayName: string;
   balanceUsd: number;
   currency: string | null;
+  product: string | null;
+  status: string | null;
+  contactId: string | null;
 };
 
 /** GET `/api/chapters/:id/crowded/balance` JSON body */
