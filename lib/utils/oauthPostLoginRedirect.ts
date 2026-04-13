@@ -45,3 +45,10 @@ export function clearOauthSignupRoleCookieOn(res: NextResponse): void {
     secure: process.env.NODE_ENV === 'production',
   });
 }
+
+/** Clears public-sign-up alumni marker before chapter-join OAuth so callback fallback cannot mis-classify the user. */
+export function clearOauthSignupRoleCookieInBrowser(): void {
+  if (typeof window === 'undefined') return;
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${OAUTH_SIGNUP_ROLE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+}

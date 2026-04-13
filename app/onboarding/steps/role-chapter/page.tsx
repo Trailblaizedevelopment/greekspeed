@@ -54,13 +54,19 @@ export default function RoleChapterPage() {
   // Check for invitation data in session storage
   const [hasInvitation, setHasInvitation] = useState(false);
   const [invitationLoading, setInvitationLoading] = useState(false);
+  /** Public chapter join link (/join/chapter/...) — session set before OAuth; used for prefill + copy */
+  const [hasChapterJoinFromLink, setHasChapterJoinFromLink] = useState(false);
 
   useEffect(() => {
     const loadInvitationData = async () => {
       // Check if user came through invitation flow
       const invitationType = sessionStorage.getItem('invitation_type');
       const invitationToken = sessionStorage.getItem('invitation_token');
-  
+      const storedJoinRole = sessionStorage.getItem('join_role');
+      const storedChapterSlug = sessionStorage.getItem('chapter_slug');
+      const joinRoleValid =
+        storedJoinRole === 'active_member' || storedJoinRole === 'alumni';
+
       if (invitationType) {
         setHasInvitation(true);
         // If invitation specifies role, use it
@@ -68,7 +74,7 @@ export default function RoleChapterPage() {
           setFormData(prev => ({ ...prev, role: 'active_member' }));
         }
       }
-  
+
       // Pre-populate from profile if available (invitation flow already set these)
       if (profile?.chapter || profile?.role) {
         const matchingChapter = chapters.find(c => c.name === profile.chapter);
@@ -80,7 +86,25 @@ export default function RoleChapterPage() {
         }));
         return; // Profile already has data, no need to fetch
       }
-  
+
+      // Public chapter join link: role + chapter slug stored before OAuth (callback also sets profile when params survive)
+      if (!invitationToken && storedChapterSlug && joinRoleValid) {
+        const bySlug = chapters.find((c) => c.slug === storedChapterSlug);
+        setHasChapterJoinFromLink(true);
+        setFormData((prev) => ({
+          ...prev,
+          role: storedJoinRole as 'alumni' | 'active_member',
+          chapter: bySlug?.name ?? prev.chapter,
+          chapterId: bySlug?.id ?? prev.chapterId,
+        }));
+      } else if (!invitationToken && joinRoleValid && !storedChapterSlug) {
+        setHasChapterJoinFromLink(true);
+        setFormData((prev) => ({
+          ...prev,
+          role: storedJoinRole as 'alumni' | 'active_member',
+        }));
+      }
+
       // Fallback: if profile doesn't have chapter/role but we have an invitation token,
       // fetch invitation data to pre-populate (handles case where callback missed params)
       if (invitationToken && (!profile?.chapter || !profile?.role)) {
@@ -103,6 +127,7 @@ export default function RoleChapterPage() {
                 role: roleValue,
               }));
               setHasInvitation(true);
+              setHasChapterJoinFromLink(false);
             }
           }
         } catch (error) {
@@ -494,31 +519,57 @@ export default function RoleChapterPage() {
     );
   }
 
+  /** Harsh "alumni only" copy applies to public self-serve signup, not chapter join links */
+  const showAlumniPublicSignupBanner = formData.role === 'alumni' && !hasChapterJoinFromLink;
+
   return (
     <div className="space-y-6">
-      {/* Information Banner */}
-      <Card className={ONBOARDING_BANNER_AMBER_CARD_CLASS}>
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="font-medium text-amber-900 text-sm mb-1">Alumni Signup</h3>
-              <p className="text-sm text-amber-800">
-                Free signups are for alumni only. Active members must be invited by their chapter administrator.
-              </p>
+      {hasChapterJoinFromLink && formData.role === 'active_member' ? (
+        <Card className="rounded-none border-0 shadow-none bg-blue-50 sm:rounded-xl sm:border sm:border-blue-200 sm:shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium text-blue-900 text-sm mb-1">Chapter join</h3>
+                <p className="text-sm text-blue-800">
+                  You&apos;re signing up as an active member from your chapter&apos;s link. Confirm your chapter below, then continue.
+                </p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {showAlumniPublicSignupBanner ? (
+        <Card className={ONBOARDING_BANNER_AMBER_CARD_CLASS}>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium text-amber-900 text-sm mb-1">Alumni Signup</h3>
+                <p className="text-sm text-amber-800">
+                  Free signups are for alumni only. Active members must be invited by their chapter administrator.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className={ONBOARDING_MAIN_CARD_CLASS}>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2">
-            <GraduationCap className="h-5 w-5 text-brand-primary" />
+            {formData.role === 'active_member' ? (
+              <Users className="h-5 w-5 text-brand-primary" />
+            ) : (
+              <GraduationCap className="h-5 w-5 text-brand-primary" />
+            )}
             Welcome! Let&apos;s Get Started
           </CardTitle>
           <CardDescription>
-            Select your chapter to continue setting up your profile
+            {formData.role === 'active_member' && hasChapterJoinFromLink
+              ? 'Confirm your chapter and role, then continue setting up your profile'
+              : 'Select your chapter to continue setting up your profile'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -549,23 +600,37 @@ export default function RoleChapterPage() {
               )}
             </div>
 
-            {/* Role Display (Alumni only for free signup) */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 Your Role
               </Label>
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-full">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-brand-primary/10 rounded-lg">
-                    <GraduationCap className="h-5 w-5 text-brand-primary" />
+                  <div
+                    className={cn(
+                      'p-2 rounded-lg',
+                      formData.role === 'active_member' ? 'bg-blue-100' : 'bg-brand-primary/10'
+                    )}
+                  >
+                    {formData.role === 'active_member' ? (
+                      <Users className="h-5 w-5 text-brand-primary" />
+                    ) : (
+                      <GraduationCap className="h-5 w-5 text-brand-primary" />
+                    )}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">Alumni</p>
-                    <p className="text-sm text-gray-500">Connect with your organization's network</p>
+                    <p className="font-medium text-gray-900">
+                      {formData.role === 'active_member' ? 'Active Member' : 'Alumni'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formData.role === 'active_member'
+                        ? 'Current students and active chapter members'
+                        : "Connect with your organization's network"}
+                    </p>
                   </div>
                 </div>
               </div>
-              {!hasInvitation && (
+              {formData.role === 'alumni' && !hasInvitation && (
                 <p className="text-xs text-gray-500">
                   Active member accounts require an invitation from your chapter.
                 </p>

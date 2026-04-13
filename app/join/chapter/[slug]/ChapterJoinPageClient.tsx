@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChapterJoinForm } from '@/components/features/join/ChapterJoinForm';
 import { supabase } from '@/lib/supabase/client';
+import { clearOauthSignupRoleCookieInBrowser } from '@/lib/utils/oauthPostLoginRedirect';
 import { toast } from 'react-toastify';
 
 interface ChapterInfo {
@@ -80,13 +81,17 @@ export default function ChapterJoinPageClient() {
       sessionStorage.setItem('chapter_slug', chapter.slug);
       sessionStorage.setItem('join_role', selectedRole);
 
+      clearOauthSignupRoleCookieInBrowser();
+
+      const callback = new URL(`${window.location.origin}/auth/callback`);
+      callback.searchParams.set('chapter_slug', chapter.slug);
+      callback.searchParams.set('join_role', selectedRole);
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callback.toString(),
           queryParams: {
-            chapter_slug: chapter.slug,
-            join_role: selectedRole,
             access_type: 'offline',
             prompt: 'consent',
           },
