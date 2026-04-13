@@ -5,7 +5,6 @@ import { toast } from 'react-toastify';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createPortal } from 'react-dom';
@@ -21,6 +20,7 @@ import { supabase } from '@/lib/supabase/client';
 import { QuickActions, QuickAction } from '@/components/features/dashboard/dashboards/ui/QuickActions';
 import { CreateDuesCycleWizard } from '@/components/features/dashboard/admin/CreateDuesCycleWizard';
 import { CrowdedCollectionsAdminPanel } from '@/components/features/dashboard/admin/CrowdedCollectionsAdminPanel';
+import { CrowdedRecentActivityCard } from '@/components/features/dashboard/admin/CrowdedRecentActivityCard';
 
 interface DuesCycle {
   id: string;
@@ -842,58 +842,6 @@ export function TreasurerDashboard() {
     }
   };
 
-  // NEW: Calculate dues collection progress for current cycle
-  const getCurrentCycle = () => {
-    const id = getDefaultAssignmentCycleId(cycles);
-    if (!id) return undefined;
-    return cycles.find((c) => c.id === id);
-  };
-
-  const getDuesCollectionProgress = () => {
-    const currentCycle = getCurrentCycle();
-    if (!currentCycle) {
-      return {
-        cycleName: 'No Active Cycle',
-        paid: 0,
-        pending: 0,
-        overdue: 0,
-        total: 0,
-        collectionRate: 0
-      };
-    }
-
-    // Filter assignments for current cycle
-    const currentCycleAssignments = assignments.filter(
-      assignment => assignment.cycle.name === currentCycle.name
-    );
-
-    const now = new Date();
-    const dueDate = new Date(currentCycle.due_date);
-
-    // Calculate counts
-    const paid = currentCycleAssignments.filter(a => a.status === 'paid').length;
-    const pending = currentCycleAssignments.filter(a => 
-      a.status === 'required' && now <= dueDate
-    ).length;
-    const overdue = currentCycleAssignments.filter(a => 
-      a.status === 'required' && now > dueDate
-    ).length;
-
-    const total = currentCycleAssignments.length;
-    const collectionRate = total > 0 ? (paid / total) * 100 : 0;
-
-    return {
-      cycleName: currentCycle.name,
-      paid,
-      pending,
-      overdue,
-      total,
-      collectionRate
-    };
-  };
-
-  const duesProgress = getDuesCollectionProgress();
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "paid": return "bg-green-100 text-green-800";
@@ -1105,42 +1053,14 @@ export function TreasurerDashboard() {
       {selectedTab === "overview" && (
         <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
-          {/* Desktop Layout - Dues Collection Progress (2/3 width) */}
-          <Card className="hidden lg:block lg:col-span-2 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
-            <CardHeader className="border-b border-primary-100/30">
-              <CardTitle className="text-primary-900">Dues Collection Progress</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span>{duesProgress.cycleName}</span>
-                  <span className="font-medium">{duesProgress.collectionRate.toFixed(1)}%</span>
-                </div>
-                <Progress value={duesProgress.collectionRate} className="h-3" />
-                
-                <div className="grid grid-cols-3 gap-4 mt-6">
-                  <div className="text-center">
-                    <p className="text-2xl font-semibold text-green-600">
-                      {duesProgress.paid}
-                    </p>
-                    <p className="text-sm text-gray-600">Paid</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-semibold text-yellow-600">
-                      {duesProgress.pending}
-                    </p>
-                    <p className="text-sm text-gray-600">Pending</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-semibold text-red-600">
-                      {duesProgress.overdue}
-                    </p>
-                    <p className="text-sm text-gray-600">Overdue</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="lg:col-span-2">
+            {profile?.chapter_id?.trim() ? (
+              <CrowdedRecentActivityCard
+                chapterId={profile.chapter_id.trim()}
+                enabled={!crowdedFlagLoading && crowdedIntegrationEnabled}
+              />
+            ) : null}
+          </div>
 
           {/* Desktop Layout - Quick Actions Sidebar (1/3 width) */}
           <div className="hidden lg:block">
@@ -1148,43 +1068,6 @@ export function TreasurerDashboard() {
               actions={quickActions}
             />
           </div>
-
-          {/* Mobile Layout - Dues Collection Progress */}
-          <Card className="lg:hidden bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
-            <CardHeader className="pb-2 border-b border-primary-100/30">
-              <CardTitle className="text-primary-900">Dues Collection Progress</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{duesProgress.cycleName}</span>
-                  <span className="text-sm font-medium">{duesProgress.collectionRate.toFixed(1)}%</span>
-                </div>
-                <Progress value={duesProgress.collectionRate} className="h-2" />
-                
-                <div className="grid grid-cols-3 gap-2 mt-3">
-                  <div className="text-center">
-                    <p className="text-lg font-semibold text-green-600">
-                      {duesProgress.paid}
-                    </p>
-                    <p className="text-xs text-gray-600">Paid</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-semibold text-yellow-600">
-                      {duesProgress.pending}
-                    </p>
-                    <p className="text-xs text-gray-600">Pending</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-semibold text-red-600">
-                      {duesProgress.overdue}
-                    </p>
-                    <p className="text-xs text-gray-600">Overdue</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Mobile Layout - Quick Actions */}
           <div className="lg:hidden">
