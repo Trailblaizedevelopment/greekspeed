@@ -11,26 +11,15 @@ export type CrowdedDuesPaymentIntentErrorCode =
   | 'CROWDED_CONTACT_AMBIGUOUS'
   | 'CROWDED_NO_PAYMENT_URL';
 
-/**
- * Create a Crowded collect intent for a member profile + outstanding balance (minor units).
- * Shared by member self-serve pay and treasurer-generated checkout links.
- */
-export async function createCrowdedDuesPaymentIntent(params: {
-  crowded: CrowdedClient;
-  crowdedChapterId: string;
-  crowdedCollectionId: string;
+export type CrowdedDuesPaymentIntentReadinessResult =
+  | { ok: true; contactId: string }
+  | { ok: false; error: string; code?: CrowdedDuesPaymentIntentErrorCode; httpStatus: number };
+
+function resolveCrowdedDuesPaymentContact(params: {
   contacts: CrowdedContact[];
   memberProfile: CrowdedPayProfileForContactMatch;
-  requestedAmountMinor: number;
-  payerIp: string;
-  successUrl: string;
-  failureUrl: string;
-  /** Defaults to member self-serve copy. */
   noProfileEmailMessage?: string;
-}): Promise<
-  | { ok: true; paymentUrl: string }
-  | { ok: false; error: string; code?: CrowdedDuesPaymentIntentErrorCode; httpStatus: number }
-> {
+}): CrowdedDuesPaymentIntentReadinessResult {
   const match = matchCrowdedContactForProfile(params.contacts, params.memberProfile);
   if (!match.ok) {
     if (match.reason === 'no_profile_email') {
@@ -59,12 +48,53 @@ export async function createCrowdedDuesPaymentIntent(params: {
     };
   }
 
+  return { ok: true, contactId: match.contactId };
+}
+
+export function checkCrowdedDuesPaymentIntentReadiness(params: {
+  contacts: CrowdedContact[];
+  memberProfile: CrowdedPayProfileForContactMatch;
+  noProfileEmailMessage?: string;
+}): CrowdedDuesPaymentIntentReadinessResult {
+  return resolveCrowdedDuesPaymentContact(params);
+}
+
+/**
+ * Create a Crowded collect intent for a member profile + outstanding balance (minor units).
+ * Shared by member self-serve pay and treasurer-generated checkout links.
+ */
+export async function createCrowdedDuesPaymentIntent(params: {
+  crowded: CrowdedClient;
+  crowdedChapterId: string;
+  crowdedCollectionId: string;
+  contacts: CrowdedContact[];
+  memberProfile: CrowdedPayProfileForContactMatch;
+  requestedAmountMinor: number;
+  payerIp: string;
+  successUrl: string;
+  failureUrl: string;
+  /** Defaults to member self-serve copy. */
+  noProfileEmailMessage?: string;
+}): Promise<
+  | { ok: true; paymentUrl: string }
+  | { ok: false; error: string; code?: CrowdedDuesPaymentIntentErrorCode; httpStatus: number }
+> {
+  const readiness = resolveCrowdedDuesPaymentContact({
+    contacts: params.contacts,
+    memberProfile: params.memberProfile,
+    noProfileEmailMessage: params.noProfileEmailMessage,
+  });
+
+  if (!readiness.ok) {
+    return readiness;
+  }
+
   const intentResult = await params.crowded.createIntent(
     params.crowdedChapterId,
     params.crowdedCollectionId,
     {
       data: {
-        contactId: match.contactId,
+        contactId: readiness.contactId,
         requestedAmount: params.requestedAmountMinor,
         payerIp: params.payerIp,
         userConsented: true,

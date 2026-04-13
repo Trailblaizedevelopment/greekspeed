@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
 import { authenticateCrowdedApiRequest } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 import { maybeSyncCrowdedChapterContacts } from '@/lib/services/crowded/maybeSyncCrowdedChapterContacts';
-import { createCrowdedDuesPaymentIntent } from '@/lib/services/dues/crowdedDuesPaymentIntent';
+import {
+  checkCrowdedDuesPaymentIntentReadiness,
+  createCrowdedDuesPaymentIntent,
+} from '@/lib/services/dues/crowdedDuesPaymentIntent';
 import { dollarsOutstandingToCents } from '@/lib/services/dues/duesOutstandingCents';
 import { isFeatureEnabled } from '@/types/featureFlags';
 import { clientIpFromRequest } from '@/lib/utils/clientIpFromRequest';
@@ -11,7 +14,20 @@ import { getBaseUrl } from '@/lib/utils/urlUtils';
 
 const duesPayBodySchema = z.object({
   duesAssignmentId: z.string().uuid(),
-  userConsented: z.literal(true),
+  userConsented: z.literal(true).optional(),
+  readinessOnly: z.boolean().optional(),
+}).superRefine((value, ctx) => {
+  if (value.readinessOnly === true) {
+    return;
+  }
+
+  if (value.userConsented !== true) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['userConsented'],
+      message: 'userConsented must be true unless readinessOnly is set.',
+    });
+  }
 });
 
 const NON_PAYABLE_STATUSES = new Set(['paid', 'exempt', 'waived']);
@@ -43,6 +59,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const readinessOnly = parsed.data.readinessOnly === true;
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -108,12 +126,18 @@ export async function POST(request: NextRequest) {
 
     const status = typeof assignment.status === 'string' ? assignment.status : '';
     if (NON_PAYABLE_STATUSES.has(status)) {
-      return NextResponse.json({ error: 'This dues assignment is not payable online.' }, { status: 409 });
+      return NextResponse.json(
+        { error: 'This dues assignment is not payable online.', code: 'DUES_ASSIGNMENT_NOT_PAYABLE' },
+        { status: 409 }
+      );
     }
 
     const requestedAmount = dollarsOutstandingToCents(assignment.amount_due, assignment.amount_paid);
     if (requestedAmount == null) {
-      return NextResponse.json({ error: 'No outstanding balance for this assignment.' }, { status: 409 });
+      return NextResponse.json(
+        { error: 'No outstanding balance for this assignment.', code: 'NO_OUTSTANDING_BALANCE' },
+        { status: 409 }
+      );
     }
 
     const { data: chapter, error: chapterError } = await supabase
@@ -130,25 +154,34 @@ export async function POST(request: NextRequest) {
     const crowdedChapterId = (chapter.crowded_chapter_id as string | null)?.trim() ?? '';
     const crowdedCollectionId = (cycle.crowded_collection_id as string | null)?.trim() ?? '';
 
-    const crowdedReady = crowdedEnabled && crowdedChapterId.length > 0 && crowdedCollectionId.length > 0;
+    if (!crowdedEnabled || crowdedChapterId.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Online dues checkout is not configured for your chapter. Contact your treasurer, or try again later.',
+          code: 'CROWDED_CHAPTER_NOT_CONFIGURED',
+        },
+        { status: 503 }
+      );
+    }
 
-    if (crowdedEnabled && crowdedChapterId.length > 0) {
+    if (crowdedCollectionId.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'This dues cycle is not linked to Crowded yet. Contact your treasurer to finish setup.',
+          code: 'CROWDED_CYCLE_NOT_LINKED',
+        },
+        { status: 503 }
+      );
+    }
+
+    if (!readinessOnly) {
       await maybeSyncCrowdedChapterContacts({
         supabase,
         trailblaizeChapterId: cycle.chapter_id.trim(),
         memberIds: [user.id],
       });
-    }
-
-    if (!crowdedReady) {
-      return NextResponse.json(
-        {
-          error:
-            'Online dues checkout is not configured for your chapter. Contact your treasurer, or try again later.',
-          code: 'ONLINE_DUES_UNAVAILABLE',
-        },
-        { status: 503 }
-      );
     }
 
     let crowdedClient;
@@ -167,6 +200,35 @@ export async function POST(request: NextRequest) {
     const baseUrl = getBaseUrl().replace(/\/$/, '');
     const successUrl = `${baseUrl}/dashboard/dues?success=true`;
     const failureUrl = `${baseUrl}/dashboard/dues?canceled=true`;
+
+    const readiness = checkCrowdedDuesPaymentIntentReadiness({
+      contacts: contactsResponse.data,
+      memberProfile: {
+        email: profile.email,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        full_name: profile.full_name,
+      },
+    });
+
+    if (!readiness.ok) {
+      if (readiness.httpStatus === 400) {
+        return NextResponse.json({ error: readiness.error }, { status: 400 });
+      }
+      return NextResponse.json(
+        { error: readiness.error, ...(readiness.code ? { code: readiness.code } : {}) },
+        { status: readiness.httpStatus }
+      );
+    }
+
+    if (readinessOnly) {
+      return NextResponse.json({
+        ready: true,
+        code: 'READY',
+        duesAssignmentId: assignment.id,
+        duesCycleId: cycle.id,
+      });
+    }
 
     const payIntent = await createCrowdedDuesPaymentIntent({
       crowded: crowdedClient,
