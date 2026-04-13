@@ -101,8 +101,8 @@ export function QuickActions({
   return (
     <>
       <Card className="bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
-        <CardHeader className={`${headerClassName} border-b border-primary-100/30`}>
-          <CardTitle className="text-primary-900">{title}</CardTitle>
+        <CardHeader className={cn("border-b border-primary-100/30 pb-3", headerClassName)}>
+          <CardTitle className="text-primary-900 leading-tight mb-4">{title}</CardTitle>
         </CardHeader>
         <CardContent className={contentClassName}>
           {actions.map((action) => (
