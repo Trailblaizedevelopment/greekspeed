@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { DashboardOverview } from '@/components/features/dashboard/DashboardOverview';
@@ -39,7 +39,8 @@ export default function DashboardPageClient({
   serverProfile,
 }: DashboardPageClientProps) {
   const { user, loading: authLoading } = useAuth();
-  const { profile, isDeveloper, loading: profileLoading, hydrateFromServer } = useProfile();
+  const { profile, isDeveloper, loading: profileLoading, hydrateFromServer, updateProfile } =
+    useProfile();
   const router = useRouter();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const { openEditProfileModal } = useModal();
@@ -69,6 +70,14 @@ export default function DashboardPageClient({
   const isOAuthUser = user?.app_metadata?.provider &&
     user?.app_metadata?.provider !== 'email';
 
+  const markWelcomeSeen = useCallback(async () => {
+    await updateProfile({ welcome_seen: true });
+  }, [updateProfile]);
+
+  /** Either client or RSC snapshot says the welcome flow was completed — avoids stale context re-opening the modal. */
+  const welcomeDismissed =
+    profile?.welcome_seen === true || serverProfile?.welcome_seen === true;
+
   // Handler for sharing an introduction post from welcome modal
   const handleShareIntroduction = () => {
     if (!profile?.id) return;
@@ -96,7 +105,9 @@ export default function DashboardPageClient({
     }
 
     if (profile) {
-      if (!profile.welcome_seen && !isDeveloper) {
+      if (isDeveloper || welcomeDismissed) {
+        setShowWelcomeModal(false);
+      } else {
         setShowWelcomeModal(true);
       }
 
@@ -116,7 +127,17 @@ export default function DashboardPageClient({
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [authLoading, profileLoading, user, profile, isDeveloper, isOAuthUser, router, serverAuthenticated]);
+  }, [
+    authLoading,
+    profileLoading,
+    user,
+    profile,
+    isDeveloper,
+    isOAuthUser,
+    router,
+    serverAuthenticated,
+    welcomeDismissed,
+  ]);
 
   // ---------------------------------------------------------------------------
   // RENDER GATES — only show spinner when we have NO server data AND client is
@@ -165,8 +186,9 @@ export default function DashboardPageClient({
       />
 
       {showWelcomeModal && profile && (
-        <WelcomeModal 
-          profile={profile} 
+        <WelcomeModal
+          profile={profile}
+          markWelcomeSeen={markWelcomeSeen}
           onClose={() => setShowWelcomeModal(false)}
           onShareIntroduction={handleShareIntroduction}
           onEditProfile={openEditProfileModal}

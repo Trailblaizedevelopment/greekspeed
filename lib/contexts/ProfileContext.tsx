@@ -40,7 +40,9 @@ const profilesEqual = (a: Profile | null, b: Profile | null): boolean => {
     // IMPORTANT: include these so onboarding completion updates propagate
     a.onboarding_completed === b.onboarding_completed &&
     a.onboarding_completed_at === b.onboarding_completed_at &&
-    a.signup_channel === b.signup_channel
+    a.signup_channel === b.signup_channel &&
+    // Welcome modal dismissal must refresh client state when only this bit flips
+    a.welcome_seen === b.welcome_seen
   );
 };
 
@@ -139,7 +141,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
       if (updateError) throw updateError;
 
-      setProfile(data);
+      // Merge so denormalized/join-only fields (e.g. `chapter` name) are not lost when
+      // `.select()` returns only columns from `profiles`.
+      setProfile((prevProfile) => ({ ...(prevProfile ?? {}), ...data } as Profile));
       setIsDeveloper(canAccessDeveloperPortal(data));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update profile';
