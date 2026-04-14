@@ -347,8 +347,8 @@ export function CreateDuesCycleWizard({
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                   <Label>Assign members</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={selectAllFiltered}>
-                    Select all (filtered)
+                  <Button type="button" variant="outline" size="sm" onClick={selectAllFiltered} className="rounded-full">
+                    Select all
                   </Button>
                 </div>
                 <Input
@@ -399,13 +399,13 @@ export function CreateDuesCycleWizard({
             <span className="hidden sm:inline">{stepTitle()}</span>
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={submitting}>
+            <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={submitting} className="rounded-full">
               Cancel
             </Button>
             {step < TOTAL_STEPS - 1 ? (
               <Button
                 type="button"
-                className="bg-brand-primary hover:bg-brand-primary-hover"
+                className="bg-brand-primary hover:bg-brand-primary-hover rounded-full"
                 disabled={!canGoNext}
                 onClick={() => setStep((s) => s + 1)}
               >
@@ -414,7 +414,7 @@ export function CreateDuesCycleWizard({
             ) : (
               <Button
                 type="button"
-                className="bg-brand-primary hover:bg-brand-primary-hover"
+                className="bg-brand-primary hover:bg-brand-primary-hover rounded-full"
                 disabled={!canGoNext || submitting}
                 onClick={() => void submit()}
               >

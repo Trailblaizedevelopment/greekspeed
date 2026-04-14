@@ -21,6 +21,7 @@ import { QuickActions, QuickAction } from '@/components/features/dashboard/dashb
 import { CreateDuesCycleWizard } from '@/components/features/dashboard/admin/CreateDuesCycleWizard';
 import { CrowdedCollectionsAdminPanel } from '@/components/features/dashboard/admin/CrowdedCollectionsAdminPanel';
 import { CrowdedRecentActivityCard } from '@/components/features/dashboard/admin/CrowdedRecentActivityCard';
+import type { CrowdedContactSyncSummary } from '@/types/crowded';
 
 interface DuesCycle {
   id: string;
@@ -720,14 +721,7 @@ export function TreasurerDashboard() {
       const json = (await response.json().catch(() => null)) as
         | {
             ok?: boolean;
-            summary?: {
-              alreadyInCrowded: number;
-              created: number;
-              skippedNoEmail: number;
-              skippedDuplicateEmailInProfiles: number;
-              skippedNoName: number;
-              errors: string[];
-            };
+            summary?: CrowdedContactSyncSummary;
             error?: string;
           }
         | null;
@@ -744,12 +738,21 @@ export function TreasurerDashboard() {
       }
 
       const summary = json.summary;
+      const unverifiedForMember = summary.unverifiedCreates?.find((u) => u.profileId === member.id);
+
       let result: MemberCrowdedSyncResult;
       if (summary.errors.length > 0) {
         result = {
           tone: 'error',
           message: summary.errors[0] || 'Crowded API error',
         };
+      } else if (unverifiedForMember) {
+        result = {
+          tone: 'warning',
+          message:
+            'Another contact may exist with similar data in Crowded — check for duplicates then try again.',
+        };
+        toast.warn(result.message);
       } else if (summary.created > 0) {
         result = {
           tone: 'success',
@@ -786,7 +789,7 @@ export function TreasurerDashboard() {
         ...prev,
         [member.id]: result,
       }));
-      if (summary.created > 0 || summary.alreadyInCrowded > 0) {
+      if (!unverifiedForMember && (summary.created > 0 || summary.alreadyInCrowded > 0)) {
         setMemberCrowdedContactStates((prev) => ({
           ...prev,
           [member.id]: {

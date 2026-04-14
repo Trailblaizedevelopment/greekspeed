@@ -1,20 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrowdedClient } from '@/lib/services/crowded/crowded-client';
-import { CrowdedApiError } from '@/lib/services/crowded/crowded-client';
+import { CrowdedApiError, isCrowdedDebugSyncEnabled } from '@/lib/services/crowded/crowded-client';
 import { normalizeCrowdedPayEmail } from '@/lib/services/crowded/matchCrowdedContactByProfile';
-import type { CrowdedBulkCreateContactItem } from '@/types/crowded';
+import type {
+  CrowdedBulkCreateContactItem,
+  CrowdedContactSyncSummary,
+  CrowdedContactSyncUnverifiedIssue,
+} from '@/types/crowded';
 
 const CONTACT_PAGE_SIZE = 100;
 const BULK_CREATE_CHUNK = 40;
 
-export interface SyncChapterContactsToCrowdedResult {
-  alreadyInCrowded: number;
-  created: number;
-  skippedNoEmail: number;
-  skippedDuplicateEmailInProfiles: number;
-  skippedNoName: number;
-  errors: string[];
-}
+export type SyncChapterContactsToCrowdedResult = CrowdedContactSyncSummary;
 
 function splitFullName(full: string | null | undefined): { first: string; last: string } {
   const t = (full ?? '').trim();
@@ -93,6 +90,7 @@ export async function syncChapterContactsToCrowded(params: {
     skippedDuplicateEmailInProfiles: 0,
     skippedNoName: 0,
     errors: [],
+    unverifiedCreates: [],
   };
 
   const existing = await listAllCrowdedContacts(params.crowded, params.crowdedChapterId);
@@ -100,6 +98,16 @@ export async function syncChapterContactsToCrowded(params: {
   for (const c of existing) {
     const n = normalizeCrowdedPayEmail(c.email ?? null);
     if (n) crowdedEmails.add(n);
+  }
+
+  if (isCrowdedDebugSyncEnabled()) {
+    console.info('[CROWDED_DEBUG_SYNC] syncChapterContactsToCrowded start', {
+      trailblaizeChapterId: `${params.trailblaizeChapterId.slice(0, 8)}…`,
+      crowdedChapterId: `${params.crowdedChapterId.slice(0, 8)}…`,
+      memberIdsFilter: params.memberIds?.length ? params.memberIds : '(all chapter members)',
+      crowdedContactCountFromApi: existing.length,
+      crowdedDistinctEmails: crowdedEmails.size,
+    });
   }
 
   let query = params.supabase
@@ -141,7 +149,7 @@ export async function syncChapterContactsToCrowded(params: {
     emailToProfiles.set(emailNorm, list);
   }
 
-  const toCreate: CrowdedBulkCreateContactItem[] = [];
+  const toCreateWithProfile: { profileId: string; item: CrowdedBulkCreateContactItem }[] = [];
 
   for (const [emailNorm, group] of emailToProfiles) {
     if (crowdedEmails.has(emailNorm)) {
@@ -169,18 +177,77 @@ export async function syncChapterContactsToCrowded(params: {
     };
     const mobile = normalizeProfilePhoneForCrowded(p.phone);
     if (mobile) item.mobile = mobile;
-    toCreate.push(item);
+    toCreateWithProfile.push({ profileId: p.id, item });
   }
 
-  for (let i = 0; i < toCreate.length; i += BULK_CREATE_CHUNK) {
-    const chunk = toCreate.slice(i, i + BULK_CREATE_CHUNK);
+  for (let i = 0; i < toCreateWithProfile.length; i += BULK_CREATE_CHUNK) {
+    const chunkEntries = toCreateWithProfile.slice(i, i + BULK_CREATE_CHUNK);
+    const chunk = chunkEntries.map((e) => e.item);
     try {
+      if (isCrowdedDebugSyncEnabled()) {
+        console.info('[CROWDED_DEBUG_SYNC] bulkCreate chunk', {
+          chunkSize: chunk.length,
+          payload: chunk.map((row) => ({
+            email: row.email,
+            firstName: row.firstName,
+            lastName: row.lastName,
+            hasMobile: Boolean(row.mobile),
+          })),
+        });
+      }
+
       const res = await params.crowded.bulkCreateContacts(params.crowdedChapterId, { data: chunk });
       const returned = res.data?.length ?? 0;
-      result.created += returned > 0 ? returned : chunk.length;
-      for (const c of res.data ?? []) {
+
+      const refreshed = await listAllCrowdedContacts(params.crowded, params.crowdedChapterId);
+      const refreshedEmails = new Set<string>();
+      for (const c of refreshed) {
         const n = normalizeCrowdedPayEmail(c.email ?? null);
-        if (n) crowdedEmails.add(n);
+        if (n) refreshedEmails.add(n);
+      }
+
+      let verifiedThisChunk = 0;
+      for (const entry of chunkEntries) {
+        const want = normalizeCrowdedPayEmail(entry.item.email);
+        if (want && refreshedEmails.has(want)) {
+          verifiedThisChunk += 1;
+          crowdedEmails.add(want);
+        } else {
+          const issue: CrowdedContactSyncUnverifiedIssue = {
+            profileId: entry.profileId,
+            email: entry.item.email,
+            code: 'EMAIL_NOT_IN_LIST_AFTER_CREATE',
+          };
+          result.unverifiedCreates.push(issue);
+        }
+      }
+
+      result.created += verifiedThisChunk;
+
+      if (isCrowdedDebugSyncEnabled()) {
+        const fromResponse = (res.data ?? []).map((c) => ({
+          id: c.id,
+          email: normalizeCrowdedPayEmail(c.email ?? null),
+          rawEmail: c.email,
+        }));
+        console.info('[CROWDED_DEBUG_SYNC] bulkCreate parsed result', {
+          returnedLength: returned,
+          verifiedThisChunk,
+          unverifiedThisChunk: chunkEntries.length - verifiedThisChunk,
+          contactsFromResponse: fromResponse,
+        });
+        for (const row of chunk) {
+          const want = normalizeCrowdedPayEmail(row.email);
+          console.info('[CROWDED_DEBUG_SYNC] post-bulkCreate email present in listContacts?', {
+            email: row.email,
+            normalized: want,
+            inListAfterCreate: Boolean(want && refreshedEmails.has(want)),
+          });
+        }
+        console.info('[CROWDED_DEBUG_SYNC] listContacts totals after chunk', {
+          contactRows: refreshed.length,
+          distinctNormalizedEmails: refreshedEmails.size,
+        });
       }
     } catch (e) {
       if (e instanceof CrowdedApiError) {

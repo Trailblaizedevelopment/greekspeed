@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'react-toastify';
+import type { CrowdedContactSyncSummary } from '@/types/crowded';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -209,14 +210,7 @@ export function CrowdedCollectionsAdminPanel({
       const json = (await res.json().catch(() => null)) as
         | {
             ok?: boolean;
-            summary?: {
-              alreadyInCrowded: number;
-              created: number;
-              skippedNoEmail: number;
-              skippedDuplicateEmailInProfiles: number;
-              skippedNoName: number;
-              errors: string[];
-            };
+            summary?: CrowdedContactSyncSummary;
             error?: string;
           }
         | null;
@@ -226,9 +220,15 @@ export function CrowdedCollectionsAdminPanel({
       }
       const s = json.summary;
       if (s) {
+        const nUnverified = s.unverifiedCreates?.length ?? 0;
         toast.success(
-          `Crowded contacts: ${s.created} created, ${s.alreadyInCrowded} already linked, ${s.skippedNoEmail} no email, ${s.skippedNoName} no name.`
+          `Crowded contacts: ${s.created} created (verified in list), ${s.alreadyInCrowded} already linked, ${s.skippedNoEmail} no email, ${s.skippedNoName} no name.`
         );
+        if (nUnverified > 0) {
+          toast.warn(
+            `${nUnverified} member(s) not confirmed: their email did not appear in Crowded after the API succeeded — often a duplicate mobile on another contact. Update phones or fix Crowded duplicates.`
+          );
+        }
         if (s.errors.length > 0) {
           toast.warn(s.errors.slice(0, 2).join(' '));
         }

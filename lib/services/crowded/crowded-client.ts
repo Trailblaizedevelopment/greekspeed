@@ -151,6 +151,18 @@ function shouldValidateResponses(): boolean {
   return v === '1' || v === 'true';
 }
 
+/** When `CROWDED_DEBUG_SYNC=1|true|yes`, logs bulk contact create shape and sync verification (local/staging only; may include PII). */
+export function isCrowdedDebugSyncEnabled(): boolean {
+  const v = process.env.CROWDED_DEBUG_SYNC?.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+/** When `CROWDED_DEBUG_CHECKOUT_LINK=1|true|yes`, logs failed Crowded HTTP calls (path + status; dev only). */
+export function isCrowdedDebugCheckoutLinkEnabled(): boolean {
+  const v = process.env.CROWDED_DEBUG_CHECKOUT_LINK?.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 function maybeParse<T>(schema: { parse: (data: unknown) => T }, data: unknown): T {
   if (!shouldValidateResponses()) {
     return data as T;
@@ -279,6 +291,15 @@ export class CrowdedClient {
     }
 
     if (!res.ok) {
+      if (isCrowdedDebugCheckoutLinkEnabled()) {
+        const method = (init.method ?? 'GET').toUpperCase();
+        console.error('[CROWDED_DEBUG_CHECKOUT_LINK] Crowded HTTP error', {
+          method,
+          path,
+          httpStatus: res.status,
+          responsePreview: text.slice(0, 400),
+        });
+      }
       const body = json && typeof json === 'object' ? (json as CrowdedErrorBody) : undefined;
       const message =
         body?.message ??
@@ -360,6 +381,31 @@ export class CrowdedClient {
     };
     const d = parsed.data;
     const list = Array.isArray(d) ? d : d ? [d] : [];
+
+    if (isCrowdedDebugSyncEnabled()) {
+      const top = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+      const dataField = top?.data;
+      const preview =
+        typeof raw === 'string' ? raw.slice(0, 2500) : JSON.stringify(raw, null, 0).slice(0, 2500);
+      console.info('[CROWDED_DEBUG_SYNC] bulkCreateContacts response shape', {
+        crowdedChapterId: `${chapterId.slice(0, 8)}…`,
+        requestEmails: body.data.map((row) => row.email),
+        topLevelKeys: top ? Object.keys(top) : typeof raw,
+        dataFieldIsArray: Array.isArray(dataField),
+        dataFieldType: dataField === null || dataField === undefined ? String(dataField) : typeof dataField,
+        normalizedListLength: list.length,
+        normalizedListSummaries: list.map((row) => {
+          const o = row as unknown as Record<string, unknown>;
+          return {
+            keys: Object.keys(o),
+            id: typeof o.id === 'string' ? `${o.id.slice(0, 8)}…` : o.id,
+            email: o.email,
+          };
+        }),
+        rawJsonPreview: preview,
+      });
+    }
+
     return { data: list };
   }
 

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
+import {
+  CrowdedApiError,
+  createCrowdedClientFromEnv,
+  isCrowdedDebugCheckoutLinkEnabled,
+} from '@/lib/services/crowded/crowded-client';
 import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
-import { createCrowdedDuesPaymentIntent } from '@/lib/services/dues/crowdedDuesPaymentIntent';
+import {
+  checkCrowdedDuesPaymentIntentReadiness,
+  createCrowdedDuesPaymentIntent,
+} from '@/lib/services/dues/crowdedDuesPaymentIntent';
 import { dollarsOutstandingToCents } from '@/lib/services/dues/duesOutstandingCents';
 import { isFeatureEnabled } from '@/types/featureFlags';
 import { clientIpFromRequest } from '@/lib/utils/clientIpFromRequest';
@@ -144,31 +151,102 @@ export async function POST(
       );
     }
 
-    const contactsResponse = await crowdedClient.listContacts(crowdedChapterId);
+    const dbg = isCrowdedDebugCheckoutLinkEnabled();
+    const payerIp = clientIpFromRequest(request);
     const baseUrl = getBaseUrl().replace(/\/$/, '');
     const successUrl = `${baseUrl}/dashboard/dues?success=true`;
     const failureUrl = `${baseUrl}/dashboard/dues?canceled=true`;
+
+    if (dbg) {
+      console.info('[CROWDED_DEBUG_CHECKOUT_LINK] start', {
+        trailblaizeChapterId,
+        collectionIdTrim,
+        duesAssignmentId: parsed.data.duesAssignmentId,
+        duesCycleId: cycle.id,
+        crowdedChapterId,
+        assignmentUserId: assignment.user_id,
+        memberProfileId: memberProfile.id,
+        requestedAmountMinor: requestedAmount,
+        assignmentStatus: status,
+        payerIp,
+        successUrl,
+        failureUrl,
+      });
+    }
+
+    if (dbg) {
+      console.info('[CROWDED_DEBUG_CHECKOUT_LINK] calling listContacts', { crowdedChapterId });
+    }
+    const contactsResponse = await crowdedClient.listContacts(crowdedChapterId);
+    if (dbg) {
+      console.info('[CROWDED_DEBUG_CHECKOUT_LINK] listContacts ok', {
+        contactCount: contactsResponse.data.length,
+      });
+    }
+
+    const memberProfilePayload = {
+      email: memberProfile.email,
+      first_name: memberProfile.first_name,
+      last_name: memberProfile.last_name,
+      full_name: memberProfile.full_name,
+    };
+    const noProfileEmailMessage =
+      'This member has no email on their profile. Add an email before generating a Crowded checkout link.';
+    if (dbg) {
+      const readiness = checkCrowdedDuesPaymentIntentReadiness({
+        contacts: contactsResponse.data,
+        memberProfile: memberProfilePayload,
+        noProfileEmailMessage,
+      });
+      if (readiness.ok) {
+        console.info('[CROWDED_DEBUG_CHECKOUT_LINK] contact readiness', {
+          ok: true,
+          contactId: readiness.contactId,
+        });
+      } else {
+        console.info('[CROWDED_DEBUG_CHECKOUT_LINK] contact readiness', {
+          ok: false,
+          httpStatus: readiness.httpStatus,
+          code: readiness.code,
+          error: readiness.error,
+        });
+      }
+    }
+
+    if (dbg) {
+      console.info('[CROWDED_DEBUG_CHECKOUT_LINK] calling createCrowdedDuesPaymentIntent', {
+        crowdedChapterId,
+        crowdedCollectionId: collectionIdTrim,
+        requestedAmountMinor: requestedAmount,
+        payerIp,
+      });
+    }
 
     const payIntent = await createCrowdedDuesPaymentIntent({
       crowded: crowdedClient,
       crowdedChapterId,
       crowdedCollectionId: collectionIdTrim,
       contacts: contactsResponse.data,
-      memberProfile: {
-        email: memberProfile.email,
-        first_name: memberProfile.first_name,
-        last_name: memberProfile.last_name,
-        full_name: memberProfile.full_name,
-      },
+      memberProfile: memberProfilePayload,
       requestedAmountMinor: requestedAmount,
-      payerIp: clientIpFromRequest(request),
+      payerIp,
       successUrl,
       failureUrl,
-      noProfileEmailMessage:
-        'This member has no email on their profile. Add an email before generating a Crowded checkout link.',
+      noProfileEmailMessage,
     });
 
+    if (dbg && payIntent.ok) {
+      console.info('[CROWDED_DEBUG_CHECKOUT_LINK] createCrowdedDuesPaymentIntent ok');
+    }
+
     if (!payIntent.ok) {
+      if (dbg) {
+        console.info('[CROWDED_DEBUG_CHECKOUT_LINK] createCrowdedDuesPaymentIntent returned ok:false', {
+          httpStatus: payIntent.httpStatus,
+          code: payIntent.code,
+          error: payIntent.error,
+        });
+      }
       return NextResponse.json(
         { error: payIntent.error, ...(payIntent.code ? { code: payIntent.code } : {}) },
         { status: payIntent.httpStatus }
@@ -183,6 +261,19 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof CrowdedApiError) {
+      if (isCrowdedDebugCheckoutLinkEnabled()) {
+        console.error('[CROWDED_DEBUG_CHECKOUT_LINK] CrowdedApiError', {
+          message: error.message,
+          statusCode: error.statusCode,
+          type: error.type,
+          requestId: error.requestId,
+          details: error.details,
+          bodyKeys:
+            error.body && typeof error.body === 'object'
+              ? Object.keys(error.body as Record<string, unknown>)
+              : undefined,
+        });
+      }
       return NextResponse.json(
         { error: error.message, code: 'CROWDED_API_ERROR' },
         { status: error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 502 }

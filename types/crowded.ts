@@ -81,6 +81,31 @@ export interface CrowdedBulkCreateContactsResponse {
   data?: CrowdedContact[];
 }
 
+/**
+ * Crowded returned HTTP 200 from bulk create but a follow-up listContacts still does not
+ * include this profile email (e.g. existing contact matched on mobile without persisting email).
+ */
+export type CrowdedContactSyncUnverifiedCode = 'EMAIL_NOT_IN_LIST_AFTER_CREATE';
+
+export interface CrowdedContactSyncUnverifiedIssue {
+  profileId: string;
+  email: string;
+  code: CrowdedContactSyncUnverifiedCode;
+}
+
+/** Summary returned by POST /api/chapters/:id/crowded/contacts/sync */
+export interface CrowdedContactSyncSummary {
+  alreadyInCrowded: number;
+  /** Count where listContacts after bulk create includes the profile email */
+  created: number;
+  skippedNoEmail: number;
+  skippedDuplicateEmailInProfiles: number;
+  skippedNoName: number;
+  errors: string[];
+  /** Bulk create appeared to succeed but email never appeared on list — do not treat as created */
+  unverifiedCreates: CrowdedContactSyncUnverifiedIssue[];
+}
+
 /** Chapter-scoped banking account (GET …/chapters/:chapterId/accounts). @see docs/development/features/crowded_cursor_postman_session.md */
 export interface CrowdedAccount {
   /**
