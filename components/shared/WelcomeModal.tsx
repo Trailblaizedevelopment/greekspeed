@@ -5,11 +5,13 @@ import { Drawer } from 'vaul';
 import { X, Users, Calendar, MessageSquare, Shield, CheckCircle, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ProfileService } from '@/lib/services/profileService';
 import Image from 'next/image';
+import type { Profile } from '@/types/profile';
 
 interface WelcomeModalProps {
-  profile: any;
+  profile: Profile;
+  /** Persists `welcome_seen` and updates ProfileContext; must reject on failure so we do not close optimistically. */
+  markWelcomeSeen: () => Promise<void>;
   onClose: () => void;
   onShareIntroduction?: () => void;
   onEditProfile?: () => void;
@@ -48,6 +50,7 @@ const features = [
  */
 export function WelcomeModal({
   profile,
+  markWelcomeSeen,
   onClose,
   onShareIntroduction,
   onEditProfile,
@@ -56,13 +59,14 @@ export function WelcomeModal({
 
   const markSeenAndClose = () => {
     setIsClosing(true);
-    (async () => {
+    void (async () => {
       try {
-        await ProfileService.updateProfile({ welcome_seen: true });
+        await markWelcomeSeen();
+        onClose();
       } catch (error) {
         console.error('Error updating welcome_seen:', error);
+        setIsClosing(false);
       }
-      onClose();
     })();
   };
 
@@ -73,26 +77,28 @@ export function WelcomeModal({
   const handleShareIntroduction = async () => {
     setIsClosing(true);
     try {
-      await ProfileService.updateProfile({ welcome_seen: true });
+      await markWelcomeSeen();
+      onClose();
+      if (onShareIntroduction) {
+        setTimeout(() => onShareIntroduction(), 300);
+      }
     } catch (error) {
       console.error('Error updating welcome_seen:', error);
-    }
-    onClose();
-    if (onShareIntroduction) {
-      setTimeout(() => onShareIntroduction(), 300);
+      setIsClosing(false);
     }
   };
 
   const handleEditProfile = async () => {
     setIsClosing(true);
     try {
-      await ProfileService.updateProfile({ welcome_seen: true });
+      await markWelcomeSeen();
+      onClose();
+      if (onEditProfile) {
+        setTimeout(() => onEditProfile(), 300);
+      }
     } catch (error) {
       console.error('Error updating welcome_seen:', error);
-    }
-    onClose();
-    if (onEditProfile) {
-      setTimeout(() => onEditProfile(), 300);
+      setIsClosing(false);
     }
   };
 
@@ -154,6 +160,7 @@ export function WelcomeModal({
                 variant="ghost"
                 size="sm"
                 onClick={markSeenAndClose}
+                disabled={isClosing}
                 className="absolute top-2 md:top-3 right-2 md:right-3 p-1"
               >
                 <X className="h-4 w-4" />
@@ -191,6 +198,7 @@ export function WelcomeModal({
                       <Button
                         onClick={handleEditProfile}
                         variant="ghost"
+                        disabled={isClosing}
                         className="p-0 h-auto text-[10px] md:text-xs text-brand-accent hover:text-accent-700 hover:bg-transparent font-medium"
                       >
                         Complete profile <ArrowRight className="h-3 w-3 ml-0.5" />
@@ -209,6 +217,7 @@ export function WelcomeModal({
                 <Button
                   onClick={markSeenAndClose}
                   variant="outline"
+                  disabled={isClosing}
                   className="px-4 py-2 md:px-6 md:py-2 text-xs md:text-sm font-medium rounded-full"
                   size="sm"
                 >
@@ -216,6 +225,7 @@ export function WelcomeModal({
                 </Button>
                 <Button
                   onClick={handleShareIntroduction}
+                  disabled={isClosing}
                   className="bg-brand-accent hover:bg-brand-accent-hover px-4 py-2 md:px-6 md:py-2 text-xs md:text-sm font-medium rounded-full"
                   size="sm"
                 >
