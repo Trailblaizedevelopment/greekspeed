@@ -76,6 +76,11 @@ export interface CrowdedBulkCreateContactsRequest {
   data: CrowdedBulkCreateContactItem[];
 }
 
+/** PATCH /api/v1/chapters/:chapterId/contacts/:contactId — partial update (Crowded API Docs). */
+export interface CrowdedPatchContactRequest {
+  data: Partial<Pick<CrowdedContact, 'firstName' | 'lastName' | 'email' | 'mobile' | 'dateOfBirth'>>;
+}
+
 /** Crowded may return created contacts under `data` (shape varies by API version). */
 export interface CrowdedBulkCreateContactsResponse {
   data?: CrowdedContact[];

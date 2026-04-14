@@ -1,5 +1,6 @@
 import type { CrowdedClient } from '@/lib/services/crowded/crowded-client';
-import { getCrowdedIntentPaymentUrl } from '@/lib/services/crowded/crowded-client';
+import { CrowdedApiError, getCrowdedIntentPaymentUrl } from '@/lib/services/crowded/crowded-client';
+import { crowdedContactMobileLooksLikeInvalidPlaceholder } from '@/lib/services/crowded/crowdedContactPhoneEligibility';
 import {
   matchCrowdedContactForProfile,
   type CrowdedPayProfileForContactMatch,
@@ -9,6 +10,8 @@ import type { CrowdedContact } from '@/types/crowded';
 export type CrowdedDuesPaymentIntentErrorCode =
   | 'CROWDED_CONTACT_NOT_FOUND'
   | 'CROWDED_CONTACT_AMBIGUOUS'
+  | 'CROWDED_CONTACT_PHONE_INVALID'
+  | 'CROWDED_INTENT_REJECTED'
   | 'CROWDED_NO_PAYMENT_URL';
 
 export type CrowdedDuesPaymentIntentReadinessResult =
@@ -89,20 +92,53 @@ export async function createCrowdedDuesPaymentIntent(params: {
     return readiness;
   }
 
-  const intentResult = await params.crowded.createIntent(
-    params.crowdedChapterId,
-    params.crowdedCollectionId,
-    {
-      data: {
-        contactId: readiness.contactId,
-        requestedAmount: params.requestedAmountMinor,
-        payerIp: params.payerIp,
-        userConsented: true,
-        successUrl: params.successUrl,
-        failureUrl: params.failureUrl,
-      },
+  const matchedContact = params.contacts.find((c) => c.id === readiness.contactId);
+  if (
+    matchedContact &&
+    crowdedContactMobileLooksLikeInvalidPlaceholder(matchedContact.mobile)
+  ) {
+    return {
+      ok: false,
+      error:
+        'This member’s Crowded contact has an invalid phone number. Use a real E.164 mobile in Trailblaize, run contact sync to Crowded, or fix the contact in Crowded (PATCH contact), then try the payment link again.',
+      code: 'CROWDED_CONTACT_PHONE_INVALID',
+      httpStatus: 409,
+    };
+  }
+
+  let intentResult;
+  try {
+    intentResult = await params.crowded.createIntent(
+      params.crowdedChapterId,
+      params.crowdedCollectionId,
+      {
+        data: {
+          contactId: readiness.contactId,
+          requestedAmount: params.requestedAmountMinor,
+          payerIp: params.payerIp,
+          userConsented: true,
+          successUrl: params.successUrl,
+          failureUrl: params.failureUrl,
+        },
+      }
+    );
+  } catch (e) {
+    if (e instanceof CrowdedApiError) {
+      const unauthorized =
+        e.type === 'UnauthorizedUser' ||
+        (e.statusCode === 401 && e.message.toLowerCase().includes('forbidden'));
+      if (unauthorized) {
+        return {
+          ok: false,
+          error:
+            'Crowded could not create a checkout link for this member (contact may be missing KYC fields such as a valid mobile). Update the member’s phone in Trailblaize and sync contacts, correct the contact in Crowded, or contact Crowded support with the request ID from server logs.',
+          code: 'CROWDED_INTENT_REJECTED',
+          httpStatus: 409,
+        };
+      }
     }
-  );
+    throw e;
+  }
 
   const paymentUrl = getCrowdedIntentPaymentUrl(intentResult);
   if (!paymentUrl) {

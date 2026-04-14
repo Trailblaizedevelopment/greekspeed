@@ -86,3 +86,44 @@ describe('CrowdedClient.listContacts query', () => {
     assert.equal(out.data.length, 0);
   });
 });
+
+describe('CrowdedClient.patchContact', () => {
+  const originalFetch = globalThis.fetch;
+  const chapterId = 'aaaaaaaa-bbbb-cccc-dddd-aaaaaaaaaaaa';
+  const contactId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('PATCHes JSON to /api/v1/chapters/:chapterId/contacts/:contactId', async () => {
+    const expectedUrl = buildCrowdedUrl(
+      'https://crowded.test',
+      `/chapters/${chapterId}/contacts/${contactId}`
+    );
+    const payload = { data: { mobile: '+14105550100' } };
+    const responseBody = {
+      data: {
+        id: contactId,
+        chapterId,
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        email: 'ada@example.com',
+        mobile: '+14105550100',
+        status: 'active',
+        createdAt: '2026-04-10T00:00:00.000Z',
+      },
+    };
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      assert.equal(String(input), expectedUrl);
+      assert.equal(init?.method, 'PATCH');
+      assert.equal(init?.body, JSON.stringify(payload));
+      return new Response(JSON.stringify(responseBody), { status: 200 });
+    }) as typeof fetch;
+
+    const client = new CrowdedClient({ baseUrl: 'https://crowded.test', token: 't' });
+    const out = await client.patchContact(chapterId, contactId, payload);
+    assert.equal(out.data.mobile, '+14105550100');
+  });
+});

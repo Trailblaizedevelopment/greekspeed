@@ -12,7 +12,7 @@
     "migrate:usernames": "tsx scripts/migrate-usernames.ts",
     "test:notifications": "tsx scripts/test-notifications.ts",
     "test:crowded": "tsx scripts/test-crowded-api.ts",
-    "test:crowded:unit": "tsx --test lib/services/crowded/crowded-client.accounts.test.ts lib/services/crowded/crowded-client.collections.test.ts lib/services/crowded/crowded-client.contacts.test.ts lib/services/crowded/crowdedIntentSummary.test.ts lib/services/crowded/matchCrowdedContactByProfile.test.ts lib/services/crowded/crowdedWebhookSignature.test.ts lib/services/crowded/crowdedTransactionMapping.test.ts lib/services/crowded/syncChapterContactsToCrowded.test.ts lib/services/dues/resolveDuesAssignmentCreateAmount.test.ts",
+    "test:crowded:unit": "tsx --test lib/services/crowded/crowded-client.accounts.test.ts lib/services/crowded/crowded-client.collections.test.ts lib/services/crowded/crowded-client.contacts.test.ts lib/services/crowded/crowdedContactPhoneEligibility.test.ts lib/services/crowded/crowdedIntentSummary.test.ts lib/services/crowded/matchCrowdedContactByProfile.test.ts lib/services/crowded/crowdedWebhookSignature.test.ts lib/services/crowded/crowdedTransactionMapping.test.ts lib/services/crowded/syncChapterContactsToCrowded.test.ts lib/services/dues/resolveDuesAssignmentCreateAmount.test.ts",
     "test:event-check-in-token": "tsx scripts/verify-eventCheckInUrlToken.ts",
     "test:announcement-metadata": "tsx scripts/test-announcement-metadata.ts"
   },

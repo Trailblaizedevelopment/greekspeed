@@ -177,6 +177,7 @@ export async function syncChapterContactsToCrowded(params: {
     };
     const mobile = normalizeProfilePhoneForCrowded(p.phone);
     if (mobile) item.mobile = mobile;
+    // `dateOfBirth` is supported by Crowded bulk create; add when profiles persist a DOB column.
     toCreateWithProfile.push({ profileId: p.id, item });
   }
 

@@ -19,6 +19,7 @@ import type {
   CrowdedListMeta,
   CrowdedListResponse,
   CrowdedOrganization,
+  CrowdedPatchContactRequest,
   CrowdedSingleResponse,
 } from '@/types/crowded';
 import {
@@ -339,6 +340,21 @@ export class CrowdedClient {
     });
   }
 
+  /**
+   * Low-level PATCH with JSON body. On non-OK, throws {@link CrowdedApiError} (same as {@link getJson}).
+   */
+  async patchJson<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+    return this.requestJson<T>(path, {
+      ...init,
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...init?.headers,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
   /** GET /api/v1/organizations */
   async listOrganizations(): Promise<CrowdedListResponse<CrowdedOrganization>> {
     const raw = await this.getJson<unknown>('/organizations');
@@ -413,6 +429,19 @@ export class CrowdedClient {
   async getContact(chapterId: string, contactId: string): Promise<CrowdedSingleResponse<CrowdedContact>> {
     const raw = await this.getJson<unknown>(
       `/chapters/${encodeURIComponent(chapterId)}/contacts/${encodeURIComponent(contactId)}`
+    );
+    return maybeParse(crowdedContactSingleResponseSchema, raw) as CrowdedSingleResponse<CrowdedContact>;
+  }
+
+  /** PATCH /api/v1/chapters/:chapterId/contacts/:contactId */
+  async patchContact(
+    chapterId: string,
+    contactId: string,
+    body: CrowdedPatchContactRequest
+  ): Promise<CrowdedSingleResponse<CrowdedContact>> {
+    const raw = await this.patchJson<unknown>(
+      `/chapters/${encodeURIComponent(chapterId)}/contacts/${encodeURIComponent(contactId)}`,
+      body
     );
     return maybeParse(crowdedContactSingleResponseSchema, raw) as CrowdedSingleResponse<CrowdedContact>;
   }
