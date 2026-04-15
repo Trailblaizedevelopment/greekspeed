@@ -13,6 +13,8 @@ interface AlumniSubHeaderProps {
   totalCount: number;
   onClearSelection: () => void;
   onExport: () => void;
+  /** When false, the Export All control is hidden (e.g. developers only). */
+  canExportAlumni: boolean;
   userChapter?: string | null;
   profileCompletionPercentage?: number | null;
 }
@@ -26,6 +28,7 @@ export function AlumniSubHeader({
   selectedCount,
   totalCount,
   onExport,
+  canExportAlumni,
   onClearSelection: _onClearSelection,
   profileCompletionPercentage,
 }: AlumniSubHeaderProps) {
@@ -58,15 +61,17 @@ export function AlumniSubHeader({
       <div className="sm:hidden flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-gray-600 text-xs whitespace-nowrap flex-shrink-0">{mobileCountText}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onExport}
-            className={cn("h-7 text-xs flex-shrink-0", exportButtonStyles)}
-          >
-            <Download className="h-3 w-3 mr-1.5" />
-            Export All
-          </Button>
+          {canExportAlumni ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onExport}
+              className={cn("h-7 text-xs flex-shrink-0", exportButtonStyles)}
+            >
+              <Download className="h-3 w-3 mr-1.5" />
+              Export All
+            </Button>
+          ) : null}
         </div>
         {profilePill && (
           <div className="flex justify-start">
@@ -82,15 +87,17 @@ export function AlumniSubHeader({
           {profilePill}
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onExport}
-            className={exportButtonStyles}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export All
-          </Button>
+          {canExportAlumni ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onExport}
+              className={exportButtonStyles}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export All
+            </Button>
+          ) : null}
           <ViewToggle viewMode={viewMode} onViewChange={onViewModeChange} />
         </div>
       </div>

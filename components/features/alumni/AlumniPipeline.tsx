@@ -52,7 +52,7 @@ function calculateProfileCompletion(profile: Record<string, unknown>, alumniData
 }
 
 export function AlumniPipeline() {
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading, isDeveloper } = useProfile();
   const { session } = useAuth(); // ✅ Add this
   const [alumni, setAlumni] = useState<Alumni[]>([]);
   const [loading, setLoading] = useState(true);
@@ -339,6 +339,7 @@ export function AlumniPipeline() {
         totalCount={pagination.total}
         onClearSelection={handleClearSelection}
         onExport={handleExport}
+        canExportAlumni={isDeveloper}
         userChapter={profile?.chapter}
         profileCompletionPercentage={profileCompletionPercentage}
       />
