@@ -22,13 +22,6 @@ export function FooterNavigation() {
   return (
     <div className="flex items-center gap-6">
       <button 
-        onClick={() => scrollToSection('about')}
-        className="text-sm text-gray-600 hover:text-gray-900 font-sans transition-colors"
-      >
-        <span className="block md:hidden">About</span>
-        <span className="hidden md:inline">About Us</span>
-      </button>
-      <button 
         onClick={() => scrollToSection('features')}
         className="text-sm text-gray-600 hover:text-gray-900 font-sans transition-colors"
       >
