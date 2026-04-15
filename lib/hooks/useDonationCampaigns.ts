@@ -1,18 +1,16 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DonationCampaign, DonationCampaignKind } from '@/types/donationCampaigns';
+import type { DonationCampaign, DonationCampaignCreateKind } from '@/types/donationCampaigns';
 
 type ListResponse = { data: DonationCampaign[] };
 
 export type CreateDonationCampaignPayload = {
   title: string;
-  kind: DonationCampaignKind;
-  /** Required for `fixed` — cents. */
-  requestedAmountCents?: number;
-  /** Required for `open` and `fundraiser` — cents (Crowded `goalAmount`). */
-  goalAmountCents?: number;
-  /** Crowded `showOnPublicFundraisingChannels` — only used for `fundraiser`. */
+  kind: DonationCampaignCreateKind;
+  /** Cents — Crowded `goalAmount`. */
+  goalAmountCents: number;
+  /** Crowded `showOnPublicFundraisingChannels` — only for `fundraiser`. */
   showOnPublicFundraisingChannels?: boolean;
 };
 
@@ -49,15 +47,8 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
       const body: Record<string, unknown> = {
         title: payload.title.trim(),
         kind: payload.kind,
+        goalAmountCents: payload.goalAmountCents,
       };
-      if (payload.kind === 'fixed' && payload.requestedAmountCents != null) {
-        body.requestedAmountCents = payload.requestedAmountCents;
-      }
-      if (payload.kind === 'open' || payload.kind === 'fundraiser') {
-        if (payload.goalAmountCents != null) {
-          body.goalAmountCents = payload.goalAmountCents;
-        }
-      }
       if (payload.kind === 'fundraiser' && payload.showOnPublicFundraisingChannels !== undefined) {
         body.showOnPublicFundraisingChannels = payload.showOnPublicFundraisingChannels;
       }

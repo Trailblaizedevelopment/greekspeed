@@ -76,7 +76,6 @@ export async function POST(
       crowdedBody = buildCrowdedDonationCollectionRequest({
         kind: body.kind,
         title: body.title,
-        requestedAmountCents: body.requestedAmountCents,
         goalAmountCents: body.goalAmountCents,
         showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels,
       });
@@ -132,17 +131,13 @@ export async function POST(
     const shareFromCrowded = crowdedResult.data?.link?.trim();
     const crowdedShareUrl = shareFromCrowded || body.crowdedShareUrl?.trim() || null;
 
-    const requestedAmountCents =
-      body.kind === 'fixed' && body.requestedAmountCents != null ? body.requestedAmountCents : null;
-    const goalAmountCents = body.goalAmountCents ?? null;
-
     const insertRow = {
       chapter_id: trailblaizeChapterId,
       title: body.title.trim(),
       kind: body.kind,
       crowded_collection_id: crowdedCollectionId,
-      goal_amount_cents: goalAmountCents,
-      requested_amount_cents: requestedAmountCents,
+      goal_amount_cents: body.goalAmountCents,
+      requested_amount_cents: null,
       crowded_share_url: crowdedShareUrl,
       metadata: ({
         ...(body.metadata ?? {}),

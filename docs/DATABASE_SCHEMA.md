@@ -296,16 +296,16 @@ Chapter dues periods (semester, annual, etc.).
 - `crowded_collection_id` (TEXT, nullable) — Crowded Collect **collection** id for member checkout (**TRA-415**); set when treasurer links the cycle to a Crowded collection
 
 ### `donation_campaigns`
-Chapter-scoped donation drives / Crowded collections that are **not** tied to a dues cycle (`fixed` per-payer amount, `open` Payment + goal, `fundraiser` Fundraising + goal).
+Chapter-scoped donation drives / Crowded collections that are **not** tied to a dues cycle. **`POST` only creates `open` or `fundraiser`**; older rows may still have `kind = fixed`.
 
 **Key Columns:**
 - `id` (UUID, Primary Key)
 - `chapter_id` (UUID, Foreign Key → `chapters.id`)
 - `title` (TEXT)
-- `kind` (TEXT) — `fixed` | `open` | `fundraiser` (DB check); `fixed` requires positive `requested_amount_cents`; `open` and `fundraiser` require positive `goal_amount_cents`
+- `kind` (TEXT) — `fixed` | `open` | `fundraiser` (DB check); `fixed` (legacy) required positive `requested_amount_cents`; `open` and `fundraiser` require positive `goal_amount_cents`
 - `crowded_collection_id` (TEXT, nullable) — Crowded collection id once created; unique when set
 - `goal_amount_cents` (BIGINT, nullable) — **minor units (cents)** sent to Crowded as `goalAmount`
-- `requested_amount_cents` (BIGINT, nullable) — for `fixed` only; Crowded `requestedAmount` in cents
+- `requested_amount_cents` (BIGINT, nullable) — legacy `fixed` only; new creates set `null`
 - `crowded_share_url` (TEXT, nullable) — share/checkout URL from Crowded `data.link` when returned
 - `metadata` (JSONB) — e.g. `showOnPublicFundraisingChannels` for fundraiser drives
 - `created_by` (UUID, Foreign Key → `profiles.id`)
@@ -313,7 +313,7 @@ Chapter-scoped donation drives / Crowded collections that are **not** tied to a 
 
 **RLS:** Same pattern as `dues_cycles` — chapter members may **SELECT**; presidents, VPs, treasurers, secretaries, admins, and governance (via `governance_chapters`) may **INSERT/UPDATE/DELETE**.
 
-**API:** `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — `POST` creates a Crowded collection for the given `kind` then inserts a row; `collect.payment.*` webhooks resolve `crowded_collection_id` against this table when no `dues_cycles` row matches.
+**API:** `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — `POST` accepts **`kind`: `open` | `fundraiser`** only, creates the Crowded collection, sets `requested_amount_cents` to `null`; `collect.payment.*` webhooks resolve `crowded_collection_id` against this table when no `dues_cycles` row matches.
 
 ### `dues_assignments`
 Dues/payment assignments.

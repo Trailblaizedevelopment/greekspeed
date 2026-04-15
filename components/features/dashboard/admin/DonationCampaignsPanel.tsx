@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
-import type { DonationCampaign, DonationCampaignKind } from '@/types/donationCampaigns';
+import type { DonationCampaign, DonationCampaignCreateKind } from '@/types/donationCampaigns';
 
 const money = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -31,13 +31,12 @@ function formatCents(cents: number | null | undefined): string {
   return money.format(Number(cents) / 100);
 }
 
-const KIND_OPTIONS: { value: DonationCampaignKind; label: string }[] = [
-  { value: 'fixed', label: 'Fixed amount (per payer)' },
+const KIND_OPTIONS: { value: DonationCampaignCreateKind; label: string }[] = [
   { value: 'open', label: 'Open amount (goal only)' },
   { value: 'fundraiser', label: 'Fundraiser' },
 ];
 
-function kindLabel(kind: DonationCampaignKind): string {
+function kindLabel(kind: DonationCampaignCreateKind): string {
   return KIND_OPTIONS.find((o) => o.value === kind)?.label ?? kind;
 }
 
@@ -50,8 +49,7 @@ export interface DonationCampaignsPanelProps {
 export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaignsPanelProps) {
   const { listQuery, createMutation } = useDonationCampaigns(chapterId, enabled);
   const [title, setTitle] = useState('');
-  const [kind, setKind] = useState<DonationCampaignKind>('fixed');
-  const [amountUsd, setAmountUsd] = useState('');
+  const [kind, setKind] = useState<DonationCampaignCreateKind>('open');
   const [goalUsd, setGoalUsd] = useState('');
   const [publicFundraising, setPublicFundraising] = useState(true);
 
@@ -72,40 +70,21 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
       return;
     }
 
-    let requestedAmountCents: number | undefined;
-    let goalAmountCents: number | undefined;
-
-    if (kind === 'fixed') {
-      const dollars = Number(amountUsd);
-      if (!Number.isFinite(dollars) || dollars <= 0) {
-        toast.error('Enter a valid per-payer amount greater than zero');
-        return;
-      }
-      const cents = Math.round(dollars * 100);
-      if (cents < 1) {
-        toast.error('Amount is too small');
-        return;
-      }
-      requestedAmountCents = cents;
-    } else {
-      const g = Number(goalUsd);
-      if (!Number.isFinite(g) || g <= 0) {
-        toast.error('Enter a valid goal greater than zero');
-        return;
-      }
-      const cents = Math.round(g * 100);
-      if (cents < 1) {
-        toast.error('Goal is too small');
-        return;
-      }
-      goalAmountCents = cents;
+    const g = Number(goalUsd);
+    if (!Number.isFinite(g) || g <= 0) {
+      toast.error('Enter a valid goal greater than zero');
+      return;
+    }
+    const goalAmountCents = Math.round(g * 100);
+    if (goalAmountCents < 1) {
+      toast.error('Goal is too small');
+      return;
     }
 
     createMutation.mutate(
       {
         title: t,
         kind,
-        requestedAmountCents,
         goalAmountCents,
         ...(kind === 'fundraiser' ? { showOnPublicFundraisingChannels: publicFundraising } : {}),
       },
@@ -113,7 +92,6 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
         onSuccess: () => {
           toast.success('Donation drive created');
           setTitle('');
-          setAmountUsd('');
           setGoalUsd('');
         },
         onError: (err: Error & { status?: number; code?: string }) => {
@@ -134,8 +112,8 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
             <div>
               <CardTitle className="text-lg text-gray-900">Donation drives</CardTitle>
               <p className="text-sm text-gray-500 mt-0.5">
-                Crowded Collect campaigns for chapter fundraising (separate from dues cycles). Goals and fixed amounts
-                are stored in <span className="font-medium">cents</span> for Crowded.
+                Open-amount or fundraiser Crowded campaigns (separate from dues). Goals are sent as{' '}
+                <span className="font-medium">goalAmount</span> in cents.
               </p>
             </div>
           </div>
@@ -163,7 +141,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
               <Label htmlFor="donation-drive-kind">Drive type</Label>
               <Select
                 value={kind}
-                onValueChange={(v) => setKind(v as DonationCampaignKind)}
+                onValueChange={(v) => setKind(v as DonationCampaignCreateKind)}
                 disabled={createMutation.isPending}
                 placeholder="Drive type"
               >
@@ -176,53 +154,36 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
             </div>
           </div>
 
-          {kind === 'fixed' ? (
+          <div className="space-y-4">
             <div className="space-y-2 max-w-xs">
-              <Label htmlFor="donation-drive-amount">Per-payer amount (USD)</Label>
+              <Label htmlFor="donation-drive-goal">Goal (USD)</Label>
               <Input
-                id="donation-drive-amount"
+                id="donation-drive-goal"
                 type="number"
                 inputMode="decimal"
                 step="0.01"
                 min={0.01}
-                value={amountUsd}
-                onChange={(e) => setAmountUsd(e.target.value)}
+                value={goalUsd}
+                onChange={(e) => setGoalUsd(e.target.value)}
                 placeholder="0.00"
                 disabled={createMutation.isPending}
               />
+              <p className="text-xs text-gray-500">
+                Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
+              </p>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2 max-w-xs">
-                <Label htmlFor="donation-drive-goal">Goal (USD)</Label>
-                <Input
-                  id="donation-drive-goal"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min={0.01}
-                  value={goalUsd}
-                  onChange={(e) => setGoalUsd(e.target.value)}
-                  placeholder="0.00"
+            {kind === 'fundraiser' ? (
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer max-w-md">
+                <Checkbox
+                  checked={publicFundraising}
+                  onCheckedChange={(c) => setPublicFundraising(Boolean(c))}
                   disabled={createMutation.isPending}
+                  id="donation-public-channels"
                 />
-                <p className="text-xs text-gray-500">
-                  Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
-                </p>
-              </div>
-              {kind === 'fundraiser' ? (
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer max-w-md">
-                  <Checkbox
-                    checked={publicFundraising}
-                    onCheckedChange={(c) => setPublicFundraising(Boolean(c))}
-                    disabled={createMutation.isPending}
-                    id="donation-public-channels"
-                  />
-                  <span>Show on public fundraising channels (Crowded)</span>
-                </label>
-              ) : null}
-            </div>
-          )}
+                <span>Show on public fundraising channels (Crowded)</span>
+              </label>
+            ) : null}
+          </div>
 
           <Button
             type="submit"

@@ -1,10 +1,14 @@
 /**
  * Chapter donation / Crowded collect campaigns (`public.donation_campaigns`).
- * API: `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — creates Crowded collections for
- * `fixed` | `open` | `fundraiser` (see `buildCrowdedDonationCollectionRequest`).
+ * API: `GET` / `POST` `/api/chapters/[id]/donations/campaigns`.
+ * **POST** only accepts {@link DonationCampaignCreateKind}; `fixed` may still appear on rows created before that policy.
  */
 
+/** Stored row `kind` — may include legacy `fixed` from earlier releases. */
 export type DonationCampaignKind = 'fixed' | 'open' | 'fundraiser';
+
+/** Allowed `kind` on `POST …/donations/campaigns` (treasurer UI). */
+export type DonationCampaignCreateKind = 'open' | 'fundraiser';
 
 /** Row shape for public.donation_campaigns */
 export interface DonationCampaign {
