@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Copy, Gift, Loader2, Link2 } from 'lucide-react';
+import { Copy, Gift, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -108,25 +108,20 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
       <CardHeader className="border-b border-gray-100 pb-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <Gift className="h-5 w-5 text-brand-primary shrink-0" aria-hidden />
             <div>
-              <CardTitle className="text-lg text-gray-900">Donation drives</CardTitle>
+              <CardTitle className="text-lg text-gray-900">Donations</CardTitle>
               <p className="text-sm text-gray-500 mt-0.5">
-                Open-amount or fundraiser Crowded campaigns (separate from dues). Goals are sent as{' '}
-                <span className="font-medium">goalAmount</span> in cents.
+                Create donations for your chapter as open amount collections or fundraisers.
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="w-fit font-normal text-gray-600 border-gray-200">
-            {kindLabel(kind)}
-          </Badge>
         </div>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="donation-drive-title">Title</Label>
+              <Label htmlFor="donation-drive-title">Donation title</Label>
               <Input
                 id="donation-drive-title"
                 value={title}
@@ -188,7 +183,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
           <Button
             type="submit"
             disabled={createMutation.isPending || listQuery.isLoading}
-            className="bg-brand-primary hover:bg-brand-primary-hover"
+            className="bg-brand-primary hover:bg-brand-primary-hover rounded-full"
           >
             {createMutation.isPending ? (
               <>
@@ -196,7 +191,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                 Creating…
               </>
             ) : (
-              'Create drive'
+              'Create'
             )}
           </Button>
         </form>
@@ -219,14 +214,11 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/80">
-                    <TableHead>Title</TableHead>
+                    <TableHead>Donation title</TableHead>
                     <TableHead className="whitespace-nowrap">Type</TableHead>
-                    <TableHead className="tabular-nums whitespace-nowrap">Per payer</TableHead>
                     <TableHead className="tabular-nums whitespace-nowrap">Goal</TableHead>
-                    <TableHead className="hidden lg:table-cell min-w-[120px]">Share</TableHead>
-                    <TableHead className="hidden md:table-cell">Crowded ID</TableHead>
                     <TableHead className="hidden sm:table-cell">Created</TableHead>
-                    <TableHead className="w-[100px] text-right">Copy</TableHead>
+                    <TableHead className="w-[120px] text-right">Copy ID</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -241,32 +233,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                         </Badge>
                       </TableCell>
                       <TableCell className="tabular-nums text-gray-700">
-                        {formatCents(row.requested_amount_cents)}
-                      </TableCell>
-                      <TableCell className="tabular-nums text-gray-700">
                         {formatCents(row.goal_amount_cents)}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {row.crowded_share_url?.trim() ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 gap-1 px-2 text-brand-primary"
-                            onClick={() =>
-                              copyText(row.crowded_share_url!.trim(), 'Share link copied')
-                            }
-                            aria-label="Copy share link"
-                          >
-                            <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            <span className="truncate max-w-[140px] text-xs">Link</span>
-                          </Button>
-                        ) : (
-                          <span className="text-gray-400 text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell font-mono text-xs text-gray-600 max-w-[200px] truncate">
-                        {row.crowded_collection_id ?? '—'}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-gray-500 whitespace-nowrap">
                         {row.created_at
@@ -284,11 +251,11 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                           size="sm"
                           className="h-8 gap-1 px-2"
                           disabled={!row.crowded_collection_id?.trim()}
-                          onClick={() => copyText(row.crowded_collection_id!.trim(), 'Collection ID copied')}
+                          onClick={() => copyText(row.crowded_collection_id!.trim(), 'Crowded collection ID copied')}
                           aria-label="Copy Crowded collection ID"
                         >
                           <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          <span className="hidden sm:inline text-xs">ID</span>
+                          <span className="hidden sm:inline text-xs">Copy ID</span>
                         </Button>
                       </TableCell>
                     </TableRow>
