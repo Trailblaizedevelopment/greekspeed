@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { Search, X, Building2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,17 @@ interface AlumniFilterBarProps {
   onFiltersChange: (filters: FilterState) => void;
   onClearFilters: () => void;
   isSidebar?: boolean;
+  /** When set (e.g. mobile filters drawer), Industry SearchableSelect portals into this host for iOS keyboard behavior. */
+  industrySelectPortalContainerRef?: RefObject<HTMLElement | null>;
 }
 
-export function AlumniFilterBar({ filters, onFiltersChange, onClearFilters, isSidebar = false }: AlumniFilterBarProps) {
+export function AlumniFilterBar({
+  filters,
+  onFiltersChange,
+  onClearFilters,
+  isSidebar = false,
+  industrySelectPortalContainerRef,
+}: AlumniFilterBarProps) {
   const handleFilterChange = (key: keyof FilterState, value: string | boolean) => {
     onFiltersChange({
       ...filters,
@@ -101,6 +110,7 @@ export function AlumniFilterBar({ filters, onFiltersChange, onClearFilters, isSi
             placeholder="All Industries"
             searchPlaceholder="Search industries..."
             allowCustom
+            portalContainerRef={industrySelectPortalContainerRef}
           />
         </div>
 

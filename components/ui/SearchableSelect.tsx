@@ -48,10 +48,11 @@ interface SearchableSelectProps {
   /** Max length for a custom committed value (defaults to PROFILE_SELECT_FIELD_MAX_LENGTH). */
   customMaxLength?: number;
   /**
-   * When set (desktop only), the dropdown is portaled into this node (e.g. Vaul Drawer.Content)
-   * instead of `document.body`, so the search input stays focusable inside modal focus traps.
-   * Uses absolute positioning relative to the container. Prefer a `position: relative` host
-   * without `overflow: hidden|clip` on the same node; put `overflow-y-auto` on an inner child.
+   * When set, the dropdown is portaled into this node (e.g. Vaul `Drawer.Content`) instead of
+   * `document.body`, so the search input stays focusable inside modal focus traps. On narrow
+   * viewports, passing this also switches mobile from inline `absolute` to the same portaled
+   * path (needed for iOS keyboard + drawers). Prefer a `position: relative` host without
+   * `overflow: hidden|clip` on the same node; put `overflow-y-auto` on an inner child.
    */
   portalContainerRef?: RefObject<HTMLElement | null>;
 }
@@ -97,6 +98,9 @@ export function SearchableSelect({
     if (exists) return options;
     return [...options, { value: v, label: v }];
   }, [options, value, allowCustom]);
+
+  /** When set, use the desktop portaled dropdown path on mobile too (e.g. inside Vaul drawer + iOS keyboard). */
+  const hasPortalHost = portalContainerRef != null;
 
   const selectedOption = effectiveOptions.find((opt) => opt.value === value);
   const displayLabel =
@@ -162,7 +166,7 @@ export function SearchableSelect({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
 
-      if (isMobile) {
+      if (isMobile && !hasPortalHost) {
         if (wrapperRef.current && !wrapperRef.current.contains(target)) {
           setIsOpen(false);
           setSearchQuery('');
@@ -184,7 +188,7 @@ export function SearchableSelect({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, isMobile]);
+  }, [isOpen, isMobile, hasPortalHost]);
 
   // Desktop only: auto-focus search input (skip on mobile to avoid keyboard)
   useEffect(() => {
@@ -202,9 +206,9 @@ export function SearchableSelect({
     }
   }, [searchQuery, showCustomRow, isOpen]);
 
-  // Keyboard navigation (desktop)
+  // Keyboard navigation (desktop, or mobile with portaled dropdown host)
   useEffect(() => {
-    if (!isOpen || isMobile) return;
+    if (!isOpen || (isMobile && !hasPortalHost)) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
@@ -232,7 +236,7 @@ export function SearchableSelect({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isMobile, listItems, highlightedIndex, handleSelect]);
+  }, [isOpen, isMobile, hasPortalHost, listItems, highlightedIndex, handleSelect]);
 
   useEffect(() => {
     if (highlightedIndex >= 0 && listRef.current) {
@@ -295,7 +299,11 @@ export function SearchableSelect({
   }, [portalContainerRef]);
 
   useLayoutEffect(() => {
-    if (isMobile || !isOpen) {
+    if (!isOpen) {
+      setDropdownRect(null);
+      return;
+    }
+    if (isMobile && !hasPortalHost) {
       setDropdownRect(null);
       return;
     }
@@ -306,13 +314,18 @@ export function SearchableSelect({
     const scrollParents = getScrollParents(trigger);
     const onMove = () => updateDropdownPosition();
 
-    const scrollLockTarget = scrollParents[0];
+    // Avoid locking overflow on mobile drawer scroll parents (breaks scroll + iOS keyboard).
+    const scrollLockTarget =
+      isMobile && hasPortalHost ? null : scrollParents[0] ?? null;
     const previousOverflow = scrollLockTarget ? scrollLockTarget.style.overflow : '';
     if (scrollLockTarget) scrollLockTarget.style.overflow = 'hidden';
 
     scrollParents.forEach((p) => p.addEventListener('scroll', onMove, { passive: true }));
     window.addEventListener('scroll', onMove, { passive: true });
     window.addEventListener('resize', onMove);
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', onMove);
+    vv?.addEventListener('scroll', onMove);
 
     let ro: ResizeObserver | undefined;
     if (trigger) {
@@ -325,13 +338,15 @@ export function SearchableSelect({
       scrollParents.forEach((p) => p.removeEventListener('scroll', onMove));
       window.removeEventListener('scroll', onMove);
       window.removeEventListener('resize', onMove);
+      vv?.removeEventListener('resize', onMove);
+      vv?.removeEventListener('scroll', onMove);
       ro?.disconnect();
     };
-  }, [isOpen, isMobile, updateDropdownPosition]);
+  }, [isOpen, isMobile, hasPortalHost, updateDropdownPosition]);
 
   // Desktop-only: manual wheel → scrollTop so list scrolls while parent is locked
   useEffect(() => {
-    if (isMobile || !isOpen || !dropdownRect) return;
+    if ((isMobile && !hasPortalHost) || !isOpen || !dropdownRect) return;
     const panel = dropdownRef.current;
     const list = listRef.current;
     if (!panel || !list) return;
@@ -349,7 +364,7 @@ export function SearchableSelect({
 
     panel.addEventListener('wheel', onWheel, { passive: false });
     return () => panel.removeEventListener('wheel', onWheel);
-  }, [isOpen, isMobile, dropdownRect]);
+  }, [isOpen, isMobile, hasPortalHost, dropdownRect]);
 
   // ── Shared dropdown content ──
 
@@ -428,9 +443,9 @@ export function SearchableSelect({
     </>
   );
 
-  // ── Mobile: inline absolutely-positioned dropdown (no portal) ──
+  // ── Mobile: inline absolutely-positioned dropdown unless a portal host is provided (drawer / modal) ──
 
-  if (isMobile) {
+  if (isMobile && !hasPortalHost) {
     return (
       <div ref={wrapperRef} className="relative">
         <button

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer } from "vaul";
 import { Filter, X, ChevronRight, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AlumniFilterBar } from "./AlumniFilterBar";
+import { useVisualViewportHeight } from "@/lib/hooks/useVisualViewportHeight";
 import { AlumniTableView } from "./AlumniTableView";
 import { EnhancedAlumniCard } from "./EnhancedAlumniCard";
 import { Alumni } from "@/lib/alumniConstants";
@@ -65,6 +67,25 @@ export function AlumniPipelineLayout({
   mobileFiltersOpen,
   onMobileFiltersOpenChange,
 }: AlumniPipelineLayoutProps) {
+  const selectDropdownPortalRef = useRef<HTMLDivElement>(null);
+  const { height: visualHeight, offsetTop: vvOffsetTop } = useVisualViewportHeight();
+  const [fullInnerHeight, setFullInnerHeight] = useState(
+    typeof window !== "undefined" ? window.innerHeight : 768
+  );
+
+  useEffect(() => {
+    setFullInnerHeight(window.innerHeight);
+  }, []);
+
+  const keyboardOpen = mobileFiltersOpen && visualHeight < fullInnerHeight - 50;
+  const mobileDrawerStyle: CSSProperties | undefined = keyboardOpen
+    ? {
+        maxHeight: visualHeight,
+        bottom: fullInnerHeight - (vvOffsetTop + visualHeight),
+        transition: "max-height 0.15s ease-out, bottom 0.15s ease-out",
+      }
+    : undefined;
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedAlumniDetail, setSelectedAlumniDetail] = useState<Alumni | null>(null);
@@ -304,7 +325,10 @@ export function AlumniPipelineLayout({
       >
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 z-[10000] bg-black/40 md:hidden" />
-          <Drawer.Content className="fixed bottom-0 left-0 right-0 z-[10001] flex max-h-[88dvh] flex-col rounded-t-[20px] border border-gray-200 bg-white shadow-2xl outline-none md:hidden">
+          <Drawer.Content
+            style={mobileDrawerStyle}
+            className="fixed bottom-0 left-0 right-0 z-[10001] flex max-h-[88dvh] min-h-0 flex-col rounded-t-[20px] border border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl outline-none md:hidden"
+          >
             <div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-zinc-300" aria-hidden />
             <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
               <Drawer.Title className="text-lg font-semibold text-gray-900">Filters</Drawer.Title>
@@ -322,13 +346,16 @@ export function AlumniPipelineLayout({
             <Drawer.Description className="sr-only">
               Search and filter the alumni directory. Changes apply as you adjust each field.
             </Drawer.Description>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2">
-              <AlumniFilterBar
-                filters={filters}
-                onFiltersChange={onFiltersChange}
-                onClearFilters={onClearFilters}
-                isSidebar
-              />
+            <div ref={selectDropdownPortalRef} className="relative flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2">
+                <AlumniFilterBar
+                  filters={filters}
+                  onFiltersChange={onFiltersChange}
+                  onClearFilters={onClearFilters}
+                  isSidebar
+                  industrySelectPortalContainerRef={selectDropdownPortalRef}
+                />
+              </div>
             </div>
           </Drawer.Content>
         </Drawer.Portal>
