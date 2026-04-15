@@ -285,7 +285,7 @@ Crowded’s support article confirms the portal supports two manual paths in add
 
 **Support article:** [Adding Contacts](https://support.bankingcrowded.com/hc/en-us/articles/26166770234257-Adding-Contacts)
 
-**Interpretation for Trailblaize:** API-created contacts may still be valid even if the portal UI emphasizes invite / CSV workflows. Use **`GET /chapters/{{chapter_id}}/contacts`** as the source of truth for API verification before assuming the portal failed to save the contact.
+**Interpretation for Trailblaize:** API-created contacts may still be valid even if the portal UI emphasizes invite / CSV workflows. Use **`GET /chapters/{{chapter_id}}/contacts`** as the source of truth for API verification before assuming the portal failed to save the contact. For **Collect readiness** (Create Intent **401** vs **200**, phone-first login, DOB), see [Contact lifecycle…](#contact-lifecycle-create-intent-eligibility-and-member-onboarding-apr-2026).
 
 ### Recommended Postman verification order — bulk create contacts
 
@@ -1264,6 +1264,61 @@ Use this list when planning the next integration slice (no strict order for item
 
 8. **Documentation hygiene** — Keep this file’s **Session log** and **implementation scan** table updated when Crowded or env behavior changes.
 
+9. **Contact lifecycle + Collect readiness** — See [Contact lifecycle, Create Intent eligibility, and member onboarding](#contact-lifecycle-create-intent-eligibility-and-member-onboarding-apr-2026): validate **mobile + DOB** policy with Crowded; block or warn sync without real phone; optional PATCH / onboarding UX after sync.
+
+---
+
+<a id="contact-lifecycle-create-intent-eligibility-and-member-onboarding-apr-2026"></a>
+
+## Contact lifecycle, Create Intent eligibility, and member onboarding (Apr 2026)
+
+### What we investigated
+
+While debugging **Create Intent** (`POST …/chapters/:chapterId/collections/:collectionId/intents`), the same **partner Bearer token**, **chapter UUID**, and **collection UUID** produced:
+
+| Contact | Example observation | **Create Intent** result |
+|--------|---------------------|---------------------------|
+| Contact A (e.g. long-lived sandbox contact) | `dateOfBirth` **set** (e.g. `2006-01-05`), valid `mobile` | **200** + `data.paymentUrl` (Collect checkout) |
+| Contact B (e.g. newly API-created contact) | `dateOfBirth`: **`null`**, `mobile` present | **401** `UnauthorizedUser`, **`"Forbidden resource"`** — same request body shape as the 200 case |
+
+**Important:** This is **not** explained by “wrong JSON” or missing `payerIp` / `userConsented` inside `data` when those match the known-good Postman shape. The failure is **per-contact** (or per underlying Crowded **user**), not per-route wiring.
+
+### Crowded portal: member auth is phone-first
+
+On **staging** (`staging.portal.crowdedme.xyz`):
+
+- **`/welcome-member`** — post-setup copy references **downloading the Crowded app** and the org tracking payments / issuing cards — i.e. a **member-facing identity** path beyond “contact row exists.”
+- **`/login`** — **Phone number** is the primary login identifier (**SMS** or **WhatsApp**); copy references **invite link** for first-time members.
+
+**Implication for Trailblaize:** A **real, verifiable E.164 `mobile`** on the Crowded contact is effectively **required** for the member to complete Crowded’s login and downstream Collect flows. **Do not treat `mobile` as optional** for members who must pay through Crowded; null, placeholder, or non-SMS-capable numbers will break lifecycle or intent eligibility.
+
+### “Sync succeeded” ≠ “Collect-ready”
+
+After **Trailblaize → Crowded contact sync** (bulk create or API), the **contact row** may exist in **`GET …/contacts`**, but the **human** may still need to:
+
+1. Use an **invite link** / admin-driven **portal** steps, and  
+2. **Authenticate** on Crowded (phone OTP),  
+
+before Crowded treats them as fully in the **Collect / payer** journey. Product should assume a **gap** between “synced contact” and “can create intent / can pay” until Crowded confirms otherwise.
+
+### Working hypotheses (verify with Crowded support)
+
+Use Crowded’s **`requestId`** from the 401 body when opening a ticket — do **not** paste live JWTs.
+
+| Hypothesis | Notes |
+|------------|--------|
+| **Profile / “users” completeness** | **`dateOfBirth: null`** may block the user record behind Collect, surfacing as **401 Forbidden resource** instead of a clear **400** validation error. **Test:** `PATCH` contact to set DOB → retry Create Intent. |
+| **Onboarding / KYC stub** | Newer contacts may lack steps older contacts completed implicitly in sandbox. |
+| **Partner token scope** | Token is valid for org-level reads and some writes, but **intent creation** may be denied until the **target contact** meets Crowded’s internal Collect rules. |
+
+### Engineering / product next steps
+
+1. **Require valid mobile before sync** — In Trailblaize, block or strongly warn dues/Crowded sync when `profiles.phone` is missing or cannot be normalized to E.164 (align with `normalizeProfilePhoneForCrowded` in `syncChapterContactsToCrowded.ts`).
+2. **Send `dateOfBirth` when available** — If/when DOB exists on profiles (or a treasurer-entered field), include it in bulk create; until then, document that **some contacts may not be intent-eligible** until DOB is set (portal or `PATCH` contact).
+3. **Treasurer / member messaging** — If Create Intent returns **401** for a contact, show a actionable message: complete Crowded invite / login, confirm phone, or fix missing DOB — not a generic “payment failed.”
+4. **Regression matrix in Postman** — Same collection, two contacts: null DOB vs set DOB; confirm Crowded’s rule set with **`requestId`**.
+5. **CLI probe** — `npm run test:crowded:intent:direct` (see `package.json`) to reproduce **Crowded-only** intent results without Next.js auth noise.
+
 ---
 
 ## Session log
@@ -1302,6 +1357,8 @@ Use this list when planning the next integration slice (no strict order for item
 | Apr 2026 | **Pass 4 — deliveries API** | **`GET /api/v1/webhooks/:id/deliveries`** → **404** with correct Crowded **`webhook_id`**; Postman phase treated **complete** without deliveries list. |
 | Apr 2026 | **TRA-416 doc** | [Implementation checklist](#tra-416-implementation-checklist) added — maps to [Linear TRA-416](https://linear.app/trailblaize/issue/TRA-416/crowded-webhook-handler) AC; inbound sample still from staging payment or Crowded support. |
 | Apr 2026 | **TRA-416 / 417 / 418 shipped** | Inbound **`POST /api/webhooks/crowded`** (signature + idempotency + dues/ledger + **`crowded_transactions`**); treasurer **`GET …/crowded/balance`** + UI; **`POST …/crowded/transactions/sync`** + **`listAccountTransactions`**. Doc: **webhook lifetime**, **next steps**, tables + E2E gaps updated. |
+| Apr 2026 | **Create Intent 401 vs 200 (same token / chapter / collection)** | Partner JWT: contact with **`dateOfBirth: null`** → **401** `UnauthorizedUser` / **`Forbidden resource`**; contact with **DOB set** → **200** + `paymentUrl`. Suggests **Collect eligibility / user layer**, not payload shape. |
+| Apr 2026 | **Staging portal member lifecycle** | **`/welcome-member`** + **`/login`** on **`staging.portal.crowdedme.xyz`**: login is **phone-first** (SMS/WhatsApp). **Mobile is mandatory** for real member progression; sync alone does not replace Crowded first-time auth. Doc: [Contact lifecycle…](#contact-lifecycle-create-intent-eligibility-and-member-onboarding-apr-2026). |
 
 ---
 
