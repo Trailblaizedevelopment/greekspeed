@@ -48,10 +48,11 @@ interface SearchableSelectProps {
   /** Max length for a custom committed value (defaults to PROFILE_SELECT_FIELD_MAX_LENGTH). */
   customMaxLength?: number;
   /**
-   * When set (desktop only), the dropdown is portaled into this node (e.g. Vaul Drawer.Content)
-   * instead of `document.body`, so the search input stays focusable inside modal focus traps.
-   * Uses absolute positioning relative to the container. Prefer a `position: relative` host
-   * without `overflow: hidden|clip` on the same node; put `overflow-y-auto` on an inner child.
+   * When set, the dropdown is portaled into this node (e.g. Vaul `Drawer.Content`) instead of
+   * `document.body`, so the search input stays focusable inside modal focus traps. On narrow
+   * viewports, passing this also switches mobile from inline `absolute` to the same portaled
+   * path (needed for iOS keyboard + drawers). Prefer a `position: relative` host without
+   * `overflow: hidden|clip` on the same node; put `overflow-y-auto` on an inner child.
    */
   portalContainerRef?: RefObject<HTMLElement | null>;
 }
@@ -81,10 +82,15 @@ export function SearchableSelect({
   const listRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  /** Search row + borders inside portaled panel (used to size list when panelMaxHeightPx is set). */
+  const PANEL_SEARCH_CHROME_PX = 56;
+
   const [dropdownRect, setDropdownRect] = useState<{
     top: number;
     left: number;
     width: number;
+    /** Portaled host: total panel max-height (px) for flip + iOS visual viewport. */
+    panelMaxHeightPx?: number;
   } | null>(null);
 
   const effectiveOptions = useMemo(() => {
@@ -97,6 +103,9 @@ export function SearchableSelect({
     if (exists) return options;
     return [...options, { value: v, label: v }];
   }, [options, value, allowCustom]);
+
+  /** When set, use the desktop portaled dropdown path on mobile too (e.g. inside Vaul drawer + iOS keyboard). */
+  const hasPortalHost = portalContainerRef != null;
 
   const selectedOption = effectiveOptions.find((opt) => opt.value === value);
   const displayLabel =
@@ -162,7 +171,7 @@ export function SearchableSelect({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
 
-      if (isMobile) {
+      if (isMobile && !hasPortalHost) {
         if (wrapperRef.current && !wrapperRef.current.contains(target)) {
           setIsOpen(false);
           setSearchQuery('');
@@ -184,7 +193,7 @@ export function SearchableSelect({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, isMobile]);
+  }, [isOpen, isMobile, hasPortalHost]);
 
   // Desktop only: auto-focus search input (skip on mobile to avoid keyboard)
   useEffect(() => {
@@ -202,9 +211,9 @@ export function SearchableSelect({
     }
   }, [searchQuery, showCustomRow, isOpen]);
 
-  // Keyboard navigation (desktop)
+  // Keyboard navigation (desktop, or mobile with portaled dropdown host)
   useEffect(() => {
-    if (!isOpen || isMobile) return;
+    if (!isOpen || (isMobile && !hasPortalHost)) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
@@ -232,7 +241,7 @@ export function SearchableSelect({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isMobile, listItems, highlightedIndex, handleSelect]);
+  }, [isOpen, isMobile, hasPortalHost, listItems, highlightedIndex, handleSelect]);
 
   useEffect(() => {
     if (highlightedIndex >= 0 && listRef.current) {
@@ -266,18 +275,60 @@ export function SearchableSelect({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const margin = 12;
+    const gap = 4;
     const container = portalContainerRef?.current ?? null;
 
     if (container) {
       const cRect = container.getBoundingClientRect();
-      const top = rect.bottom - cRect.top + 4;
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      const safeTop = vv ? Math.max(cRect.top, vv.offsetTop) : cRect.top;
+      const safeBottom = vv ? Math.min(cRect.bottom, vv.offsetTop + vv.height) : cRect.bottom;
+
+      const spaceBelow = Math.max(0, safeBottom - rect.bottom - margin);
+      const spaceAbove = Math.max(0, rect.top - safeTop - margin);
+
+      const panelCap = Math.min(
+        448,
+        vv ? vv.height * 0.88 : typeof window !== 'undefined' ? window.innerHeight * 0.7 : 560
+      );
+      const minPanel = 120;
+      const maxDropdownPreferUp = 200;
+
+      const shouldOpenUpward =
+        spaceBelow < maxDropdownPreferUp && spaceAbove > spaceBelow;
+
       const left = Math.max(margin, rect.left - cRect.left);
       const maxW = Math.max(0, cRect.width - left - margin);
       const desiredMin = Math.max(rect.width, 280);
       const width = Math.min(desiredMin, maxW);
+
+      let top: number;
+      let panelMaxHeightPx: number;
+
+      if (!shouldOpenUpward) {
+        panelMaxHeightPx = Math.min(panelCap, Math.max(minPanel, spaceBelow - gap));
+        top = rect.bottom - cRect.top + gap;
+      } else {
+        panelMaxHeightPx = Math.min(panelCap, Math.max(minPanel, spaceAbove - gap));
+        top = rect.top - cRect.top - panelMaxHeightPx - gap;
+        if (top < margin) {
+          const shrinkBy = margin - top;
+          top = margin;
+          panelMaxHeightPx = Math.max(minPanel, panelMaxHeightPx - shrinkBy);
+        }
+      }
+
       setDropdownRect((prev) => {
-        if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
-        return { top, left, width };
+        if (
+          prev &&
+          prev.top === top &&
+          prev.left === left &&
+          prev.width === width &&
+          prev.panelMaxHeightPx === panelMaxHeightPx
+        ) {
+          return prev;
+        }
+        return { top, left, width, panelMaxHeightPx };
       });
       return;
     }
@@ -295,7 +346,11 @@ export function SearchableSelect({
   }, [portalContainerRef]);
 
   useLayoutEffect(() => {
-    if (isMobile || !isOpen) {
+    if (!isOpen) {
+      setDropdownRect(null);
+      return;
+    }
+    if (isMobile && !hasPortalHost) {
       setDropdownRect(null);
       return;
     }
@@ -306,13 +361,18 @@ export function SearchableSelect({
     const scrollParents = getScrollParents(trigger);
     const onMove = () => updateDropdownPosition();
 
-    const scrollLockTarget = scrollParents[0];
+    // Avoid locking overflow on mobile drawer scroll parents (breaks scroll + iOS keyboard).
+    const scrollLockTarget =
+      isMobile && hasPortalHost ? null : scrollParents[0] ?? null;
     const previousOverflow = scrollLockTarget ? scrollLockTarget.style.overflow : '';
     if (scrollLockTarget) scrollLockTarget.style.overflow = 'hidden';
 
     scrollParents.forEach((p) => p.addEventListener('scroll', onMove, { passive: true }));
     window.addEventListener('scroll', onMove, { passive: true });
     window.addEventListener('resize', onMove);
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', onMove);
+    vv?.addEventListener('scroll', onMove);
 
     let ro: ResizeObserver | undefined;
     if (trigger) {
@@ -325,13 +385,15 @@ export function SearchableSelect({
       scrollParents.forEach((p) => p.removeEventListener('scroll', onMove));
       window.removeEventListener('scroll', onMove);
       window.removeEventListener('resize', onMove);
+      vv?.removeEventListener('resize', onMove);
+      vv?.removeEventListener('scroll', onMove);
       ro?.disconnect();
     };
-  }, [isOpen, isMobile, updateDropdownPosition]);
+  }, [isOpen, isMobile, hasPortalHost, updateDropdownPosition]);
 
   // Desktop-only: manual wheel → scrollTop so list scrolls while parent is locked
   useEffect(() => {
-    if (isMobile || !isOpen || !dropdownRect) return;
+    if ((isMobile && !hasPortalHost) || !isOpen || !dropdownRect) return;
     const panel = dropdownRef.current;
     const list = listRef.current;
     if (!panel || !list) return;
@@ -349,7 +411,7 @@ export function SearchableSelect({
 
     panel.addEventListener('wheel', onWheel, { passive: false });
     return () => panel.removeEventListener('wheel', onWheel);
-  }, [isOpen, isMobile, dropdownRect]);
+  }, [isOpen, isMobile, hasPortalHost, dropdownRect]);
 
   // ── Shared dropdown content ──
 
@@ -385,7 +447,12 @@ export function SearchableSelect({
       <div
         ref={listRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
-        style={{ maxHeight }}
+        style={{
+          maxHeight:
+            dropdownRect?.panelMaxHeightPx != null
+              ? `${Math.max(40, dropdownRect.panelMaxHeightPx - PANEL_SEARCH_CHROME_PX)}px`
+              : maxHeight,
+        }}
       >
         {listItems.length === 0 ? (
           <div className="px-3 py-4 text-center text-sm text-gray-500">
@@ -428,9 +495,9 @@ export function SearchableSelect({
     </>
   );
 
-  // ── Mobile: inline absolutely-positioned dropdown (no portal) ──
+  // ── Mobile: inline absolutely-positioned dropdown unless a portal host is provided (drawer / modal) ──
 
-  if (isMobile) {
+  if (isMobile && !hasPortalHost) {
     return (
       <div ref={wrapperRef} className="relative">
         <button
@@ -502,13 +569,17 @@ export function SearchableSelect({
           <div
             ref={dropdownRef}
             className={cn(
-              'z-[100100] max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
-              useDrawerRelativePosition ? 'absolute' : 'fixed'
+              'z-[100100] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
+              useDrawerRelativePosition ? 'absolute' : 'fixed',
+              dropdownRect.panelMaxHeightPx == null && 'max-h-[min(70dvh,28rem)]'
             )}
             style={{
               top: dropdownRect.top,
               left: dropdownRect.left,
               width: dropdownRect.width,
+              ...(dropdownRect.panelMaxHeightPx != null
+                ? { maxHeight: `${dropdownRect.panelMaxHeightPx}px` }
+                : {}),
             }}
           >
             {dropdownContent}
