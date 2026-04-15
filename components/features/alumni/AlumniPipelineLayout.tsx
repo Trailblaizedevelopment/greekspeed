@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Drawer } from "vaul";
 import { Filter, X, ChevronRight, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { AlumniFilterBar } from "./AlumniFilterBar";
 import { AlumniTableView } from "./AlumniTableView";
 import { EnhancedAlumniCard } from "./EnhancedAlumniCard";
@@ -45,9 +47,6 @@ interface AlumniPipelineLayoutProps {
   onPageChange: (page: number) => void;
 }
 
-// Performance optimization: Only render visible items
-const ITEMS_PER_PAGE = 24; // Optimized: Reduced from 100 to 24 to match API limit for consistency
-
 export function AlumniPipelineLayout({
   alumni,
   loading,
@@ -63,19 +62,19 @@ export function AlumniPipelineLayout({
   pagination,
   onPageChange
 }: AlumniPipelineLayoutProps) {
-  // Mobile-first state management
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [selectedAlumniDetail, setSelectedAlumniDetail] = useState<Alumni | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Set mobile-specific initial state
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768; // md breakpoint
-    if (isMobile) {
-      setSidebarCollapsed(true); // Start collapsed on mobile
-    }
-  }, []);
+  const activeFilterCount = useMemo(
+    () =>
+      Object.values(filters).filter((v) =>
+        typeof v === "boolean" ? v : v !== ""
+      ).length,
+    [filters]
+  );
 
   const handleAlumniClick = (alumni: Alumni) => {
     // Use the parent's handler if provided, otherwise use local state
@@ -97,16 +96,15 @@ export function AlumniPipelineLayout({
 
   return (
     <div className="flex min-h-[100dvh] md:h-screen bg-gray-50 md:overflow-hidden">
-      {/* Collapsible Sidebar */}
-      <div className="flex">
-        {/* Main Sidebar */}
+      {/* Desktop (md+): collapsible filter sidebar. Mobile: filters in bottom drawer. */}
+      <div className="hidden md:flex flex-shrink-0">
         <AnimatePresence>
           {sidebarOpen && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ 
-                width: sidebarCollapsed ? 64 : (window.innerWidth < 768 ? '100vw' : 320), 
-                opacity: 1 
+              animate={{
+                width: sidebarCollapsed ? 64 : 320,
+                opacity: 1,
               }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
@@ -221,7 +219,24 @@ export function AlumniPipelineLayout({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex min-w-0 flex-col overflow-hidden">
+        <div className="md:hidden shrink-0 border-b border-gray-200 bg-white px-3 py-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setMobileFiltersOpen(true)}
+            className="h-9 w-full justify-center gap-2 rounded-full border-gray-200 text-gray-800 shadow-sm"
+          >
+            <Filter className="h-4 w-4 text-brand-primary" />
+            <span className="font-medium">Filters</span>
+            {activeFilterCount > 0 ? (
+              <Badge variant="secondary" className="rounded-full px-2 font-normal tabular-nums">
+                {activeFilterCount}
+              </Badge>
+            ) : null}
+          </Button>
+        </div>
         {/* Content with scrollable container */}
         <div className="flex-1 overflow-hidden relative z-10">
           {loading ? (
@@ -302,6 +317,45 @@ export function AlumniPipelineLayout({
           onClose={handleCloseModal}
         />
       )}
+
+      <Drawer.Root
+        open={mobileFiltersOpen}
+        onOpenChange={setMobileFiltersOpen}
+        direction="bottom"
+        modal
+        dismissible
+      >
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-[10000] bg-black/40 md:hidden" />
+          <Drawer.Content className="fixed bottom-0 left-0 right-0 z-[10001] flex max-h-[88dvh] flex-col rounded-t-[20px] border border-gray-200 bg-white shadow-2xl outline-none md:hidden">
+            <div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-zinc-300" aria-hidden />
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
+              <Drawer.Title className="text-lg font-semibold text-gray-900">Filters</Drawer.Title>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 shrink-0 p-0"
+                onClick={() => setMobileFiltersOpen(false)}
+                aria-label="Close filters"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <Drawer.Description className="sr-only">
+              Search and filter the alumni directory. Changes apply as you adjust each field.
+            </Drawer.Description>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2">
+              <AlumniFilterBar
+                filters={filters}
+                onFiltersChange={onFiltersChange}
+                onClearFilters={onClearFilters}
+                isSidebar
+              />
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
     </div>
   );
-} 
+}
