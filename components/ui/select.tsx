@@ -137,6 +137,22 @@ function collectScrollParents(start: HTMLElement | null): HTMLElement[] {
   return parents;
 }
 
+/** Visible viewport (iOS keyboard / Safari chrome); falls back to layout viewport. */
+function getVisibleViewportBounds() {
+  if (typeof window === "undefined") {
+    return { top: 0, bottom: 768, height: 768 };
+  }
+  const vv = window.visualViewport;
+  if (vv) {
+    return {
+      top: vv.offsetTop,
+      bottom: vv.offsetTop + vv.height,
+      height: vv.height,
+    };
+  }
+  return { top: 0, bottom: window.innerHeight, height: window.innerHeight };
+}
+
 export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
   ({ value, onValueChange, placeholder, children, className, disableDynamicPositioning = false, disabled = false, ...props }, ref) => {
     const [isOpen, setIsOpen] = React.useState(false);
@@ -192,18 +208,22 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
 
             if (disableDynamicPositioning) {
               // Simple positioning: always below, no dynamic behavior
+              const { bottom: visibleBottom } = getVisibleViewportBounds();
               dropdownRef.current.style.top = `${rect.bottom + 4}px`;
               dropdownRef.current.style.left = `${rect.left}px`;
               dropdownRef.current.style.width = `${rect.width}px`;
               dropdownRef.current.style.minWidth = `${rect.width}px`;
-              dropdownRef.current.style.maxHeight = `240px`;
+              const simpleMax = Math.min(
+                240,
+                Math.max(120, visibleBottom - rect.bottom - 12)
+              );
+              dropdownRef.current.style.maxHeight = `${simpleMax}px`;
             } else {
-              // Existing dynamic positioning logic
-              const viewportHeight = window.innerHeight;
+              const { top: visibleTop, bottom: visibleBottom } = getVisibleViewportBounds();
 
-              // Calculate available space
-              const spaceBelow = viewportHeight - rect.bottom;
-              const spaceAbove = rect.top;
+              // Calculate available space (visual viewport — mobile Safari / keyboard)
+              const spaceBelow = visibleBottom - rect.bottom;
+              const spaceAbove = rect.top - visibleTop;
               const maxDropdownHeight = 240; // max-h-60 = 240px
               const minDropdownHeight = 100; // Minimum height to show at least a few items
               const padding = 8; // Padding from viewport edges
@@ -221,10 +241,11 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                 maxHeight = Math.min(maxDropdownHeight, Math.max(minDropdownHeight, availableHeight));
                 topPosition = rect.top - maxHeight - 4;
 
-                // Ensure we don't go above the viewport
-                if (topPosition < padding) {
-                  topPosition = padding;
-                  maxHeight = Math.min(maxDropdownHeight, rect.top - padding - 4);
+                // Ensure we don't go above the visible viewport
+                const minTop = visibleTop + padding;
+                if (topPosition < minTop) {
+                  topPosition = minTop;
+                  maxHeight = Math.min(maxDropdownHeight, Math.max(minDropdownHeight, rect.top - topPosition - 4));
                 }
               } else {
                 // Position below the trigger (default)
@@ -232,9 +253,9 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                 maxHeight = Math.min(maxDropdownHeight, Math.max(minDropdownHeight, availableHeight));
                 topPosition = rect.bottom + 4;
 
-                // Ensure we don't go below the viewport
-                if (topPosition + maxHeight > viewportHeight - padding) {
-                  maxHeight = viewportHeight - topPosition - padding;
+                // Ensure we don't go below the visible viewport
+                if (topPosition + maxHeight > visibleBottom - padding) {
+                  maxHeight = Math.max(minDropdownHeight, visibleBottom - topPosition - padding);
                 }
               }
 
@@ -267,7 +288,6 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
 
         window.addEventListener("scroll", updatePosition, true);
         window.addEventListener("resize", updatePosition);
-        window.addEventListener("touchmove", updatePosition, { passive: true });
 
         const vv = typeof window !== "undefined" ? window.visualViewport : null;
         if (vv) {
@@ -281,7 +301,6 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
           });
           window.removeEventListener("scroll", updatePosition, true);
           window.removeEventListener("resize", updatePosition);
-          window.removeEventListener("touchmove", updatePosition);
           if (vv) {
             vv.removeEventListener("resize", updatePosition);
             vv.removeEventListener("scroll", updatePosition);
@@ -324,7 +343,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
         {mounted && isOpen && selectItems.length > 0 && createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[99999] overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl"
+            className="fixed z-[99999] overflow-y-auto overscroll-contain touch-pan-y rounded-md border border-gray-200 bg-white shadow-xl [-webkit-overflow-scrolling:touch]"
             style={{
               position: 'fixed',
             }}
