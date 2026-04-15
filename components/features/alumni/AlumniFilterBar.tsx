@@ -12,6 +12,7 @@ import {
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { US_STATES, getStateNameByCode } from "@/lib/usStates";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface FilterState {
   searchTerm: string;
@@ -85,19 +86,42 @@ export function AlumniFilterBar({
           </div>
         </div>
         
-        {/* Graduation Year Filter */}
+        {/* Graduation Year Filter — native <select> below md (iOS filters drawer); custom Select on desktop sidebar */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">Graduation Year</label>
-          <Select 
-            value={filters.graduationYear} 
-            onValueChange={(value) => handleFilterChange('graduationYear', value)}
+          <label htmlFor="alumni-filter-grad-year" className="text-sm font-medium text-gray-700">
+            Graduation Year
+          </label>
+          <select
+            id="alumni-filter-grad-year"
+            className={cn(
+              "md:hidden flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm",
+              "focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            )}
+            value={filters.graduationYear}
+            onChange={(e) => handleFilterChange("graduationYear", e.target.value)}
           >
-            <SelectItem value="">All Years</SelectItem>
+            <option value="">All Years</option>
             {graduationYears.map((year) => (
-              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+              <option key={year} value={year.toString()}>
+                {year}
+              </option>
             ))}
-            <SelectItem value="older">{getEarlierCutoffYear()} & Earlier</SelectItem>
-          </Select>
+            <option value="older">{getEarlierCutoffYear()} & Earlier</option>
+          </select>
+          <div className="hidden md:block">
+            <Select
+              value={filters.graduationYear}
+              onValueChange={(value) => handleFilterChange("graduationYear", value)}
+            >
+              <SelectItem value="">All Years</SelectItem>
+              {graduationYears.map((year) => (
+                <SelectItem key={year} value={year.toString()}>
+                  {year}
+                </SelectItem>
+              ))}
+              <SelectItem value="older">{getEarlierCutoffYear()} & Earlier</SelectItem>
+            </Select>
+          </div>
         </div>
 
         {/* Industry Filter */}
@@ -114,22 +138,42 @@ export function AlumniFilterBar({
           />
         </div>
 
-        {/* State Filter */}
+        {/* State Filter — native <select> below md (iOS); custom Select md+ */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">State</label>
-          <Select 
-            value={filters.state} 
-            onValueChange={(value) => handleFilterChange('state', value)}
-            placeholder="All States"
-            className="w-full"
+          <label htmlFor="alumni-filter-state" className="text-sm font-medium text-gray-700">
+            State
+          </label>
+          <select
+            id="alumni-filter-state"
+            className={cn(
+              "md:hidden flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm",
+              "focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            )}
+            value={filters.state}
+            onChange={(e) => handleFilterChange("state", e.target.value)}
           >
-            <SelectItem value="">All States</SelectItem>
+            <option value="">All States</option>
             {US_STATES.map((state) => (
-              <SelectItem key={state.code} value={state.code}>
+              <option key={state.code} value={state.code}>
                 {state.name}
-              </SelectItem>
+              </option>
             ))}
-          </Select>
+          </select>
+          <div className="hidden md:block w-full">
+            <Select
+              value={filters.state}
+              onValueChange={(value) => handleFilterChange("state", value)}
+              placeholder="All States"
+              className="w-full"
+            >
+              <SelectItem value="">All States</SelectItem>
+              {US_STATES.map((state) => (
+                <SelectItem key={state.code} value={state.code}>
+                  {state.name}
+                </SelectItem>
+              ))}
+            </Select>
+          </div>
         </div>
 
         {/* Clear Filters Button */}
