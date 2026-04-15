@@ -82,10 +82,15 @@ export function SearchableSelect({
   const listRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  /** Search row + borders inside portaled panel (used to size list when panelMaxHeightPx is set). */
+  const PANEL_SEARCH_CHROME_PX = 56;
+
   const [dropdownRect, setDropdownRect] = useState<{
     top: number;
     left: number;
     width: number;
+    /** Portaled host: total panel max-height (px) for flip + iOS visual viewport. */
+    panelMaxHeightPx?: number;
   } | null>(null);
 
   const effectiveOptions = useMemo(() => {
@@ -270,18 +275,60 @@ export function SearchableSelect({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const margin = 12;
+    const gap = 4;
     const container = portalContainerRef?.current ?? null;
 
     if (container) {
       const cRect = container.getBoundingClientRect();
-      const top = rect.bottom - cRect.top + 4;
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      const safeTop = vv ? Math.max(cRect.top, vv.offsetTop) : cRect.top;
+      const safeBottom = vv ? Math.min(cRect.bottom, vv.offsetTop + vv.height) : cRect.bottom;
+
+      const spaceBelow = Math.max(0, safeBottom - rect.bottom - margin);
+      const spaceAbove = Math.max(0, rect.top - safeTop - margin);
+
+      const panelCap = Math.min(
+        448,
+        vv ? vv.height * 0.88 : typeof window !== 'undefined' ? window.innerHeight * 0.7 : 560
+      );
+      const minPanel = 120;
+      const maxDropdownPreferUp = 200;
+
+      const shouldOpenUpward =
+        spaceBelow < maxDropdownPreferUp && spaceAbove > spaceBelow;
+
       const left = Math.max(margin, rect.left - cRect.left);
       const maxW = Math.max(0, cRect.width - left - margin);
       const desiredMin = Math.max(rect.width, 280);
       const width = Math.min(desiredMin, maxW);
+
+      let top: number;
+      let panelMaxHeightPx: number;
+
+      if (!shouldOpenUpward) {
+        panelMaxHeightPx = Math.min(panelCap, Math.max(minPanel, spaceBelow - gap));
+        top = rect.bottom - cRect.top + gap;
+      } else {
+        panelMaxHeightPx = Math.min(panelCap, Math.max(minPanel, spaceAbove - gap));
+        top = rect.top - cRect.top - panelMaxHeightPx - gap;
+        if (top < margin) {
+          const shrinkBy = margin - top;
+          top = margin;
+          panelMaxHeightPx = Math.max(minPanel, panelMaxHeightPx - shrinkBy);
+        }
+      }
+
       setDropdownRect((prev) => {
-        if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
-        return { top, left, width };
+        if (
+          prev &&
+          prev.top === top &&
+          prev.left === left &&
+          prev.width === width &&
+          prev.panelMaxHeightPx === panelMaxHeightPx
+        ) {
+          return prev;
+        }
+        return { top, left, width, panelMaxHeightPx };
       });
       return;
     }
@@ -400,7 +447,12 @@ export function SearchableSelect({
       <div
         ref={listRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y"
-        style={{ maxHeight }}
+        style={{
+          maxHeight:
+            dropdownRect?.panelMaxHeightPx != null
+              ? `${Math.max(40, dropdownRect.panelMaxHeightPx - PANEL_SEARCH_CHROME_PX)}px`
+              : maxHeight,
+        }}
       >
         {listItems.length === 0 ? (
           <div className="px-3 py-4 text-center text-sm text-gray-500">
@@ -517,13 +569,17 @@ export function SearchableSelect({
           <div
             ref={dropdownRef}
             className={cn(
-              'z-[100100] max-h-[min(70dvh,28rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
-              useDrawerRelativePosition ? 'absolute' : 'fixed'
+              'z-[100100] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
+              useDrawerRelativePosition ? 'absolute' : 'fixed',
+              dropdownRect.panelMaxHeightPx == null && 'max-h-[min(70dvh,28rem)]'
             )}
             style={{
               top: dropdownRect.top,
               left: dropdownRect.left,
               width: dropdownRect.width,
+              ...(dropdownRect.panelMaxHeightPx != null
+                ? { maxHeight: `${dropdownRect.panelMaxHeightPx}px` }
+                : {}),
             }}
           >
             {dropdownContent}
