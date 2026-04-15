@@ -317,6 +317,15 @@ export function AlumniPipeline() {
     // Fetch will be triggered by the consolidated useEffect when pagination.page changes
   };
 
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const activeFilterCount = useMemo(
+    () =>
+      Object.values(filters).filter((v) =>
+        typeof v === "boolean" ? v : v !== ""
+      ).length,
+    [filters]
+  );
+
   // Show loading state while profile is loading
   if (profileLoading) {
     return (
@@ -340,6 +349,8 @@ export function AlumniPipeline() {
         onClearSelection={handleClearSelection}
         onExport={handleExport}
         canExportAlumni={isDeveloper}
+        onOpenMobileFilters={() => setMobileFiltersOpen(true)}
+        activeFilterCount={activeFilterCount}
         userChapter={profile?.chapter}
         profileCompletionPercentage={profileCompletionPercentage}
       />
@@ -359,6 +370,8 @@ export function AlumniPipeline() {
         onAlumniClick={handleAlumniClick}
         pagination={pagination}
         onPageChange={handlePageChange}
+        mobileFiltersOpen={mobileFiltersOpen}
+        onMobileFiltersOpenChange={setMobileFiltersOpen}
       />
 
       {/* Alumni Profile Modal */}

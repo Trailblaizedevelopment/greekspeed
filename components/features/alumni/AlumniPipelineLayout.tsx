@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer } from "vaul";
 import { Filter, X, ChevronRight, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { AlumniFilterBar } from "./AlumniFilterBar";
 import { AlumniTableView } from "./AlumniTableView";
 import { EnhancedAlumniCard } from "./EnhancedAlumniCard";
@@ -45,6 +44,8 @@ interface AlumniPipelineLayoutProps {
   onAlumniClick?: (alumni: Alumni) => void;
   pagination: PaginationState;
   onPageChange: (page: number) => void;
+  mobileFiltersOpen: boolean;
+  onMobileFiltersOpenChange: (open: boolean) => void;
 }
 
 export function AlumniPipelineLayout({
@@ -60,21 +61,14 @@ export function AlumniPipelineLayout({
   onClearFilters,
   onAlumniClick,
   pagination,
-  onPageChange
+  onPageChange,
+  mobileFiltersOpen,
+  onMobileFiltersOpenChange,
 }: AlumniPipelineLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [selectedAlumniDetail, setSelectedAlumniDetail] = useState<Alumni | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const activeFilterCount = useMemo(
-    () =>
-      Object.values(filters).filter((v) =>
-        typeof v === "boolean" ? v : v !== ""
-      ).length,
-    [filters]
-  );
 
   const handleAlumniClick = (alumni: Alumni) => {
     // Use the parent's handler if provided, otherwise use local state
@@ -220,23 +214,6 @@ export function AlumniPipelineLayout({
 
       {/* Main Content Area */}
       <div className="flex-1 flex min-w-0 flex-col overflow-hidden">
-        <div className="md:hidden shrink-0 border-b border-gray-200 bg-white px-3 py-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMobileFiltersOpen(true)}
-            className="h-9 w-full justify-center gap-2 rounded-full border-gray-200 text-gray-800 shadow-sm"
-          >
-            <Filter className="h-4 w-4 text-brand-primary" />
-            <span className="font-medium">Filters</span>
-            {activeFilterCount > 0 ? (
-              <Badge variant="secondary" className="rounded-full px-2 font-normal tabular-nums">
-                {activeFilterCount}
-              </Badge>
-            ) : null}
-          </Button>
-        </div>
         {/* Content with scrollable container */}
         <div className="flex-1 overflow-hidden relative z-10">
           {loading ? (
@@ -320,7 +297,7 @@ export function AlumniPipelineLayout({
 
       <Drawer.Root
         open={mobileFiltersOpen}
-        onOpenChange={setMobileFiltersOpen}
+        onOpenChange={onMobileFiltersOpenChange}
         direction="bottom"
         modal
         dismissible
@@ -336,7 +313,7 @@ export function AlumniPipelineLayout({
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 shrink-0 p-0"
-                onClick={() => setMobileFiltersOpen(false)}
+                onClick={() => onMobileFiltersOpenChange(false)}
                 aria-label="Close filters"
               >
                 <X className="h-4 w-4" />
