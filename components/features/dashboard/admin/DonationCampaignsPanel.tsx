@@ -1,12 +1,28 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { Copy, Gift, Loader2 } from 'lucide-react';
+import { Fragment, useCallback, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  FileSearch,
+  Loader2,
+  MoreVertical,
+  Search,
+  Share2,
+} from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectItem } from '@/components/ui/select';
@@ -18,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
 import type { DonationCampaign, DonationCampaignCreateKind } from '@/types/donationCampaigns';
 
@@ -40,6 +57,9 @@ function kindLabel(kind: DonationCampaignCreateKind): string {
   return KIND_OPTIONS.find((o) => o.value === kind)?.label ?? kind;
 }
 
+/** Placeholder until chapter member / payment sync is wired. */
+const SHARED_MEMBER_PLACEHOLDER_COUNT = 0;
+
 export interface DonationCampaignsPanelProps {
   chapterId: string;
   /** Same gate as other Crowded treasurer UI */
@@ -52,6 +72,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
   const [kind, setKind] = useState<DonationCampaignCreateKind>('open');
   const [goalUsd, setGoalUsd] = useState('');
   const [publicFundraising, setPublicFundraising] = useState(true);
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
 
   const copyText = useCallback(async (text: string, successMsg: string) => {
     try {
@@ -61,6 +82,15 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
       toast.error('Could not copy to clipboard');
     }
   }, []);
+
+  const handleShareCollectLink = useCallback((row: DonationCampaign) => {
+    const url = row.crowded_share_url?.trim();
+    if (url) {
+      void copyText(url, 'Collection link copied');
+      return;
+    }
+    toast.info('Collect page link will be available once Crowded returns it for this drive.');
+  }, [copyText]);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +132,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
   };
 
   const campaigns = listQuery.data ?? [];
+  const tableColSpan = 6;
 
   return (
     <Card className="mt-6 border border-gray-200 bg-white shadow-sm">
@@ -219,47 +250,158 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                     <TableHead className="tabular-nums whitespace-nowrap">Goal</TableHead>
                     <TableHead className="hidden sm:table-cell">Created</TableHead>
                     <TableHead className="w-[120px] text-right">Copy ID</TableHead>
+                    <TableHead className="w-12 px-2" aria-label="Expand row" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {campaigns.map((row: DonationCampaign) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium text-gray-900 max-w-[200px] truncate">
-                        {row.title}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="font-normal text-xs">
-                          {row.kind}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="tabular-nums text-gray-700">
-                        {formatCents(row.goal_amount_cents)}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell text-sm text-gray-500 whitespace-nowrap">
-                        {row.created_at
-                          ? new Date(row.created_at).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })
-                          : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-2"
-                          disabled={!row.crowded_collection_id?.trim()}
-                          onClick={() => copyText(row.crowded_collection_id!.trim(), 'Crowded collection ID copied')}
-                          aria-label="Copy Crowded collection ID"
+                  {campaigns.map((row: DonationCampaign) => {
+                    const isExpanded = expandedCampaignId === row.id;
+                    return (
+                      <Fragment key={row.id}>
+                        <TableRow
+                          data-state={isExpanded ? 'open' : 'closed'}
+                          className={cn(
+                            'cursor-pointer border-gray-200 transition-colors',
+                            isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/70'
+                          )}
+                          onClick={() =>
+                            setExpandedCampaignId((cur) => (cur === row.id ? null : row.id))
+                          }
                         >
-                          <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          <span className="hidden sm:inline text-xs">Copy ID</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          <TableCell className="font-medium text-gray-900 max-w-[200px] truncate">
+                            {row.title}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="font-normal text-xs">
+                              {row.kind}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="tabular-nums text-gray-700">
+                            {formatCents(row.goal_amount_cents)}
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm text-gray-500 whitespace-nowrap">
+                            {row.created_at
+                              ? new Date(row.created_at).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </TableCell>
+                          <TableCell
+                            className="text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1 px-2 rounded-full"
+                              disabled={!row.crowded_collection_id?.trim()}
+                              onClick={() =>
+                                copyText(row.crowded_collection_id!.trim(), 'Crowded collection ID copied')
+                              }
+                              aria-label="Copy Crowded collection ID"
+                            >
+                              <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <span className="hidden sm:inline text-xs">Copy ID</span>
+                            </Button>
+                          </TableCell>
+                          <TableCell className="w-12 px-2 text-gray-500" aria-hidden>
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4 mx-auto shrink-0" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 mx-auto shrink-0" />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded ? (
+                          <TableRow className="border-0 hover:bg-transparent">
+                            <TableCell colSpan={tableColSpan} className="p-0 border-t border-gray-200">
+                              <div className="bg-gray-50/95 px-4 sm:px-6 py-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-8">
+                                  <p className="text-sm text-gray-600">
+                                    Shared with{' '}
+                                    <span className="font-medium text-gray-900 tabular-nums">
+                                      {SHARED_MEMBER_PLACEHOLDER_COUNT}
+                                    </span>{' '}
+                                    chapter members
+                                  </p>
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-9 w-9 shrink-0 p-0 text-gray-500 rounded-full"
+                                      disabled
+                                      title="Search (coming soon)"
+                                      aria-label="Search members (coming soon)"
+                                    >
+                                      <Search className="h-4 w-4" aria-hidden />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-9 gap-1.5 rounded-full border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleShareCollectLink(row);
+                                      }}
+                                    >
+                                      <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+                                      Share
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-9 text-gray-400 rounded-full"
+                                      disabled
+                                      title="Coming soon"
+                                    >
+                                      Send Reminders
+                                    </Button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                                        aria-label="More actions"
+                                      >
+                                        <MoreVertical className="h-4 w-4" aria-hidden />
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="min-w-[11rem]">
+                                        <DropdownMenuItem disabled>Edit collection</DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          disabled
+                                          className="text-red-600 focus:text-red-600"
+                                        >
+                                          Delete collection
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col items-center justify-center px-4 pb-10 pt-2 text-center">
+                                  <div className="rounded-full bg-gray-100/80 p-5 mb-5">
+                                    <FileSearch className="h-12 w-12 text-gray-300" strokeWidth={1.25} aria-hidden />
+                                  </div>
+                                  <p className="text-base font-semibold text-gray-900">
+                                    No trackable payments to display yet
+                                  </p>
+                                  <p className="text-sm text-gray-500 mt-2 max-w-md leading-relaxed">
+                                    To view payment statuses, share your collection link with chapter members.
+                                    Reminders and member targeting will be available here in a future update.
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
