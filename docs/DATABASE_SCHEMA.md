@@ -295,6 +295,24 @@ Chapter dues periods (semester, annual, etc.).
 - `name`, `due_date`, `base_amount`, and other cycle fields (see app/API usage)
 - `crowded_collection_id` (TEXT, nullable) — Crowded Collect **collection** id for member checkout (**TRA-415**); set when treasurer links the cycle to a Crowded collection
 
+### `donation_campaigns`
+Chapter-scoped donation drives / Crowded collections that are **not** tied to a dues cycle (fixed per-payer amount vs fundraiser metadata).
+
+**Key Columns:**
+- `id` (UUID, Primary Key)
+- `chapter_id` (UUID, Foreign Key → `chapters.id`)
+- `title` (TEXT)
+- `kind` (TEXT) — `fixed` (requires positive `requested_amount_cents`) or `fundraiser`
+- `crowded_collection_id` (TEXT, nullable) — Crowded collection id once created; unique when set
+- `goal_amount_cents` (BIGINT, nullable)
+- `requested_amount_cents` (BIGINT, nullable) — required for `kind = fixed` (DB check)
+- `crowded_share_url` (TEXT, nullable) — public/share checkout URL when known
+- `metadata` (JSONB) — partner fields not yet first-class columns
+- `created_by` (UUID, Foreign Key → `profiles.id`)
+- `created_at`, `updated_at` (TIMESTAMPTZ)
+
+**RLS:** Same pattern as `dues_cycles` — chapter members may **SELECT**; presidents, VPs, treasurers, secretaries, admins, and governance (via `governance_chapters`) may **INSERT/UPDATE/DELETE**.
+
 ### `dues_assignments`
 Dues/payment assignments.
 
