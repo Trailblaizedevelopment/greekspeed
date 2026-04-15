@@ -36,7 +36,10 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
+import { useDonationRecipients } from '@/lib/hooks/useDonationCampaignShare';
 import type { DonationCampaign, DonationCampaignCreateKind } from '@/types/donationCampaigns';
+import type { DonationCampaignRecipientRow } from '@/types/donationCampaignRecipients';
+import { DonationShareDialog } from '@/components/features/dashboard/admin/DonationShareDialog';
 
 const money = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -57,8 +60,22 @@ function kindLabel(kind: DonationCampaignCreateKind): string {
   return KIND_OPTIONS.find((o) => o.value === kind)?.label ?? kind;
 }
 
-/** Placeholder until chapter member / payment sync is wired. */
-const SHARED_MEMBER_PLACEHOLDER_COUNT = 0;
+function recipientDisplayName(r: DonationCampaignRecipientRow['profile']): string {
+  const fn = (r.first_name ?? '').trim();
+  const ln = (r.last_name ?? '').trim();
+  if (fn || ln) return [fn, ln].filter(Boolean).join(' ').trim() || 'Member';
+  const full = (r.full_name ?? '').trim();
+  return full || 'Member';
+}
+
+function recipientInitials(r: DonationCampaignRecipientRow['profile']): string {
+  const name = recipientDisplayName(r);
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase() || '?';
+}
 
 export interface DonationCampaignsPanelProps {
   chapterId: string;
@@ -73,6 +90,13 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
   const [goalUsd, setGoalUsd] = useState('');
   const [publicFundraising, setPublicFundraising] = useState(true);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
+  const [shareForCampaign, setShareForCampaign] = useState<DonationCampaign | null>(null);
+
+  const recipientsQuery = useDonationRecipients(
+    chapterId,
+    expandedCampaignId,
+    enabled && Boolean(expandedCampaignId)
+  );
 
   const copyText = useCallback(async (text: string, successMsg: string) => {
     try {
@@ -82,15 +106,6 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
       toast.error('Could not copy to clipboard');
     }
   }, []);
-
-  const handleShareCollectLink = useCallback((row: DonationCampaign) => {
-    const url = row.crowded_share_url?.trim();
-    if (url) {
-      void copyText(url, 'Collection link copied');
-      return;
-    }
-    toast.info('Collect page link will be available once Crowded returns it for this drive.');
-  }, [copyText]);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,7 +243,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
         </form>
 
         <div>
-          <h3 className="text-sm font-medium text-gray-900 mb-3">Your drives</h3>
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Your donations</h3>
           {listQuery.isLoading ? (
             <div className="flex items-center gap-2 text-sm text-gray-500 py-6">
               <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
@@ -319,11 +334,11 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                           <TableRow className="border-0 hover:bg-transparent">
                             <TableCell colSpan={tableColSpan} className="p-0 border-t border-gray-200">
                               <div className="bg-gray-50/95 px-4 sm:px-6 py-4">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-8">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-6">
                                   <p className="text-sm text-gray-600">
                                     Shared with{' '}
                                     <span className="font-medium text-gray-900 tabular-nums">
-                                      {SHARED_MEMBER_PLACEHOLDER_COUNT}
+                                      {recipientsQuery.isLoading ? '…' : recipientsQuery.data?.length ?? 0}
                                     </span>{' '}
                                     chapter members
                                   </p>
@@ -346,7 +361,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                       className="h-9 gap-1.5 rounded-full border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleShareCollectLink(row);
+                                        setShareForCampaign(row);
                                       }}
                                     >
                                       <Share2 className="h-4 w-4 shrink-0" aria-hidden />
@@ -383,18 +398,82 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                   </div>
                                 </div>
 
-                                <div className="flex flex-col items-center justify-center px-4 pb-10 pt-2 text-center">
-                                  <div className="rounded-full bg-gray-100/80 p-5 mb-5">
-                                    <FileSearch className="h-12 w-12 text-gray-300" strokeWidth={1.25} aria-hidden />
+                                {recipientsQuery.isLoading ? (
+                                  <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
+                                    <Loader2 className="h-5 w-5 animate-spin shrink-0" aria-hidden />
+                                    Loading recipients…
                                   </div>
-                                  <p className="text-base font-semibold text-gray-900">
-                                    No trackable payments to display yet
+                                ) : recipientsQuery.isError ? (
+                                  <p className="py-8 text-center text-sm text-red-600">
+                                    {recipientsQuery.error.message}
                                   </p>
-                                  <p className="text-sm text-gray-500 mt-2 max-w-md leading-relaxed">
-                                    To view payment statuses, share your collection link with chapter members.
-                                    Reminders and member targeting will be available here in a future update.
-                                  </p>
-                                </div>
+                                ) : (recipientsQuery.data?.length ?? 0) > 0 ? (
+                                  <div className="overflow-x-auto rounded-lg border border-gray-200/80 bg-white">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow className="bg-gray-50/90">
+                                          <TableHead>Name</TableHead>
+                                          <TableHead className="hidden sm:table-cell">Role</TableHead>
+                                          <TableHead className="tabular-nums">Paid</TableHead>
+                                          <TableHead>Status</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {recipientsQuery.data!.map((rec) => (
+                                          <TableRow key={rec.id}>
+                                            <TableCell>
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700">
+                                                  {recipientInitials(rec.profile)}
+                                                </span>
+                                                <span className="min-w-0">
+                                                  <span className="block truncate text-sm font-medium text-gray-900">
+                                                    {recipientDisplayName(rec.profile)}
+                                                  </span>
+                                                  {rec.profile.email ? (
+                                                    <span className="block truncate text-xs text-gray-500">
+                                                      {rec.profile.email}
+                                                    </span>
+                                                  ) : null}
+                                                </span>
+                                              </div>
+                                            </TableCell>
+                                            <TableCell className="hidden sm:table-cell text-sm text-gray-600">
+                                              Member
+                                            </TableCell>
+                                            <TableCell className="tabular-nums text-sm text-gray-600">—</TableCell>
+                                            <TableCell>
+                                              <Badge
+                                                variant="secondary"
+                                                className="bg-amber-50 text-amber-900 border-amber-200 font-normal text-xs"
+                                              >
+                                                Not paid
+                                              </Badge>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center px-4 pb-10 pt-2 text-center">
+                                    <div className="rounded-full bg-gray-100/80 p-5 mb-5">
+                                      <FileSearch
+                                        className="h-12 w-12 text-gray-300"
+                                        strokeWidth={1.25}
+                                        aria-hidden
+                                      />
+                                    </div>
+                                    <p className="text-base font-semibold text-gray-900">
+                                      No trackable payments to display yet
+                                    </p>
+                                    <p className="text-sm text-gray-500 mt-2 max-w-md leading-relaxed">
+                                      Use <span className="font-medium text-gray-700">Share</span> to link
+                                      chapter members who have a Crowded contact. Payment status will update when
+                                      Collect payments are wired.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -408,6 +487,18 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
           )}
         </div>
       </CardContent>
+
+      {shareForCampaign ? (
+        <DonationShareDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setShareForCampaign(null);
+          }}
+          chapterId={chapterId}
+          campaignId={shareForCampaign.id}
+          campaignTitle={shareForCampaign.title}
+        />
+      ) : null}
     </Card>
   );
 }

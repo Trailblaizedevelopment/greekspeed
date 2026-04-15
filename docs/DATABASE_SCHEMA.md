@@ -315,6 +315,21 @@ Chapter-scoped donation drives / Crowded collections that are **not** tied to a 
 
 **API:** `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — `POST` accepts **`kind`: `open` | `fundraiser`** only, creates the Crowded collection, sets `requested_amount_cents` to `null`; `collect.payment.*` webhooks resolve `crowded_collection_id` against this table when no `dues_cycles` row matches.
 
+### `donation_campaign_recipients`
+Treasurer-linked chapter members for a donation drive (must map to a Crowded contact in app logic).
+
+**Key Columns:**
+- `id` (UUID, Primary Key)
+- `donation_campaign_id` (UUID, Foreign Key → `donation_campaigns.id`, ON DELETE CASCADE)
+- `profile_id` (UUID, Foreign Key → `profiles.id`, ON DELETE CASCADE)
+- `crowded_contact_id` (TEXT) — Crowded Collect **contact** id at share time
+- `created_at` (TIMESTAMPTZ)
+- **Unique:** `(donation_campaign_id, profile_id)`
+
+**RLS:** Chapter members may **SELECT** rows for campaigns in their chapter; exec roles / admin / governance may **INSERT** and **DELETE** (same pattern as other chapter-scoped admin tables).
+
+**API:** `GET` `/api/chapters/[id]/donations/campaigns/[campaignId]/recipients`, `GET` `…/share-candidates`, and `POST` `…/share` (see app routes).
+
 ### `dues_assignments`
 Dues/payment assignments.
 
