@@ -195,15 +195,31 @@ export interface CrowdedCollection {
   requestedAmount: number;
   goalAmount?: number | null;
   createdAt: string;
+  /** Present when Crowded returns a public collect URL (portal-style responses). */
+  link?: string | null;
+}
+
+/** Portal / extended API uses `Payment` (fixed or open) vs `Fundraising`. */
+export type CrowdedCollectionWireType = 'Payment' | 'Fundraising';
+
+/** Wire `data` for POST /api/v1/chapters/:chapterId/collections — fixed dues use title + requestedAmount; donations may add type/goalAmount (see buildCrowdedDonationCollectionRequest). */
+export interface CrowdedCreateCollectionData {
+  title: string;
+  currency?: string;
+  type?: CrowdedCollectionWireType;
+  /** Minor units (cents). For **open** Payment + goal, omit this key on POST (`null` fails Crowded validation). */
+  requestedAmount?: number | null;
+  /** Minor units (cents) — portal lists goals as strings; we send numbers. */
+  goalAmount?: number | null;
+  showOnPublicFundraisingChannels?: boolean;
+  installmentsAvailable?: boolean;
+  orgPassedOnFees?: boolean;
+  orgAlwaysPaysFees?: boolean;
 }
 
 /** Wire body for POST /api/v1/chapters/:chapterId/collections */
 export interface CrowdedCreateCollectionRequest {
-  data: {
-    title: string;
-    /** Minor units (cents). */
-    requestedAmount: number;
-  };
+  data: CrowdedCreateCollectionData;
 }
 
 /**

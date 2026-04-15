@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase/client';
 import { QuickActions, QuickAction } from '@/components/features/dashboard/dashboards/ui/QuickActions';
 import { CreateDuesCycleWizard } from '@/components/features/dashboard/admin/CreateDuesCycleWizard';
 import { CrowdedCollectionsAdminPanel } from '@/components/features/dashboard/admin/CrowdedCollectionsAdminPanel';
+import { DonationCampaignsPanel } from '@/components/features/dashboard/admin/DonationCampaignsPanel';
 import { CrowdedRecentActivityCard } from '@/components/features/dashboard/admin/CrowdedRecentActivityCard';
 import type { CrowdedContactSyncSummary } from '@/types/crowded';
 
@@ -1085,17 +1086,23 @@ export function TreasurerDashboard() {
         {!crowdedFlagLoading && crowdedIntegrationEnabled && profile?.chapter_id && (
           <>
           {profile?.chapter_id?.trim() ? (
-            <CrowdedCollectionsAdminPanel
-              chapterId={profile.chapter_id.trim()}
-              cycles={cycles}
-              assignments={assignments}
-              linkingCrowdedCycleId={linkingCrowdedCycleId}
-              contactSyncEnabled={false}
-              onCreateAndLink={(c) => void handleLinkCrowdedCollection(c as DuesCycle)}
-              onContactsSynced={async () => {
-                await loadDuesData();
-              }}
-            />
+            <>
+              <CrowdedCollectionsAdminPanel
+                chapterId={profile.chapter_id.trim()}
+                cycles={cycles}
+                assignments={assignments}
+                linkingCrowdedCycleId={linkingCrowdedCycleId}
+                contactSyncEnabled={false}
+                onCreateAndLink={(c) => void handleLinkCrowdedCollection(c as DuesCycle)}
+                onContactsSynced={async () => {
+                  await loadDuesData();
+                }}
+              />
+              <DonationCampaignsPanel
+                chapterId={profile.chapter_id.trim()}
+                enabled={crowdedIntegrationEnabled && Boolean(profile.chapter_id?.trim())}
+              />
+            </>
           ) : null}
           </>
         )}

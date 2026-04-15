@@ -1,9 +1,10 @@
 /**
- * Chapter donation / Crowded collect campaigns (Phase 1 table: public.donation_campaigns).
- * Phase 2 will add API routes and Crowded create mapping.
+ * Chapter donation / Crowded collect campaigns (`public.donation_campaigns`).
+ * API: `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — creates Crowded collections for
+ * `fixed` | `open` | `fundraiser` (see `buildCrowdedDonationCollectionRequest`).
  */
 
-export type DonationCampaignKind = 'fixed' | 'fundraiser';
+export type DonationCampaignKind = 'fixed' | 'open' | 'fundraiser';
 
 /** Row shape for public.donation_campaigns */
 export interface DonationCampaign {

@@ -50,6 +50,31 @@ describe('CrowdedClient.createCollection', () => {
     assert.equal(out.data.id, '442650b1-05e2-4d33-8417-3df879ed0a2e');
     assert.equal(out.data.requestedAmount, 50_000);
   });
+
+  it('normalizes uid and link from Create Collection 201', async () => {
+    const responseBody = {
+      data: {
+        uid: 'col-non-uuid-abc',
+        title: 'Open drive',
+        requestedAmount: null,
+        goalAmount: '500000',
+        link: 'https://collect.example/c/x',
+        createdAt: '2026-04-15T12:00:00.000Z',
+      },
+    };
+
+    globalThis.fetch = (async () => {
+      return new Response(JSON.stringify(responseBody), { status: 201 });
+    }) as typeof fetch;
+
+    const client = new CrowdedClient({ baseUrl: 'https://crowded.test', token: 't' });
+    const out = await client.createCollection(chapterId, {
+      data: { title: 'Open drive', type: 'Payment', goalAmount: 500_000 },
+    });
+    assert.equal(out.data.id, 'col-non-uuid-abc');
+    assert.equal(out.data.link, 'https://collect.example/c/x');
+    assert.equal(out.data.goalAmount, 500_000);
+  });
 });
 
 describe('CrowdedClient.getCollection', () => {

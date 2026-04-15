@@ -182,10 +182,51 @@ async function handleCollectPaymentSucceeded(
     .eq('crowded_collection_id', collectionId)
     .maybeSingle();
 
-  if (cycleErr || !cycle?.chapter_id) {
-    return { skipped: true, message: 'no dues_cycle for crowded_collection_id' };
+  if (!cycleErr && cycle?.chapter_id) {
+    return handleCollectPaymentSucceededForDuesCycle(
+      supabase,
+      crowded,
+      parsed,
+      collectionId,
+      contactId,
+      amountMinor,
+      cycle
+    );
   }
 
+  const { data: campaign, error: campErr } = await supabase
+    .from('donation_campaigns')
+    .select('id, chapter_id')
+    .eq('crowded_collection_id', collectionId)
+    .maybeSingle();
+
+  if (!campErr && campaign?.chapter_id) {
+    return handleCollectPaymentSucceededForDonationCampaign(
+      supabase,
+      crowded,
+      parsed,
+      collectionId,
+      contactId,
+      amountMinor,
+      campaign
+    );
+  }
+
+  return {
+    skipped: true,
+    message: 'no dues_cycle or donation_campaign for crowded_collection_id',
+  };
+}
+
+async function handleCollectPaymentSucceededForDuesCycle(
+  supabase: SupabaseClient,
+  crowded: CrowdedClient,
+  parsed: Record<string, unknown>,
+  collectionId: string,
+  contactId: string,
+  amountMinor: number | null,
+  cycle: { id: string; chapter_id: string }
+): Promise<{ skipped: boolean; message: string }> {
   const { data: chapter, error: chErr } = await supabase
     .from('chapters')
     .select('crowded_chapter_id')
@@ -310,6 +351,49 @@ async function handleCollectPaymentSucceeded(
   };
 }
 
+async function handleCollectPaymentSucceededForDonationCampaign(
+  supabase: SupabaseClient,
+  crowded: CrowdedClient,
+  parsed: Record<string, unknown>,
+  collectionId: string,
+  contactId: string,
+  amountMinor: number | null,
+  campaign: { id: string; chapter_id: string }
+): Promise<{ skipped: boolean; message: string }> {
+  const { data: chapter, error: chErr } = await supabase
+    .from('chapters')
+    .select('crowded_chapter_id')
+    .eq('id', campaign.chapter_id)
+    .maybeSingle();
+
+  if (chErr || !chapter?.crowded_chapter_id?.trim()) {
+    return { skipped: true, message: 'chapter missing crowded_chapter_id' };
+  }
+
+  const txnRes = await upsertCrowdedTransactionForCollectWebhook({
+    supabase,
+    crowded,
+    trailblaizeChapterId: campaign.chapter_id,
+    parsed,
+    collectionId,
+    contactId,
+    amountMinor,
+    status: 'succeeded',
+  });
+
+  if (!txnRes.ok) {
+    return {
+      skipped: true,
+      message: `donation campaign ${campaign.id}: ${txnRes.reason}`,
+    };
+  }
+
+  return {
+    skipped: false,
+    message: `donation campaign ${campaign.id}: recorded crowded transaction`,
+  };
+}
+
 async function handleCollectPaymentFailed(
   supabase: SupabaseClient,
   crowded: CrowdedClient,
@@ -332,30 +416,62 @@ async function handleCollectPaymentFailed(
     .eq('crowded_collection_id', collectionId)
     .maybeSingle();
 
-  if (cycleErr || !cycle?.chapter_id) {
+  if (!cycleErr && cycle?.chapter_id) {
+    const txnRes = await upsertCrowdedTransactionForCollectWebhook({
+      supabase,
+      crowded,
+      trailblaizeChapterId: cycle.chapter_id,
+      parsed,
+      collectionId,
+      contactId,
+      amountMinor,
+      status: 'failed',
+    });
+
+    if (!txnRes.ok) {
+      return { skipped: true, message: `collect.payment.failed: ${txnRes.reason}` };
+    }
+
     return {
-      skipped: true,
-      message: 'collect.payment.failed: no dues_cycle for crowded_collection_id',
+      skipped: false,
+      message: 'collect.payment.failed: recorded crowded_transactions row',
     };
   }
 
-  const txnRes = await upsertCrowdedTransactionForCollectWebhook({
-    supabase,
-    crowded,
-    trailblaizeChapterId: cycle.chapter_id,
-    parsed,
-    collectionId,
-    contactId,
-    amountMinor,
-    status: 'failed',
-  });
+  const { data: campaign, error: campErr } = await supabase
+    .from('donation_campaigns')
+    .select('id, chapter_id')
+    .eq('crowded_collection_id', collectionId)
+    .maybeSingle();
 
-  if (!txnRes.ok) {
-    return { skipped: true, message: `collect.payment.failed: ${txnRes.reason}` };
+  if (!campErr && campaign?.chapter_id) {
+    const txnRes = await upsertCrowdedTransactionForCollectWebhook({
+      supabase,
+      crowded,
+      trailblaizeChapterId: campaign.chapter_id,
+      parsed,
+      collectionId,
+      contactId,
+      amountMinor,
+      status: 'failed',
+    });
+
+    if (!txnRes.ok) {
+      return {
+        skipped: true,
+        message: `collect.payment.failed (donation): ${txnRes.reason}`,
+      };
+    }
+
+    return {
+      skipped: false,
+      message: `collect.payment.failed: donation campaign ${campaign.id} recorded crowded transaction`,
+    };
   }
 
   return {
-    skipped: false,
-    message: 'collect.payment.failed: recorded crowded_transactions row',
+    skipped: true,
+    message:
+      'collect.payment.failed: no dues_cycle or donation_campaign for crowded_collection_id',
   };
 }

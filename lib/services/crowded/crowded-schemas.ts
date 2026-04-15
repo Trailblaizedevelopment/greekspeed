@@ -183,13 +183,14 @@ export const crowdedBulkCreateAccountsResponseSchema = z.object({
   }),
 });
 
-/** POST …/chapters/:id/collections — response (201) */
+/** POST …/chapters/:id/collections — response (201); `uid` used by some Crowded envs in place of `id`. */
 export const crowdedCollectionSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   title: z.string(),
   requestedAmount: z.number(),
   goalAmount: z.number().nullable().optional(),
   createdAt: z.string(),
+  link: z.string().nullable().optional(),
 });
 
 export const crowdedCollectionSingleResponseSchema = z.object({

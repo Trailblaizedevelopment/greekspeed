@@ -171,6 +171,70 @@ function maybeParse<T>(schema: { parse: (data: unknown) => T }, data: unknown): 
   return schema.parse(data);
 }
 
+/**
+ * Normalize single-collection JSON: `uid` vs `id`, string `goalAmount`, optional `link`.
+ * Call after successful HTTP for create/get collection so callers always read `data.id`.
+ */
+export function normalizeCrowdedCollectionSingleResponse(
+  raw: unknown
+): CrowdedSingleResponse<CrowdedCollection> {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new CrowdedApiError('Crowded collection response: invalid envelope', {
+      statusCode: 502,
+    });
+  }
+  const root = raw as Record<string, unknown>;
+  const d = root.data;
+  if (d === null || typeof d !== 'object' || Array.isArray(d)) {
+    throw new CrowdedApiError('Crowded collection response: missing data object', {
+      statusCode: 502,
+    });
+  }
+  const data = d as Record<string, unknown>;
+  const idRaw = data.id ?? data.uid;
+  const id = typeof idRaw === 'string' ? idRaw.trim() : String(idRaw ?? '').trim();
+  if (!id) {
+    throw new CrowdedApiError('Crowded collection response: missing id and uid', {
+      statusCode: 502,
+    });
+  }
+  const title = typeof data.title === 'string' ? data.title : '';
+  const ra = data.requestedAmount;
+  const requestedAmount =
+    typeof ra === 'number' && Number.isFinite(ra) ? ra : 0;
+
+  let goalAmount: number | null = null;
+  const g = data.goalAmount;
+  if (g !== null && g !== undefined) {
+    if (typeof g === 'number' && Number.isFinite(g)) {
+      goalAmount = g;
+    } else if (typeof g === 'string' && g.trim()) {
+      const n = Number(g.trim());
+      goalAmount = Number.isFinite(n) ? n : null;
+    }
+  }
+
+  const createdAt =
+    typeof data.createdAt === 'string' && data.createdAt
+      ? data.createdAt
+      : new Date().toISOString();
+  const linkRaw = data.link;
+  const link =
+    typeof linkRaw === 'string' && linkRaw.trim().length > 0 ? linkRaw.trim() : undefined;
+
+  const out: CrowdedCollection = {
+    id,
+    title,
+    requestedAmount,
+    goalAmount,
+    createdAt,
+  };
+  if (link !== undefined) {
+    out.link = link;
+  }
+  return { data: out };
+}
+
 function appendSearchParams(
   path: string,
   query?: Record<string, string | number | boolean | undefined>
@@ -548,9 +612,10 @@ export class CrowdedClient {
       `/chapters/${encodeURIComponent(chapterId)}/collections`,
       body
     );
+    const normalized = normalizeCrowdedCollectionSingleResponse(raw);
     return maybeParse(
       crowdedCollectionSingleResponseSchema,
-      raw
+      normalized
     ) as CrowdedSingleResponse<CrowdedCollection>;
   }
 
@@ -564,9 +629,10 @@ export class CrowdedClient {
     const raw = await this.getJson<unknown>(
       `/chapters/${encodeURIComponent(chapterId)}/collections/${encodeURIComponent(collectionId)}`
     );
+    const normalized = normalizeCrowdedCollectionSingleResponse(raw);
     return maybeParse(
       crowdedCollectionSingleResponseSchema,
-      raw
+      normalized
     ) as CrowdedSingleResponse<CrowdedCollection>;
   }
 
