@@ -39,8 +39,10 @@ export function ConnectionRequestDialog({
   useEffect(() => {
     setInnerHeight(window.innerHeight);
   }, []);
-  const keyboardLikelyOpen = isMobile && visualHeight < innerHeight;
-  const maxHeightPx = keyboardLikelyOpen ? visualHeight - 80 : undefined;
+  const keyboardLikelyOpen = isMobile && visualHeight < innerHeight - 50;
+  const maxHeightPx = keyboardLikelyOpen 
+    ? Math.max(visualHeight - 12, 260)
+    : undefined;
   const bottomPx =
     keyboardLikelyOpen ? innerHeight - (offsetTop + visualHeight) : undefined;
 
@@ -78,7 +80,7 @@ export function ConnectionRequestDialog({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Hi! I'd love to connect and learn more about your experience..."
-          className="min-h-[100px] resize-y"
+          className="min-h-[80px] sm:min-h-[100px] resize-y max-sm:resize-none"
           maxLength={200}
           disabled={isSending}
         />
@@ -137,7 +139,7 @@ export function ConnectionRequestDialog({
         {/* 500px centered via left + margin (no transform) so vaul's translateY animation doesn't conflict or jump. */}
         <Drawer.Content
           className="
-            bg-white flex flex-col rounded-t-[10px] z-[10003]
+            bg-white flex flex-col min-h-0 rounded-t-[10px] z-[10003]
             fixed bottom-0 left-0 right-0
             sm:left-1/2 sm:right-auto sm:w-[500px] sm:-ml-[250px]
             max-h-[70vh] min-h-[40vh]
@@ -145,13 +147,13 @@ export function ConnectionRequestDialog({
             outline-none p-0
           "
           style={
-            maxHeightPx !== undefined || bottomPx !== undefined
+            keyboardLikelyOpen && (maxHeightPx !== undefined || bottomPx !== undefined)
               ? {
                   ...(maxHeightPx !== undefined && {
                     maxHeight: `${maxHeightPx}px`,
-                    height: `${maxHeightPx}px`,
                   }),
                   ...(bottomPx !== undefined && { bottom: `${bottomPx}px` }),
+                  transition: 'max-height 0.15s ease-out, bottom 0.15s ease-out',
                 }
               : undefined
           }
@@ -166,13 +168,13 @@ export function ConnectionRequestDialog({
           <div className="flex-shrink-0 border-b border-gray-200 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-gray-900">
                   Send Connection Request
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                   {recipientName
-                    ? `Add a message to introduce yourself to ${recipientName} (optional)`
-                    : 'Add a message to introduce yourself (optional)'}
+                    ? `Introduce yourself to ${recipientName} (optional)`
+                    : 'Introduce yourself (optional)'}
                 </p>
               </div>
               <button
@@ -191,7 +193,7 @@ export function ConnectionRequestDialog({
           </div>
 
           {/* Buttons - fixed footer, always visible */}
-          <div className="flex-shrink-0 border-t border-gray-200 px-4 py-4 bg-white">
+          <div className="flex-shrink-0 border-t border-gray-200 px-4 py-4 bg-white pb-[max(1rem,env(safe-area-inset-bottom))]">
             {buttons}
           </div>
         </Drawer.Content>
