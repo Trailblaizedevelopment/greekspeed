@@ -16,6 +16,10 @@
     "test:announcement-metadata": "tsx scripts/test-announcement-metadata.ts"
   },
   "dependencies": {
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/ios": "^6.2.1",
+    "@capacitor/keyboard": "^6.0.4",
     "@nivo/core": "^0.99.0",
     "@nivo/line": "^0.99.0",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -62,6 +66,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.1",
