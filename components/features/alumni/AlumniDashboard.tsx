@@ -76,7 +76,7 @@ export function AlumniDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-accent-50/20">
       {/* Mobile Header with Collapse Functionality */}
       <div className="sm:hidden bg-white/95 backdrop-blur-lg border-b border-gray-200 shadow-sm">
-        <div className="px-4 py-3">
+        <div className="px-4 py-2">
           {/* Collapsible Header */}
           {active === "pipeline" || active === "chapter" ? (
             <>
@@ -122,7 +122,7 @@ export function AlumniDashboard() {
                   </button>
                 </div>
               </div>
-              <div ref={setProfileSlotHost} className="mt-2 min-h-0" />
+              <div ref={setProfileSlotHost} className="mt-1.5 min-h-0" />
             </>
           ) : (
             <div className="flex items-center justify-between">
@@ -173,18 +173,18 @@ export function AlumniDashboard() {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="flex space-x-2 pt-3 pb-2 pl-2">
+                <div className="flex flex-wrap gap-1.5 pt-1.5 pb-0.5 pl-0.5">
                   {tabs.filter(t => t.id !== "hiring").map((t) => (
                     <button
                       key={t.id}
                       onClick={() => handleTabClick(t.id, t.disabled)}
                       disabled={t.disabled}
                       className={cn(
-                        'text-sm font-medium px-3 py-2 rounded-full transition-all duration-200 flex items-center shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-200',
+                        "text-xs font-medium leading-tight px-2.5 py-1 rounded-full transition-all duration-200 flex items-center shadow-sm focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-slate-300",
                         t.disabled 
                           ? "opacity-60 cursor-not-allowed text-gray-400 bg-gray-50 border border-gray-200" 
                           : active === t.id 
-                            ? "bg-white border-2 border-black text-slate-950 font-medium hover:bg-gray-50 hover:shadow-md" 
+                            ? "bg-white border-2 border-black text-slate-950 font-semibold hover:bg-gray-50 hover:shadow-sm" 
                             : "bg-white border border-black text-gray-700 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm"
                         )}
                     >
@@ -196,7 +196,7 @@ export function AlumniDashboard() {
                       </span>
                       <span className="hidden sm:inline">{t.label}</span>
                       {t.disabled && (
-                        <Lock className="h-3 w-3 ml-1.5 text-gray-400" />
+                        <Lock className="h-2.5 w-2.5 ml-1 shrink-0 text-gray-400" />
                       )}
                     </button>
                   ))}
