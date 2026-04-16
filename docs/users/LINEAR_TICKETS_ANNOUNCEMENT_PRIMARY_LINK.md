@@ -11,7 +11,7 @@
 | Metadata verify | TRA-619 | [Open](https://linear.app/trailblaize/issue/TRA-619) |
 | SendGrid template | TRA-620 | [Open](https://linear.app/trailblaize/issue/TRA-620) (blocked by TRA-616) |
 | Push URL | TRA-621 | [Open](https://linear.app/trailblaize/issue/TRA-621) |
-| Composer UI | TRA-622 | [Open](https://linear.app/trailblaize/issue/TRA-622) |
+| Composer UI | TRA-622 | Done — see issue comments / commit `b8a7437` |
 | Reader UI | TRA-623 | [Open](https://linear.app/trailblaize/issue/TRA-623) |
 | QA | TRA-624 | [Open](https://linear.app/trailblaize/issue/TRA-624) |
 
