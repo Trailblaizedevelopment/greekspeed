@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { ANNOUNCEMENT_IMAGE_MAX_BYTES } from '../lib/constants/announcementMedia';
 import {
+  getPrimaryLinkFromMetadata,
   sanitizeAnnouncementMetadataForCreate,
 } from '../lib/validation/announcementMetadata';
 
@@ -105,6 +106,90 @@ function run() {
     SUPABASE
   );
   assert.equal(overMax.ok, false);
+
+  // --- primary_link ---
+  const plOnly = sanitizeAnnouncementMetadataForCreate(
+    { primary_link: { url: 'https://forms.gle/example-path' } },
+    SUPABASE
+  );
+  assert.equal(plOnly.ok, true);
+  if (plOnly.ok) {
+    assert.deepEqual(plOnly.metadata, {
+      primary_link: { url: 'https://forms.gle/example-path' },
+    });
+    const read = getPrimaryLinkFromMetadata(plOnly.metadata);
+    assert.deepEqual(read, { url: 'https://forms.gle/example-path' });
+  }
+
+  const plWithLabel = sanitizeAnnouncementMetadataForCreate(
+    {
+      primary_link: {
+        url: '  https://example.com/x  ',
+        label: ' Register here ',
+      },
+    },
+    SUPABASE
+  );
+  assert.equal(plWithLabel.ok, true);
+  if (plWithLabel.ok) {
+    assert.deepEqual(plWithLabel.metadata.primary_link, {
+      url: 'https://example.com/x',
+      label: 'Register here',
+    });
+  }
+
+  const plAndImage = sanitizeAnnouncementMetadataForCreate(
+    {
+      images: [
+        {
+          url: GOOD_URL,
+          mimeType: 'image/jpeg',
+          sizeBytes: 1000,
+        },
+      ],
+      primary_link: { url: 'https://example.com/doc', label: 'Doc' },
+      evil: true,
+    },
+    SUPABASE
+  );
+  assert.equal(plAndImage.ok, true);
+  if (plAndImage.ok) {
+    assert.equal('evil' in plAndImage.metadata, false);
+    const imgs = plAndImage.metadata.images as Array<{ url: string }> | undefined;
+    assert.equal(imgs?.length, 1);
+    assert.deepEqual(plAndImage.metadata.primary_link, {
+      url: 'https://example.com/doc',
+      label: 'Doc',
+    });
+  }
+
+  const plHttp = sanitizeAnnouncementMetadataForCreate(
+    { primary_link: { url: 'http://example.com/' } },
+    SUPABASE
+  );
+  assert.equal(plHttp.ok, false);
+
+  const plWhitespaceLabel = sanitizeAnnouncementMetadataForCreate(
+    { primary_link: { url: 'https://example.com/', label: '   ' } },
+    SUPABASE
+  );
+  assert.equal(plWhitespaceLabel.ok, false);
+
+  const plBadType = sanitizeAnnouncementMetadataForCreate(
+    { primary_link: { url: true } } as unknown as Record<string, unknown>,
+    SUPABASE
+  );
+  assert.equal(plBadType.ok, false);
+
+  const plNotObject = sanitizeAnnouncementMetadataForCreate(
+    { primary_link: ['https://example.com/'] } as unknown as Record<string, unknown>,
+    SUPABASE
+  );
+  assert.equal(plNotObject.ok, false);
+
+  const emptyMeta = sanitizeAnnouncementMetadataForCreate({ images: [] }, SUPABASE);
+  assert.equal(emptyMeta.ok, true);
+  if (emptyMeta.ok) assert.deepEqual(emptyMeta.metadata, {});
 
   console.log('announcement metadata tests: OK');
 }
