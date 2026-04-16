@@ -59,7 +59,7 @@ export function ChapterCardSkeleton() {
 
 export function ChapterCardSkeletonGrid({ count = 8 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6 items-start">
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1 sm:gap-2 md:gap-3 items-start">
       {Array.from({ length: count }).map((_, index) => (
         <ChapterCardSkeleton key={`skeleton-${index}`} />
       ))}
