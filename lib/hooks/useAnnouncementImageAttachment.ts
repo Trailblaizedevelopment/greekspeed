@@ -9,6 +9,7 @@ import {
   ANNOUNCEMENT_IMAGE_ACCEPT_ATTR,
 } from '@/lib/services/announcementImageService';
 import type { AnnouncementImageUploadResult } from '@/lib/services/announcementImageService';
+import type { AnnouncementMetadata, AnnouncementPrimaryLink } from '@/types/announcements';
 
 export function useAnnouncementImageAttachment() {
   const { user } = useAuth();
@@ -62,19 +63,35 @@ export function useAnnouncementImageAttachment() {
     removeImage();
   }, [removeImage]);
 
-  const buildMetadata = useCallback((): Record<string, unknown> => {
-    if (!pendingImage) return {};
-    return {
-      images: [
-        {
-          url: pendingImage.url,
-          mimeType: pendingImage.mimeType,
-          sizeBytes: pendingImage.sizeBytes,
-          ...(imageAlt.trim() ? { alt: imageAlt.trim() } : {}),
-        },
-      ],
-    };
-  }, [pendingImage, imageAlt]);
+  const buildMetadata = useCallback(
+    (options?: { primaryLink?: AnnouncementPrimaryLink | null }): AnnouncementMetadata => {
+      const metadata: AnnouncementMetadata = {};
+
+      if (pendingImage) {
+        metadata.images = [
+          {
+            url: pendingImage.url,
+            mimeType: pendingImage.mimeType,
+            sizeBytes: pendingImage.sizeBytes,
+            ...(imageAlt.trim() ? { alt: imageAlt.trim() } : {}),
+          },
+        ];
+      }
+
+      const pl = options?.primaryLink;
+      const url = pl?.url?.trim();
+      if (url && pl) {
+        const label = pl.label?.trim();
+        metadata.primary_link = {
+          url,
+          ...(label ? { label } : {}),
+        };
+      }
+
+      return metadata;
+    },
+    [pendingImage, imageAlt]
+  );
 
   return {
     pendingImage,
