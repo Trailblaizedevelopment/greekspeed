@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 import { cn } from "@/lib/utils";
 
+export type AlumniSubHeaderVariant = "full" | "desktopOnly";
+
 interface AlumniSubHeaderProps {
   viewMode: 'table' | 'card';
   onViewModeChange: (mode: 'table' | 'card') => void;
@@ -22,6 +24,8 @@ interface AlumniSubHeaderProps {
   activeFilterCount?: number;
   userChapter?: string | null;
   profileCompletionPercentage?: number | null;
+  /** `desktopOnly` — hide mobile band (used when mobile UI is portaled into AlumniDashboard). */
+  variant?: AlumniSubHeaderVariant;
 }
 
 const exportButtonStyles =
@@ -38,6 +42,7 @@ export function AlumniSubHeader({
   activeFilterCount = 0,
   onClearSelection: _onClearSelection,
   profileCompletionPercentage,
+  variant = "full",
 }: AlumniSubHeaderProps) {
   // Only show "X selected" when in table view (selection is relevant there)
   const countText =
@@ -61,6 +66,37 @@ export function AlumniSubHeader({
       <span>Complete your profile ({profileCompletionPercentage}%)</span>
     </Link>
   ) : null;
+
+  const desktopLayout = (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-3 min-w-0">
+        <p className="text-gray-600 text-sm flex-shrink-0">{countText}</p>
+        {profilePill}
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {canExportAlumni ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExport}
+            className={exportButtonStyles}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export All
+          </Button>
+        ) : null}
+        <ViewToggle viewMode={viewMode} onViewChange={onViewModeChange} />
+      </div>
+    </div>
+  );
+
+  if (variant === "desktopOnly") {
+    return (
+      <div className="hidden sm:block bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+        {desktopLayout}
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
@@ -110,26 +146,7 @@ export function AlumniSubHeader({
       </div>
 
       {/* Desktop Layout */}
-      <div className="hidden sm:flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <p className="text-gray-600 text-sm flex-shrink-0">{countText}</p>
-          {profilePill}
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {canExportAlumni ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onExport}
-              className={exportButtonStyles}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export All
-            </Button>
-          ) : null}
-          <ViewToggle viewMode={viewMode} onViewChange={onViewModeChange} />
-        </div>
-      </div>
+      <div className="hidden sm:flex">{desktopLayout}</div>
     </div>
   );
 } 
