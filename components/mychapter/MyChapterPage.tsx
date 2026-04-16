@@ -27,9 +27,9 @@ export function MyChapterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* The MyChapterSidebar now handles its own layout */}
-      <MyChapterSidebar 
+    <div className="flex min-h-[100dvh] bg-gray-50 md:flex-row">
+      {/* Desktop: collapsible chapter sidebar. Mobile: filters live in drawer (see MyChapterContent). */}
+      <MyChapterSidebar
         onNavigate={handleNavigate}
         activeSection={activeSection}
         searchTerm={searchTerm}
@@ -38,10 +38,11 @@ export function MyChapterPage() {
       
       {/* MyChapterContent will be rendered inside the sidebar's main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <MyChapterContent 
+        <MyChapterContent
           onNavigate={handleNavigate}
           activeSection={activeSection}
           searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
         />
       </div>
     </div>

@@ -78,11 +78,17 @@ export function AlumniDashboard() {
       <div className="sm:hidden bg-white/95 backdrop-blur-lg border-b border-gray-200 shadow-sm">
         <div className="px-4 py-3">
           {/* Collapsible Header */}
-          {active === "pipeline" ? (
+          {active === "pipeline" || active === "chapter" ? (
             <>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1 pr-1">
-                  <p className="text-sm font-medium text-gray-700">Alumni Pipeline</p>
+                  <p className="text-sm font-medium text-gray-700">
+                    {active === "pipeline"
+                      ? "Alumni Pipeline"
+                      : profile?.role === "alumni"
+                        ? "Active Members"
+                        : "My Chapter"}
+                  </p>
                   <div
                     ref={setCountLineHost}
                     className="mt-0.5 min-h-[1.125rem] text-xs text-gray-500"
@@ -101,12 +107,16 @@ export function AlumniDashboard() {
                     aria-label={isMobileHeaderCollapsed ? "Expand section" : "Collapse section"}
                   >
                     {isMobileHeaderCollapsed ? (
-                      <ChevronDown 
-                        className="h-4 w-4 text-gray-600 rounded-full"
+                      <ChevronDown
+                        className="h-4 w-4 text-gray-600"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
                     ) : (
-                      <ChevronUp  
-                      className="h-4 w-4 text-gray-600 rounded-full" 
+                      <ChevronUp
+                        className="h-4 w-4 text-gray-600"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
                     )}
                   </button>
@@ -119,7 +129,6 @@ export function AlumniDashboard() {
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium text-gray-700">
                   <span className="sm:hidden">
-                    {active === "chapter" && (profile?.role === 'alumni' ? "Members" : "My Chapter")}
                     {active === "hiring" && "Hiring"}
                   </span>
                   <span className="hidden sm:inline">
@@ -138,9 +147,17 @@ export function AlumniDashboard() {
                 aria-label={isMobileHeaderCollapsed ? "Expand section" : "Collapse section"}
               >
                 {isMobileHeaderCollapsed ? (
-                  <ChevronDown className="h-4 w-4 text-gray-600" />
+                  <ChevronDown
+                    className="h-4 w-4 text-gray-600"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 ) : (
-                  <ChevronUp className="h-4 w-4 text-gray-600" />
+                  <ChevronUp
+                    className="h-4 w-4 text-gray-600"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 )}
               </button>
             </div>

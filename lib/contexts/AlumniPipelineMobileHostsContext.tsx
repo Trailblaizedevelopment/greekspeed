@@ -2,7 +2,7 @@
 
 import { createContext, useContext } from "react";
 
-/** Portal targets inside AlumniDashboard mobile header (pipeline tab only). */
+/** Portal targets inside AlumniDashboard mobile header (Alumni Pipeline + My Chapter tabs). */
 export interface AlumniPipelineMobileHosts {
   countLine: HTMLElement | null;
   actions: HTMLElement | null;
