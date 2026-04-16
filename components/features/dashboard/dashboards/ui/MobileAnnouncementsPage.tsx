@@ -15,6 +15,8 @@ import { supabase } from '@/lib/supabase/client';
 import { toast } from 'react-toastify';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { AnnouncementDetailDrawer } from './AnnouncementDetailDrawer';
+import { getPrimaryLinkFromMetadata } from '@/lib/validation/announcementMetadata';
+import { AnnouncementPrimaryLinkDisplay } from './AnnouncementPrimaryLinkDisplay';
 
 // Helper function to get icon and color based on announcement type
 const getAnnouncementTypeConfig = (type: string) => {
@@ -405,6 +407,7 @@ export function MobileAnnouncementsPage() {
                 {filteredAnnouncements.map((announcement) => {
                   const typeConfig = getAnnouncementTypeConfig(announcement.announcement_type);
                   const TypeIcon = typeConfig.icon;
+                  const primaryLink = getPrimaryLinkFromMetadata(announcement.metadata);
 
                   return (
                     <Card
@@ -434,6 +437,10 @@ export function MobileAnnouncementsPage() {
                               {announcement.title}
                             </h4>
                           </div>
+
+                          {primaryLink && (
+                            <AnnouncementPrimaryLinkDisplay link={primaryLink} variant="compact" />
+                          )}
 
                           {/* Content preview */}
                           <p className="text-xs text-slate-700 mb-3 line-clamp-2 break-words">

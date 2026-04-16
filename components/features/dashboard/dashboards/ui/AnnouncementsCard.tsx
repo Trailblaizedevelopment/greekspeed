@@ -19,6 +19,8 @@ import { toast } from 'react-toastify';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { AnnouncementDetailDrawer } from './AnnouncementDetailDrawer';
 import { AlumniPagination } from '@/components/features/alumni/AlumniPagination';
+import { getPrimaryLinkFromMetadata } from '@/lib/validation/announcementMetadata';
+import { AnnouncementPrimaryLinkDisplay } from './AnnouncementPrimaryLinkDisplay';
 
 // Helper function to get icon and color based on announcement type
 const getAnnouncementTypeConfig = (type: string) => {
@@ -154,6 +156,7 @@ export function AnnouncementsCard() {
   const renderAnnouncementItem = (announcement: Announcement, isInModal = false) => {
     const typeConfig = getAnnouncementTypeConfig(announcement.announcement_type);
     const TypeIcon = typeConfig.icon;
+    const primaryLink = getPrimaryLinkFromMetadata(announcement.metadata);
 
     return (
       <div
@@ -185,6 +188,10 @@ export function AnnouncementsCard() {
                 {announcement.title}
               </h4>
             </div>
+
+            {primaryLink && (
+              <AnnouncementPrimaryLinkDisplay link={primaryLink} variant="card" />
+            )}
 
             {/* Content */}
             <p

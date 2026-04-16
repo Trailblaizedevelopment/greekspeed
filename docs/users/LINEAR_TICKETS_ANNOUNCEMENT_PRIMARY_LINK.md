@@ -12,7 +12,7 @@
 | SendGrid template | TRA-620 | [Open](https://linear.app/trailblaize/issue/TRA-620) (blocked by TRA-616) |
 | Push URL | TRA-621 | [Open](https://linear.app/trailblaize/issue/TRA-621) |
 | Composer UI | TRA-622 | Done — see issue comments / commit `b8a7437` |
-| Reader UI | TRA-623 | [Open](https://linear.app/trailblaize/issue/TRA-623) |
+| Reader UI | TRA-623 | Done — see issue comments / latest `[TRA-623]` commit |
 | QA | TRA-624 | [Open](https://linear.app/trailblaize/issue/TRA-624) |
 
 Sub-issues **TRA-616–TRA-624** use **parent** [TRA-615](https://linear.app/trailblaize/issue/TRA-615).
