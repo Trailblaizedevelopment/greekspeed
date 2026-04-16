@@ -692,7 +692,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
             rounded-t-2xl sm:rounded-xl
             shadow-2xl border border-gray-200 border-b-0 sm:border
             outline-none p-0
-            ${isMobile ? 'pb-[env(safe-area-inset-bottom)]' : ''}
           `}
           style={mobileDrawerStyle}
         >
@@ -1156,7 +1155,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
         </div>
 
         {/* Footer - moved OUTSIDE scrollable area and form */}
-        <div className={`flex justify-end items-center border-t border-gray-200 flex-shrink-0 ${isMobile ? 'p-4 pb-[calc(16px+env(safe-area-inset-bottom))]' : 'p-6'}`}>
+        <div className={`flex justify-end items-center border-t border-gray-200 flex-shrink-0 ${isMobile ? 'p-4 pb-[max(1rem,env(safe-area-inset-bottom))]' : 'p-6'}`}>
           <div className={`flex ${isMobile ? 'space-x-2' : 'space-x-3'}`}>
             <Button
               type="button"

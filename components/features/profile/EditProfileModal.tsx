@@ -813,7 +813,6 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
             rounded-t-2xl sm:rounded-xl
             shadow-2xl border border-gray-200 border-b-0 sm:border
             outline-none p-0
-            ${isMobile ? 'pb-[env(safe-area-inset-bottom)]' : ''}
           `}
           style={mobileDrawerStyle}
         >
@@ -1338,7 +1337,7 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
         </div>
 
         {/* Enhanced Footer with Save Options */}
-        <div className={`flex justify-between items-center border-t border-gray-200 flex-shrink-0 ${isMobile ? 'p-4 pb-[calc(16px+env(safe-area-inset-bottom))]' : 'p-6'}`}>
+        <div className={`flex justify-between items-center border-t border-gray-200 flex-shrink-0 ${isMobile ? 'p-4 pb-[max(1rem,env(safe-area-inset-bottom))]' : 'p-6'}`}>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             {hasUnsavedChanges && (
               <>
