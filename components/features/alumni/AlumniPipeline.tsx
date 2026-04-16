@@ -1,13 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import Link from "next/link";
+import { Download, Filter, UserCircle } from "lucide-react";
 import { AlumniPipelineLayout } from "./AlumniPipelineLayout";
 import { AlumniSubHeader } from "./AlumniSubHeader";
 import { Alumni } from "@/lib/alumniConstants";
 import { exportAlumniToCSV } from "@/lib/csvExport";
 import { AlumniProfileModal } from "./AlumniProfileModal";
 import { useProfile } from "@/lib/contexts/ProfileContext";
+import { useAlumniPipelineMobileHosts } from "@/lib/contexts/AlumniPipelineMobileHostsContext";
 import { useAuth } from "@/lib/supabase/auth-context";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { useScopedChapterId } from "@/lib/hooks/useScopedChapterId";
 import { supabase } from "@/lib/supabase/client";
 
@@ -318,6 +325,18 @@ export function AlumniPipeline() {
   };
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const mobileHosts = useAlumniPipelineMobileHosts();
+  const isEmbeddedInDashboard = mobileHosts !== undefined;
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const sync = () => setIsNarrowViewport(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   const activeFilterCount = useMemo(
     () =>
       Object.values(filters).filter((v) =>
@@ -338,21 +357,102 @@ export function AlumniPipeline() {
     );
   }
 
+  const compactToolbarBtn =
+    "h-7 rounded-full px-2.5 text-xs font-medium transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-300 border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900";
+
+  const dashboardMobileCountText =
+    viewMode === "table"
+      ? `${pagination.total} alumni found • ${selectedAlumni.length} selected`
+      : `${pagination.total} alumni found`;
+
+  const showProfilePill =
+    profileCompletionPercentage != null && profileCompletionPercentage < 80;
+
+  const dashboardProfilePill = showProfilePill ? (
+    <Link
+      href="/dashboard/profile"
+      className="inline-flex w-max max-w-full items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 transition-colors hover:bg-sky-100 hover:text-sky-900"
+    >
+      <UserCircle className="h-3.5 w-3.5 shrink-0" />
+      <span>Complete your profile ({profileCompletionPercentage}%)</span>
+    </Link>
+  ) : null;
+
+  const h = mobileHosts;
+  const canPortalDashboardMobile =
+    isEmbeddedInDashboard &&
+    isNarrowViewport &&
+    !!h?.countLine &&
+    !!h?.actions;
+
+  const dashboardMobilePortals =
+    canPortalDashboardMobile && h ? (
+      <>
+        {createPortal(
+          <p className="truncate text-xs text-gray-500">{dashboardMobileCountText}</p>,
+          h.countLine!
+        )}
+        {createPortal(
+          <div className="flex items-center gap-1.5">
+            {isDeveloper ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                className={cn("shrink-0 gap-1 px-2.5", compactToolbarBtn)}
+              >
+                <Download className="h-3 w-3 shrink-0" />
+                <span className="hidden min-[380px]:inline">Export</span>
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setMobileFiltersOpen(true)}
+              className={cn("shrink-0 gap-1 px-2.5", compactToolbarBtn)}
+            >
+              <Filter className="h-3 w-3 shrink-0 text-brand-primary" />
+              <span>Filters</span>
+              {activeFilterCount > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className="h-5 min-w-5 rounded-full px-1.5 text-[10px] font-medium tabular-nums"
+                >
+                  {activeFilterCount}
+                </Badge>
+              ) : null}
+            </Button>
+          </div>,
+          h.actions!
+        )}
+        {h.profileSlot && dashboardProfilePill
+          ? createPortal(dashboardProfilePill, h.profileSlot)
+          : null}
+      </>
+    ) : null;
+
+  const subHeaderProps = {
+    viewMode,
+    onViewModeChange: setViewMode,
+    selectedCount: selectedAlumni.length,
+    totalCount: pagination.total,
+    onClearSelection: handleClearSelection,
+    onExport: handleExport,
+    canExportAlumni: isDeveloper,
+    onOpenMobileFilters: () => setMobileFiltersOpen(true),
+    activeFilterCount,
+    userChapter: profile?.chapter,
+    profileCompletionPercentage,
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sub-header: count, profile pill (if incomplete), Export All, view toggle (desktop + mobile) */}
+      {dashboardMobilePortals}
+
       <AlumniSubHeader
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        selectedCount={selectedAlumni.length}
-        totalCount={pagination.total}
-        onClearSelection={handleClearSelection}
-        onExport={handleExport}
-        canExportAlumni={isDeveloper}
-        onOpenMobileFilters={() => setMobileFiltersOpen(true)}
-        activeFilterCount={activeFilterCount}
-        userChapter={profile?.chapter}
-        profileCompletionPercentage={profileCompletionPercentage}
+        {...subHeaderProps}
+        variant={isEmbeddedInDashboard ? "desktopOnly" : "full"}
       />
 
       {/* Main Layout */}
