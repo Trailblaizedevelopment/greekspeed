@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { MessageCircle, UserCheck } from 'lucide-react';
-import { UserAvatar } from '@/components/features/profile/UserAvatar';
+import { ClickableAvatar } from '@/components/features/user-profile/ClickableAvatar';
+import { ClickableUserName } from '@/components/features/user-profile/ClickableUserName';
 import { PostCard } from '@/components/features/social/PostCard';
 
 interface ContentFeedSectionProps {
@@ -103,21 +104,20 @@ export function ContentFeedSection({
               className="p-4 bg-white flex items-center justify-between"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <UserAvatar
-                  user={{
-                    user_metadata: {
-                      avatar_url: partner?.avatar_url,
-                      full_name: partner?.full_name,
-                    },
-                  }}
-                  completionPercent={0}
-                  hasUnread={false}
-                  size="md"
+                <ClickableAvatar
+                  userId={partner.id}
+                  avatarUrl={partner.avatar_url}
+                  fullName={partner.full_name}
+                  firstName={partner.first_name}
+                  lastName={partner.last_name}
+                  size="lg"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
-                    {partner?.full_name || 'Unknown User'}
-                  </p>
+                  <ClickableUserName
+                    userId={partner.id}
+                    fullName={partner.full_name || 'Unknown User'}
+                    className="text-gray-900 truncate block"
+                  />
                   <p className="text-sm text-gray-500 truncate">
                     {partner?.email || 'No email provided'}
                   </p>
@@ -126,7 +126,7 @@ export function ContentFeedSection({
               <Button
                 size="sm"
                 variant="outline"
-                className="text-brand-primary border-primary-300 hover:bg-primary-50 shrink-0"
+                className="rounded-full text-brand-primary border-primary-300 hover:bg-primary-50 shrink-0"
                 onClick={() => onMessageClick(connection.id)}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />
