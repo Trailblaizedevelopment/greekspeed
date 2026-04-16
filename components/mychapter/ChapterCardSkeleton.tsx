@@ -2,21 +2,21 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export function ChapterCardSkeleton() {
   return (
-    <Card className="bg-white border border-gray-200 rounded-lg overflow-hidden group h-[260px] sm:h-[320px] flex flex-col animate-pulse">
+    <Card className="bg-white border border-gray-200 rounded-lg overflow-hidden group h-[228px] sm:h-[320px] flex flex-col animate-pulse">
       <CardContent className="!p-0 flex flex-col h-full">
-        <div className="px-4 pt-2 sm:pt-4 pb-3 sm:pb-4 relative flex-1 flex flex-col">
+        <div className="px-2 pt-1.5 pb-2 sm:px-4 sm:pt-4 sm:pb-4 relative flex-1 flex flex-col">
           {/* Avatar Skeleton */}
-          <div className="flex justify-center mb-2">
-            <div className="w-16 h-16 rounded-full border-4 border-white bg-gray-200 shadow-sm" />
+          <div className="flex justify-center mb-1.5 sm:mb-2">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white bg-gray-200 shadow-sm sm:border-4" />
           </div>
 
           {/* Name Skeleton */}
-          <div className="text-center mb-2 h-6 flex flex-col justify-center">
+          <div className="text-center mb-1.5 sm:mb-2 h-6 flex flex-col justify-center">
             <div className="h-3 sm:h-4 bg-gray-200 rounded w-24 mx-auto" />
           </div>
 
           {/* Position and Year Skeleton */}
-          <div className="text-center mb-2 sm:mb-3 min-h-[20px] sm:min-h-[24px] flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
+          <div className="text-center mb-1.5 sm:mb-3 min-h-[18px] sm:min-h-[24px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
             {/* Mobile: Year badge skeleton */}
             <div className="sm:hidden h-4 bg-gray-200 rounded-full w-12" />
             
@@ -38,7 +38,7 @@ export function ChapterCardSkeleton() {
           </div>
 
           {/* Mutual Connections Skeleton */}
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 mb-3 sm:mb-4 flex-1 min-h-[32px]">
+          <div className="flex flex-col sm:flex-row items-center justify-center space-y-0.5 sm:space-y-0 sm:space-x-2 mb-2 sm:mb-4 flex-1 min-h-[28px] sm:min-h-[32px]">
             <div className="flex -space-x-1">
               <div className="w-4 h-4 sm:w-6 sm:h-6 rounded-full border-2 border-white bg-gray-200" />
               <div className="w-4 h-4 sm:w-6 sm:h-6 rounded-full border-2 border-white bg-gray-200" />
@@ -48,7 +48,7 @@ export function ChapterCardSkeleton() {
           </div>
 
           {/* Action Button Skeleton */}
-          <div className="mt-auto h-8 sm:h-10 flex items-center">
+          <div className="mt-auto h-9 sm:h-10 flex items-center">
             <div className="h-8 sm:h-10 bg-gray-200 rounded-full w-full" />
           </div>
         </div>
