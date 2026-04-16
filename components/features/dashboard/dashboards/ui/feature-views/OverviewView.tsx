@@ -28,6 +28,10 @@ import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { isPublishedEventUpcoming } from '@/lib/utils/eventScheduleDisplay';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
 import { AnnouncementImageAttachmentField } from '../AnnouncementImageAttachmentField';
+import {
+  AnnouncementPrimaryLinkFields,
+  isValidHttpsAnnouncementLinkInput,
+} from '../AnnouncementPrimaryLinkFields';
 import { EmbeddedMembershipRequestsSection } from '@/components/features/dashboard/EmbeddedMembershipRequestsSection';
 
 interface OverviewViewProps {
@@ -70,6 +74,8 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
   const [memberSmsRecipientCount, setMemberSmsRecipientCount] = useState<number | null>(null);
   const [alumniSmsRecipientCount, setAlumniSmsRecipientCount] = useState<number | null>(null);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
+  const [primaryLinkUrl, setPrimaryLinkUrl] = useState('');
+  const [primaryLinkLabel, setPrimaryLinkLabel] = useState('');
 
   const {
     pendingImage,
@@ -155,6 +161,11 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
       return;
     }
 
+    if (!isValidHttpsAnnouncementLinkInput(primaryLinkUrl)) {
+      toast.error('Enter a valid https:// link or clear the link field.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const announcementData: CreateAnnouncementData = {
@@ -165,7 +176,11 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
         send_sms_to_alumni: sendSmsToAlumni,
         send_email_to_members: sendEmailToMembers,
         send_email_to_alumni: sendEmailToAlumni,
-        metadata: buildMetadata(),
+        metadata: buildMetadata(
+          primaryLinkUrl.trim()
+            ? { primaryLink: { url: primaryLinkUrl, label: primaryLinkLabel } }
+            : undefined
+        ),
       };
 
       await createAnnouncement(announcementData);
@@ -178,6 +193,8 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
       setSendSmsToAlumni(false);
       setSendEmailToMembers(false);
       setSendEmailToAlumni(false);
+      setPrimaryLinkUrl('');
+      setPrimaryLinkLabel('');
       resetAttachment();
       
       toast.success('Announcement sent successfully!');
@@ -556,6 +573,15 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
               onFileChange={handleFileChange}
               processImageFile={processImageFile}
               onRemove={removeImage}
+              disabled={isSubmitting || announcementsLoading}
+            />
+
+            <AnnouncementPrimaryLinkFields
+              idSuffix="overview"
+              url={primaryLinkUrl}
+              label={primaryLinkLabel}
+              onUrlChange={setPrimaryLinkUrl}
+              onLabelChange={setPrimaryLinkLabel}
               disabled={isSubmitting || announcementsLoading}
             />
             

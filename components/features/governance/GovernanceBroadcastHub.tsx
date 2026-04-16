@@ -16,6 +16,10 @@ import { useAuth } from '@/lib/supabase/auth-context';
 import { useGovernanceChapters } from '@/lib/hooks/useGovernanceChapters';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
 import { AnnouncementImageAttachmentField } from '@/components/features/dashboard/dashboards/ui/AnnouncementImageAttachmentField';
+import {
+  AnnouncementPrimaryLinkFields,
+  isValidHttpsAnnouncementLinkInput,
+} from '@/components/features/dashboard/dashboards/ui/AnnouncementPrimaryLinkFields';
 import type { RecipientPreviewResponse } from '@/types/announcements';
 import { toast } from 'react-toastify';
 
@@ -44,6 +48,8 @@ export function GovernanceBroadcastHub() {
   const [previewData, setPreviewData] = useState<RecipientPreviewResponse | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [primaryLinkUrl, setPrimaryLinkUrl] = useState('');
+  const [primaryLinkLabel, setPrimaryLinkLabel] = useState('');
 
   const {
     pendingImage,
@@ -164,6 +170,11 @@ export function GovernanceBroadcastHub() {
       return;
     }
 
+    if (!isValidHttpsAnnouncementLinkInput(primaryLinkUrl)) {
+      toast.error('Enter a valid https:// link or clear the link field.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await fetch('/api/announcements', {
@@ -180,7 +191,11 @@ export function GovernanceBroadcastHub() {
           send_sms_to_alumni: sendSmsToAlumni,
           send_email_to_members: sendEmailToMembers,
           send_email_to_alumni: sendEmailToAlumni,
-          metadata: buildMetadata(),
+          metadata: buildMetadata(
+            primaryLinkUrl.trim()
+              ? { primaryLink: { url: primaryLinkUrl, label: primaryLinkLabel } }
+              : undefined
+          ),
           chapter_ids: selectedChapterIds,
         }),
       });
@@ -207,6 +222,8 @@ export function GovernanceBroadcastHub() {
       setSendSmsToAlumni(false);
       setSendEmailToMembers(false);
       setSendEmailToAlumni(false);
+      setPrimaryLinkUrl('');
+      setPrimaryLinkLabel('');
       resetAttachment();
       setSelectedChapterIds(chapters.map((c) => c.id));
       setMobileSheetOpen(false);
@@ -278,6 +295,16 @@ export function GovernanceBroadcastHub() {
               processImageFile={processImageFile}
               onRemove={removeImage}
               disabled={isSubmitting}
+            />
+
+            <AnnouncementPrimaryLinkFields
+              idSuffix={`governance-broadcast-${suffix}`}
+              url={primaryLinkUrl}
+              label={primaryLinkLabel}
+              onUrlChange={setPrimaryLinkUrl}
+              onLabelChange={setPrimaryLinkLabel}
+              disabled={isSubmitting}
+              compact={isSheet}
             />
           </div>
 
