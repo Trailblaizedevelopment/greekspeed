@@ -131,6 +131,15 @@ export interface GenericNotificationTemplateData {
   templateId?: string;
 }
 
+/** In-app support: one email to team inbox with optional Reply-To to the reporter (TRA-626). */
+export interface SupportTeamInboundEmailPayload {
+  to: string;
+  replyTo?: { email: string; name?: string };
+  subject: string;
+  html: string;
+  text: string;
+}
+
 export class EmailService {
   private static fromEmail = process.env.SENDGRID_FROM_EMAIL || 'devin@trailblaize.net';
   private static fromName = process.env.SENDGRID_FROM_NAME || 'GreekSpeed';
@@ -682,6 +691,35 @@ export class EmailService {
       return true;
     } catch (error) {
       console.error('❌ Failed to send custom email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Send support request from an authenticated user to the internal team inbox.
+   */
+  static async sendSupportTeamInbound(payload: SupportTeamInboundEmailPayload): Promise<boolean> {
+    try {
+      const msg: Parameters<typeof sgMail.send>[0] = {
+        to: payload.to,
+        from: {
+          email: this.fromEmail,
+          name: this.fromName,
+        },
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+      };
+      if (payload.replyTo?.email?.trim()) {
+        const email = payload.replyTo.email.trim();
+        const name = payload.replyTo.name?.trim();
+        msg.replyTo = name ? { email, name } : email;
+      }
+
+      await sgMail.send(msg);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to send support team inbound email:', error);
       return false;
     }
   }
