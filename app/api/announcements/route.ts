@@ -502,6 +502,7 @@ async function sendMemberEmails(
       const pushPayload = buildPushPayload('chapter_announcement', {
         announcementId: announcement.id,
         announcementTitle: announcement.title,
+        announcementMetadata: announcement.metadata,
       });
       for (const member of allowedList) {
         sendPushToUser(member.id, pushPayload).catch(pushErr => {
