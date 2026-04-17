@@ -331,7 +331,6 @@ export default function RoleChapterPage() {
               last_name: lastName,
               full_name: `${firstName} ${lastName}`,
               chapter: formData.chapter,
-              chapter_id: selectedChapter.id,
               email: user.email || profile?.email || '',
               industry: 'Not specified',
               graduation_year: new Date().getFullYear(),
