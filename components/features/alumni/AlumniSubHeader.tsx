@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Download, UserCircle } from "lucide-react";
+import { Download, Filter, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 import { cn } from "@/lib/utils";
+
+export type AlumniSubHeaderVariant = "full" | "desktopOnly";
 
 interface AlumniSubHeaderProps {
   viewMode: 'table' | 'card';
@@ -15,8 +18,14 @@ interface AlumniSubHeaderProps {
   onExport: () => void;
   /** When false, the Export All control is hidden (e.g. developers only). */
   canExportAlumni: boolean;
+  /** Mobile (below `sm`): opens filter drawer when set. */
+  onOpenMobileFilters?: () => void;
+  /** Badge count for active alumni filters (mobile). */
+  activeFilterCount?: number;
   userChapter?: string | null;
   profileCompletionPercentage?: number | null;
+  /** `desktopOnly` — hide mobile band (used when mobile UI is portaled into AlumniDashboard). */
+  variant?: AlumniSubHeaderVariant;
 }
 
 const exportButtonStyles =
@@ -29,8 +38,11 @@ export function AlumniSubHeader({
   totalCount,
   onExport,
   canExportAlumni,
+  onOpenMobileFilters,
+  activeFilterCount = 0,
   onClearSelection: _onClearSelection,
   profileCompletionPercentage,
+  variant = "full",
 }: AlumniSubHeaderProps) {
   // Only show "X selected" when in table view (selection is relevant there)
   const countText =
@@ -55,23 +67,76 @@ export function AlumniSubHeader({
     </Link>
   ) : null;
 
+  const desktopLayout = (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-3 min-w-0">
+        <p className="text-gray-600 text-sm flex-shrink-0">{countText}</p>
+        {profilePill}
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {canExportAlumni ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExport}
+            className={exportButtonStyles}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export All
+          </Button>
+        ) : null}
+        <ViewToggle viewMode={viewMode} onViewChange={onViewModeChange} />
+      </div>
+    </div>
+  );
+
+  if (variant === "desktopOnly") {
+    return (
+      <div className="hidden sm:block bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
+        {desktopLayout}
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
-      {/* Mobile Layout: Row 1 = count + Export; Row 2 = profile pill (avoids overflow) */}
+      {/* Mobile Layout: Row 1 = count + actions (Export / Filters); Row 2 = profile pill */}
       <div className="sm:hidden flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-gray-600 text-xs whitespace-nowrap flex-shrink-0">{mobileCountText}</p>
-          {canExportAlumni ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onExport}
-              className={cn("h-7 text-xs flex-shrink-0", exportButtonStyles)}
-            >
-              <Download className="h-3 w-3 mr-1.5" />
-              Export All
-            </Button>
-          ) : null}
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <p className="text-gray-600 text-xs min-w-0 flex-1 truncate pr-1">{mobileCountText}</p>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {canExportAlumni ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onExport}
+                className={cn("h-7 shrink-0 px-2.5 text-xs", exportButtonStyles)}
+              >
+                <Download className="h-3 w-3 mr-1 shrink-0" />
+                Export All
+              </Button>
+            ) : null}
+            {onOpenMobileFilters ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onOpenMobileFilters}
+                className={cn("h-7 shrink-0 gap-1 px-2.5 text-xs", exportButtonStyles)}
+              >
+                <Filter className="h-3 w-3 shrink-0 text-brand-primary" />
+                <span>Filters</span>
+                {activeFilterCount > 0 ? (
+                  <Badge
+                    variant="secondary"
+                    className="h-5 min-w-5 rounded-full px-1.5 text-[10px] font-medium tabular-nums"
+                  >
+                    {activeFilterCount}
+                  </Badge>
+                ) : null}
+              </Button>
+            ) : null}
+          </div>
         </div>
         {profilePill && (
           <div className="flex justify-start">
@@ -81,26 +146,7 @@ export function AlumniSubHeader({
       </div>
 
       {/* Desktop Layout */}
-      <div className="hidden sm:flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <p className="text-gray-600 text-sm flex-shrink-0">{countText}</p>
-          {profilePill}
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {canExportAlumni ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onExport}
-              className={exportButtonStyles}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export All
-            </Button>
-          ) : null}
-          <ViewToggle viewMode={viewMode} onViewChange={onViewModeChange} />
-        </div>
-      </div>
+      <div className="hidden sm:flex">{desktopLayout}</div>
     </div>
   );
 } 

@@ -11,6 +11,7 @@ import { Loader2, X, Users, UserCheck } from 'lucide-react';
 import { TaskPriority, CreateTaskRequest } from '@/types/operations';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -42,6 +43,20 @@ export function TaskModal({ isOpen, onClose, onSubmit, chapterMembers, creating 
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  const { height: visualHeight, offsetTop } = useVisualViewportHeight();
+  const [innerHeight, setInnerHeight] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 768
+  );
+
+  useEffect(() => {
+    setInnerHeight(window.innerHeight);
+  }, []);
+
+  /** Same pattern as CreateUserForm / ShareEventDrawer — pin sheet above mobile keyboard (iOS Safari). */
+  const keyboardOpen = isOpen && isMobile && visualHeight < innerHeight;
+  const maxHeightPx = keyboardOpen ? visualHeight - 40 : undefined;
+  const bottomPx = keyboardOpen ? innerHeight - (offsetTop + visualHeight) : undefined;
 
   const executiveMembers = chapterMembers.filter(
     (member) =>
@@ -179,6 +194,17 @@ export function TaskModal({ isOpen, onClose, onSubmit, chapterMembers, creating 
               ? 'h-[85dvh] max-h-[85dvh] rounded-t-[20px]'
               : 'h-[min(80vh,100dvh)] max-h-[80vh] max-w-lg mx-auto rounded-t-[20px]'
           )}
+          style={
+            isMobile && (maxHeightPx !== undefined || bottomPx !== undefined)
+              ? {
+                  ...(maxHeightPx !== undefined && {
+                    maxHeight: `${maxHeightPx}px`,
+                    height: `${maxHeightPx}px`,
+                  }),
+                  ...(bottomPx !== undefined && { bottom: `${bottomPx}px` }),
+                }
+              : undefined
+          }
         >
           {isMobile && (
             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-1" aria-hidden />

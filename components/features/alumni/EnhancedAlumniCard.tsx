@@ -120,7 +120,7 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
     if (!alumni.hasProfile) {
       return (
         <Button
-          className="w-full text-gray-400 border-gray-200 rounded-full font-medium h-10"
+          className="w-full text-gray-400 border-gray-200 rounded-full font-medium h-8 sm:h-10"
           variant="outline"
           disabled
           onClick={(e) => e.stopPropagation()} // Prevent card click even for disabled button
@@ -226,23 +226,23 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
   };
 
   return (
-    <Card className="bg-white border border-gray-200 rounded-lg hover:shadow-lg transition-all duration-200 overflow-hidden group h-[260px] sm:h-[400px] flex flex-col cursor-pointer" onClick={handleCardClick}>
+    <Card className="bg-white border border-gray-200 rounded-lg hover:shadow-lg transition-all duration-200 overflow-hidden group h-[228px] sm:h-[400px] flex flex-col cursor-pointer" onClick={handleCardClick}>
       <CardContent className="!p-0 flex flex-col h-full">
-        <div className="px-4 pt-3 sm:pt-6 pb-4 relative flex-1 flex flex-col">
+        <div className="px-2 pt-2 pb-2 sm:px-4 sm:pt-6 sm:pb-4 relative flex-1 flex flex-col">
           {/* Avatar */}
-          <div className="flex justify-center mb-2 sm:mb-3">
-            <div className="w-16 h-16 rounded-full border-4 border-white bg-white shadow-sm overflow-hidden relative">
+          <div className="flex justify-center mb-1.5 sm:mb-3">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white sm:border-4 bg-white shadow-sm overflow-hidden relative">
               {alumni.avatar ? (
                 <ImageWithFallback
                   src={alumni.avatar}
                   alt={alumni.fullName}
-                  width={64}
-                  height={64}
+                  width={56}
+                  height={56}
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-brand-primary to-brand-primary flex items-center justify-center">
-                  <span className="text-white font-medium text-lg">
+                  <span className="text-white font-medium text-base sm:text-lg">
                     {alumni.firstName?.[0] || ''}{alumni.lastName?.[0] || ''}
                   </span>
                 </div>
@@ -251,7 +251,7 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
           </div>
 
           {/* BLACK BOX: Name and Activity Status - Fixed height */}
-          <div className="text-center mb-1 sm:mb-4 h-8 flex flex-col justify-center">
+          <div className="text-center mb-0.5 sm:mb-4 h-7 sm:h-8 flex flex-col justify-center">
             <div className="flex items-center justify-center space-x-2">
               <h3 className="font-semibold text-gray-900 text-xs sm:text-lg leading-tight truncate">
                 {alumni.fullName}
@@ -265,11 +265,11 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
           </div>
 
           {/* BLUE BOX: Professional Information - Fixed height */}
-          <div className="text-center mb-1 sm:mb-4 h-12 flex flex-col justify-center">
+          <div className="text-center mb-0.5 sm:mb-4 h-12 flex flex-col justify-center">
             {/* Hiring badge moved here to maintain consistent name positioning */}
             {alumni.isActivelyHiring && (
-              <div className="flex justify-center mb-1">
-                <Badge className="bg-gradient-to-r from-gray-600 to-gray-700 text-white text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-full">
+              <div className="flex justify-center mb-0.5 sm:mb-1">
+                <Badge className="bg-gradient-to-r from-gray-600 to-gray-700 text-white text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-full leading-none">
                   Hiring
                 </Badge>
               </div>
@@ -278,8 +278,8 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
               <p className="hidden sm:block text-xs sm:text-sm font-medium text-brand-primary mb-0.5 sm:mb-1 leading-tight truncate">{alumni.jobTitle}</p>
             )}
             {isValidField(alumni.company) && (
-              <div className="flex items-center justify-center space-x-2 text-gray-500 text-xs sm:text-sm">
-                <Building2 className="h-3 w-3" />
+              <div className="flex items-center justify-center space-x-1 sm:space-x-2 text-gray-500 text-[11px] sm:text-sm">
+                <Building2 className="h-3 w-3 shrink-0" />
                 <ClickableField
                   value={alumni.company}
                   entityType="company"
@@ -289,14 +289,14 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
             )}
             {/* Add location information */}
             {isValidField(alumni.location) && (
-              <div className="flex items-center justify-center space-x-2 text-gray-500 text-xs sm:text-sm mt-0.5">
-                <MapPin className="h-3 w-3" />
+              <div className="flex items-center justify-center space-x-1 sm:space-x-2 text-gray-500 text-[11px] sm:text-sm mt-0.5">
+                <MapPin className="h-3 w-3 shrink-0" />
                 <span className="text-gray-500 truncate">{alumni.location}</span>
               </div>
             )}
             {/* Show placeholder when no data to maintain consistent spacing */}
             {!isValidField(alumni.jobTitle) && !isValidField(alumni.company) && !alumni.isActivelyHiring && !isValidField(alumni.location) && (
-              <div className="text-xs sm:text-sm text-gray-400">
+              <div className="text-[11px] sm:text-sm text-gray-400 leading-tight">
                 Professional info not available
               </div>
             )}
@@ -322,7 +322,7 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
           </div>
 
           {/* PINK BOX: Mutual Connections - Fixed height */}
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 mb-1 sm:mb-4 h-8">
+          <div className="flex flex-col sm:flex-row items-center justify-center space-y-0.5 sm:space-y-0 sm:space-x-2 mb-0.5 sm:mb-4 h-7 sm:h-8">
             {mutualLoading ? (
               <div className="text-xs text-gray-400">Loading...</div>
             ) : mutualConnections.length > 0 ? (
@@ -352,7 +352,7 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
                   ))}
                 </div>
                 {/* Mobile: Show "+X other" below avatars */}
-                <span className="text-xs text-gray-600 leading-tight sm:hidden">
+                <span className="text-[11px] text-gray-600 leading-tight sm:hidden">
                   {mutualConnectionsCount > 1
                     ? `+${mutualConnectionsCount - 1} other`
                     : '1 connection'
@@ -373,7 +373,7 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
           </div>
 
           {/* RED BOX: Action Button - Fixed height at bottom */}
-          <div className="mt-auto h-10 flex items-center">
+          <div className="mt-auto h-9 sm:h-10 flex items-center">
             {renderConnectionButton()}
           </div>
         </div>

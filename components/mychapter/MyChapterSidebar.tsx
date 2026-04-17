@@ -112,8 +112,8 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
 
   return (
     <div className="flex bg-gray-50 overflow-hidden">
-      {/* Collapsible Sidebar */}
-      <div className="flex">
+      {/* Collapsible Sidebar — desktop only; mobile uses dashboard header + drawer (AlumniDashboard) or compact bar (standalone). */}
+      <div className="hidden md:flex">
         {/* Main Sidebar */}
         <AnimatePresence>
           {sidebarOpen && (
@@ -354,11 +354,6 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
             </Button>
           </motion.div>
         )}
-      </div>
-
-      {/* Main Content Area - This will be handled by the parent component */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Content will be rendered by MyChapterContent component */}
       </div>
 
       {/* Add Member Modal */}

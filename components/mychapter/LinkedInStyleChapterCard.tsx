@@ -222,39 +222,39 @@ export function LinkedInStyleChapterCard({ member, onClick }: LinkedInStyleChapt
 
   return (
     <Card 
-      className="bg-white border border-gray-200 rounded-lg hover:shadow-lg transition-all duration-200 overflow-hidden group h-[260px] sm:h-[320px] flex flex-col"
+      className="bg-white border border-gray-200 rounded-lg hover:shadow-lg transition-all duration-200 overflow-hidden group h-[228px] sm:h-[320px] flex flex-col"
     >
       <CardContent className="!p-0 flex flex-col h-full">
         <div 
-          className={`px-4 pt-2 sm:pt-4 pb-3 sm:pb-4 relative flex-1 flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
+          className={`px-2 pt-1.5 pb-2 sm:px-4 sm:pt-4 sm:pb-4 relative flex-1 flex flex-col ${onClick ? 'cursor-pointer' : ''}`}
           onClick={handleCardClick}
         >
           {/* Avatar - Now Clickable */}
-          <div className="flex justify-center mb-2">
+          <div className="flex justify-center mb-1.5 sm:mb-2">
             {id ? (
-              <div className="w-16 h-16 rounded-full border-4 border-white bg-white shadow-sm overflow-hidden relative">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white sm:border-4 bg-white shadow-sm overflow-hidden relative">
                 <ClickableAvatar
                   userId={id}
                   avatarUrl={avatar}
                   fullName={name}
                   size="lg"
-                  className="w-full h-full"
+                  className="!h-full !w-full"
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
             ) : (
-              <div className="w-16 h-16 rounded-full border-4 border-white bg-white shadow-sm overflow-hidden relative">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white sm:border-4 bg-white shadow-sm overflow-hidden relative">
                 {avatar ? (
                   <ImageWithFallback 
                     src={avatar} 
                     alt={name} 
-                    width={64} 
-                    height={64} 
+                    width={56} 
+                    height={56} 
                     className="w-full h-full object-cover" 
                   />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-brand-primary to-brand-primary flex items-center justify-center">
-                    <span className="text-white font-medium text-lg">
+                    <span className="text-white font-medium text-base sm:text-lg">
                       {name
                         ?.split(" ")
                         ?.map((n) => n[0])
@@ -283,7 +283,7 @@ export function LinkedInStyleChapterCard({ member, onClick }: LinkedInStyleChapt
           </div>
 
           {/* Position and Year - Desktop: same row, Mobile: stacked or badges */}
-          <div className="text-center mb-2 sm:mb-3 min-h-[20px] sm:min-h-[24px] flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
+          <div className="text-center mb-1.5 sm:mb-3 min-h-[18px] sm:min-h-[24px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
             {/* Mobile: Show year badge if available */}
             {hasYear && (
               <Badge 
@@ -363,7 +363,7 @@ export function LinkedInStyleChapterCard({ member, onClick }: LinkedInStyleChapt
           )}
 
           {/* Mutual Connections - With placeholder when empty */}
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 mb-3 sm:mb-4 flex-1 min-h-[32px]">
+          <div className="flex flex-col sm:flex-row items-center justify-center space-y-0.5 sm:space-y-0 sm:space-x-2 mb-2 sm:mb-4 flex-1 min-h-[28px] sm:min-h-[32px]">
             {mutualLoading ? (
               <div className="text-xs text-gray-400">Loading...</div>
             ) : mutualConnections.length > 0 ? (
@@ -414,8 +414,8 @@ export function LinkedInStyleChapterCard({ member, onClick }: LinkedInStyleChapt
             ) : (
               // Placeholder when no mutual connections
               <div className="flex flex-col items-center justify-center text-gray-400">
-                <Users className="h-4 w-4 sm:h-5 sm:w-5 mb-1 opacity-50" />
-                <span className="text-[10px] sm:text-xs">No mutual connections</span>
+                <Users className="h-3.5 w-3.5 sm:h-5 sm:w-5 mb-0.5 sm:mb-1 opacity-50" />
+                <span className="text-[10px] sm:text-xs leading-tight text-center px-0.5">No mutual connections</span>
               </div>
             )}
           </div>
