@@ -238,19 +238,21 @@ export function GovernanceBroadcastHub() {
   const formSuffixDesktop = 'desktop';
   const formSuffixMobile = 'mobile';
 
-  const renderBroadcastForm = (suffix: string, options: { layout: 'desktop' | 'sheet' }) => {
-    const { layout } = options;
+  const renderBroadcastForm = (
+    suffix: string,
+    options: { layout: 'desktop' | 'sheet'; stickyFooter?: boolean }
+  ) => {
+    const { layout, stickyFooter = false } = options;
     const isSheet = layout === 'sheet';
     const id = (base: string) => `${base}-${suffix}`;
 
-    return (
-      <>
-        <div
-          className={cn(
-            'grid gap-4',
-            isSheet ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'
-          )}
-        >
+    const formBody = (
+      <div
+        className={cn(
+          'grid gap-4',
+          isSheet ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'
+        )}
+      >
           <div className={cn('space-y-3', !isSheet && 'lg:col-span-2')}>
             <div
               className={cn(
@@ -346,7 +348,9 @@ export function GovernanceBroadcastHub() {
             )}
           </div>
         </div>
+    );
 
+    const formDelivery = (
         <div
           className={cn(
             'pt-1',
@@ -571,6 +575,23 @@ export function GovernanceBroadcastHub() {
             </Button>
           )}
         </div>
+    );
+
+    if (stickyFooter && !isSheet) {
+      return (
+        <>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">{formBody}</div>
+          <div className="mt-3 flex-shrink-0 border-t border-primary-100/30 bg-white/80 pt-3">
+            {formDelivery}
+          </div>
+        </>
+      );
+    }
+
+    return (
+      <>
+        {formBody}
+        {formDelivery}
       </>
     );
   };
@@ -587,16 +608,21 @@ export function GovernanceBroadcastHub() {
     <div className="mb-6">
       {/* Desktop: inline card (unchanged layout for md+) */}
       <div className="hidden md:block">
-        <Card className="w-full flex flex-col max-h-[min(640px,85vh)] bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
+        <Card className="flex min-h-0 w-full max-h-[min(640px,85vh)] flex-col bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
           <CardHeader className="pb-3 flex-shrink-0 border-b border-primary-100/30">
             <CardTitle className="flex items-center space-x-2">
               <Megaphone className="h-5 w-5 text-brand-primary" />
               <span className="text-primary-900">Chapter announcements</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 flex-1 overflow-y-auto min-h-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col p-6 pt-4">
             {emptyOrLoading ?? (
-              <>{renderBroadcastForm(formSuffixDesktop, { layout: 'desktop' })}</>
+              <>
+                {renderBroadcastForm(formSuffixDesktop, {
+                  layout: 'desktop',
+                  stickyFooter: true,
+                })}
+              </>
             )}
           </CardContent>
         </Card>
