@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
         announcementType: announcement.announcement_type,
         imageUrl: announcementImage?.url ?? null,
         imageAlt: announcementImage?.alt ?? null,
+        metadata: announcement.metadata,
       });
 
       if (testResult) {
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
         announcementType: announcement.announcement_type,
         imageUrl: announcementImage?.url ?? null,
         imageAlt: announcementImage?.alt ?? null,
+        metadata: announcement.metadata,
       }
     );
 

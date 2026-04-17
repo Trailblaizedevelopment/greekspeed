@@ -193,10 +193,21 @@ function buildEmailPayloadForType(type: NotificationType): DryRunResult['email']
       return {
         subject: `Chapter Announcement: ${SAMPLE.title}`,
         templateData: {
-          payload: { title: SAMPLE.title, summary: SAMPLE.summary, announcement_id: TEST_CONNECTION_ID },
+          payload: {
+            title: SAMPLE.title,
+            summary: SAMPLE.summary,
+            announcement_id: TEST_CONNECTION_ID,
+            has_primary_link: false,
+            primary_link_url: '',
+            primary_link_label: '',
+            in_app_announcements_url: 'https://www.trailblaize.net/dashboard/announcements',
+          },
           recipient: { first_name: SAMPLE.firstName, email: 'test@example.com' },
           chapter: { name: SAMPLE.chapterName },
-          cta: { label: 'Read Full Announcement', url: 'https://www.trailblaize.net/' },
+          cta: {
+            label: 'Read Full Announcement',
+            url: 'https://www.trailblaize.net/dashboard/announcements',
+          },
         },
       };
     case 'new_event':

@@ -7,6 +7,7 @@ import { canSendEmailNotification } from '@/lib/utils/checkEmailPreferences';
 import {
   getFirstAnnouncementImageFromMetadata,
   sanitizeAnnouncementMetadataForCreate,
+  getPrimaryLinkFromMetadata,
   type SanitizedAnnouncementMetadata,
 } from '@/lib/validation/announcementMetadata';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
@@ -492,6 +493,7 @@ async function sendMemberEmails(
         announcementType: announcement.announcement_type,
         imageUrl: emailImageUrl,
         imageAlt: emailImageAlt,
+        metadata: announcement.metadata,
       });
       console.log('Email sent to members:', recipients.length, 'recipients');
 
@@ -572,6 +574,7 @@ async function sendAlumniEmails(
         announcementType: announcement.announcement_type,
         imageUrl: emailImageUrl,
         imageAlt: emailImageAlt,
+        metadata: announcement.metadata,
       });
       console.log('Email sent to alumni:', alumniRecipients.length, 'recipients');
     }
@@ -607,7 +610,11 @@ async function sendMemberSms(
     if (validSMSMembers.length === 0) return;
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
-    const link = `${baseUrl}/dashboard/announcements`;
+    const appAnnouncementsUrl = `${baseUrl}/dashboard/announcements`;
+    const primaryLink = getPrimaryLinkFromMetadata(announcement.metadata);
+    const ctaUrl = primaryLink?.url ?? appAnnouncementsUrl;
+    const ctaText = primaryLink ? 'Open link' : 'Read more';
+
     const headline = announcement.title.slice(0, 40);
     const detail = announcement.content.slice(0, 60).replace(/\s+/g, ' ').trim();
 
@@ -618,13 +625,13 @@ async function sendMemberSms(
     const recipientsToUse = isSandbox ? validSMSMembers.slice(0, 3) : validSMSMembers;
     const firstTime = recipientsToUse.filter(m => !receivedSet.has(m.id));
     const returning = recipientsToUse.filter(m => receivedSet.has(m.id));
-
-    const messagePartsFull = SMSMessageFormatter.formatShortMessage(
-      headline, detail, 'Read more', link, { complianceLevel: 'full' }
-    );
-    const messagePartsNone = SMSMessageFormatter.formatShortMessage(
-      headline, detail, 'Read more', link, { complianceLevel: 'none' }
-    );
+      
+      const messagePartsFull = SMSMessageFormatter.formatShortMessage(
+        headline, detail, ctaText, ctaUrl, { complianceLevel: 'full' }
+      );
+      const messagePartsNone = SMSMessageFormatter.formatShortMessage(
+        headline, detail, ctaText, ctaUrl, { complianceLevel: 'none' }
+      );
 
     if (recipientsToUse.length === 0) return;
 
@@ -710,10 +717,14 @@ async function sendAlumniSms(
     if (validAlumni.length === 0) return;
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
-    const link = `${baseUrl}/dashboard/announcements`;
+    const appAnnouncementsUrl = `${baseUrl}/dashboard/announcements`;
+    const primaryLink = getPrimaryLinkFromMetadata(announcement.metadata);
+    const ctaUrl = primaryLink?.url ?? appAnnouncementsUrl;
+    const ctaText = primaryLink ? 'Open link' : 'Read more';
+
     const headline = announcement.title.slice(0, 40);
     const detail = announcement.content.slice(0, 60).replace(/\s+/g, ' ').trim();
-
+    
     const receivedSetAlumni = await SMSNotificationService.getUserIdSetThatHaveReceivedSms(
       validAlumni.map(a => a.id)
     );
@@ -723,12 +734,12 @@ async function sendAlumniSms(
     const returningAlumni = recipientsToUseAlumni.filter(a => receivedSetAlumni.has(a.id));
 
     const messagePartsFullAlumni = SMSMessageFormatter.formatShortMessage(
-      headline, detail, 'Read more', link, { complianceLevel: 'full' }
+      headline, detail, ctaText, ctaUrl, { complianceLevel: 'full' }
     );
     const messagePartsNoneAlumni = SMSMessageFormatter.formatShortMessage(
-      headline, detail, 'Read more', link, { complianceLevel: 'none' }
+      headline, detail, ctaText, ctaUrl, { complianceLevel: 'none' }
     );
-
+    
     if (recipientsToUseAlumni.length === 0) return;
 
     try {

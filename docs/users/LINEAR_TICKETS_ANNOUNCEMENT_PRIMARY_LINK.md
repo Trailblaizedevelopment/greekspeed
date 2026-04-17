@@ -5,7 +5,7 @@
 | Role | ID | Link |
 |------|-----|------|
 | Epic (parent) | **TRA-615** | [Open](https://linear.app/trailblaize/issue/TRA-615) |
-| SendGrid email payload | TRA-616 | [Open](https://linear.app/trailblaize/issue/TRA-616) |
+| SendGrid email payload | TRA-616 | Done — app payload; see TRA-620 for template |
 | Types + client | TRA-617 | [Open](https://linear.app/trailblaize/issue/TRA-617) |
 | SMS CTA | TRA-618 | [Open](https://linear.app/trailblaize/issue/TRA-618) |
 | Metadata verify | TRA-619 | [Open](https://linear.app/trailblaize/issue/TRA-619) |
