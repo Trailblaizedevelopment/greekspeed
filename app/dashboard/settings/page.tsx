@@ -190,7 +190,9 @@ export default function SettingsPage() {
       icon: HelpCircle,
       description: 'Help & support center',
       mobileDescription: 'Help & support',
-      locked: true
+      locked: false,
+      /** Opens full support page (TRA-628) instead of an in-settings panel. */
+      navigateTo: '/dashboard/support',
     }
   ];
 
@@ -216,9 +218,24 @@ export default function SettingsPage() {
   };
 
   // Mobile-specific handlers
-  const handleMobileSectionSelect = (sectionId: string) => {
-    setActiveSection(sectionId);
+  const handleMobileSectionSelect = (item: (typeof sidebarItems)[number]) => {
+    if (item.locked) return;
+    if (item.navigateTo) {
+      router.push(item.navigateTo);
+      setShowMobileMenu(false);
+      return;
+    }
+    setActiveSection(item.id);
     setShowMobileMenu(false);
+  };
+
+  const handleDesktopSidebarItemClick = (item: (typeof sidebarItems)[number]) => {
+    if (item.locked) return;
+    if (item.navigateTo) {
+      router.push(item.navigateTo);
+      return;
+    }
+    setActiveSection(item.id);
   };
 
   const handleMobileBack = () => {
@@ -734,9 +751,10 @@ export default function SettingsPage() {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => !item.locked && setActiveSection(item.id)}
+                        type="button"
+                        onClick={() => handleDesktopSidebarItemClick(item)}
                         className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-all duration-200 ${
-                          activeSection === item.id
+                          activeSection === item.id && !item.navigateTo
                             ? 'bg-accent-50 text-accent-700 border border-accent-200 shadow-sm'
                             : item.locked
                             ? 'text-gray-400 cursor-not-allowed opacity-50'
@@ -822,9 +840,10 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => !item.locked && handleMobileSectionSelect(item.id)}
+                    type="button"
+                    onClick={() => handleMobileSectionSelect(item)}
                     className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-colors ${
-                      activeSection === item.id
+                      activeSection === item.id && !item.navigateTo
                         ? 'bg-accent-50 text-accent-700 border border-accent-200'
                         : item.locked
                         ? 'text-gray-400 cursor-not-allowed opacity-50'

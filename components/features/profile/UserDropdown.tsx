@@ -5,6 +5,7 @@ import {
   User,
   Settings,
   Bell,
+  HelpCircle,
   LogOut,
   ChevronRight,
   ChevronDown,
@@ -39,6 +40,7 @@ interface UserDropdownProps {
 const MENU_ITEMS = [
   { label: 'View Profile', href: '/dashboard/profile', icon: User, locked: false },
   { label: 'Notifications', href: '/dashboard/notifications', icon: Bell, key: 'notifications' as const, locked: false },
+  { label: 'Help & support', href: '/dashboard/support', icon: HelpCircle, locked: false },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings, locked: false },
 ];
 
