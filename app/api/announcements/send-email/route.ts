@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
         announcementType: announcement.announcement_type,
         imageUrl: announcementImage?.url ?? null,
         imageAlt: announcementImage?.alt ?? null,
+        metadata: announcement.metadata,
       });
 
       if (testResult) {
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
         announcementType: announcement.announcement_type,
         imageUrl: announcementImage?.url ?? null,
         imageAlt: announcementImage?.alt ?? null,
+        metadata: announcement.metadata,
       }
     );
 
@@ -191,6 +193,7 @@ export async function POST(request: NextRequest) {
     const pushPayload = buildPushPayload('chapter_announcement', {
       announcementId: announcement.id,
       announcementTitle: announcement.title,
+      announcementMetadata: announcement.metadata,
     });
     for (const member of recipientMembers) {
       sendPushToUser(member.id, pushPayload).catch(pushErr => {

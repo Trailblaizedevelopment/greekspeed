@@ -5,6 +5,7 @@
 
 import type { NotificationType } from '@/lib/services/notificationTypes';
 import type { OneSignalPushPayload } from '@/lib/services/oneSignalPushService';
+import { getPrimaryLinkFromMetadata } from '@/lib/validation/announcementMetadata';
 import { getEmailBaseUrl } from '@/lib/utils/urlUtils';
 
 /** Context fields used to build push payloads. Not all fields are required for every event. */
@@ -13,6 +14,8 @@ export interface NotificationPushContext {
 
   announcementId?: string;
   announcementTitle?: string;
+  /** Row `metadata` JSON; used to resolve optional primary link URL for push. */
+  announcementMetadata?: unknown;
 
   eventId?: string;
   eventSlug?: string | null;
@@ -109,12 +112,14 @@ export function buildPushPayload(
   const base = context.baseUrl ?? getEmailBaseUrl();
 
   switch (event) {
-    case 'chapter_announcement':
+    case 'chapter_announcement': {
+      const primary = getPrimaryLinkFromMetadata(context.announcementMetadata);
       return {
         title: 'Chapter Announcement',
         body: context.announcementTitle ?? 'New announcement from your chapter',
-        url: `${base}/dashboard/announcements`,
+        url: primary?.url ?? `${base}/dashboard/announcements`,
       };
+    }
 
     case 'new_event':
       return {

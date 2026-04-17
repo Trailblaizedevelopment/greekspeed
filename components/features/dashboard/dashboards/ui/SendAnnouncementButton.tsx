@@ -17,6 +17,10 @@ import { useAuth } from '@/lib/supabase/auth-context';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
 import { cn } from '@/lib/utils';
 import { AnnouncementImageAttachmentField } from './AnnouncementImageAttachmentField';
+import {
+  AnnouncementPrimaryLinkFields,
+  isValidHttpsAnnouncementLinkInput,
+} from './AnnouncementPrimaryLinkFields';
 
 export function SendAnnouncementButton() {
   const { session } = useAuth();
@@ -38,6 +42,8 @@ export function SendAnnouncementButton() {
   const [alumniSmsRecipientCount, setAlumniSmsRecipientCount] = useState<number | null>(null);
   const [alumniEmailRecipientCount, setAlumniEmailRecipientCount] = useState<number | null>(null);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
+  const [primaryLinkUrl, setPrimaryLinkUrl] = useState('');
+  const [primaryLinkLabel, setPrimaryLinkLabel] = useState('');
 
   const {
     pendingImage,
@@ -104,6 +110,11 @@ export function SendAnnouncementButton() {
       return;
     }
 
+    if (!isValidHttpsAnnouncementLinkInput(primaryLinkUrl)) {
+      toast.error('Enter a valid https:// link or clear the link field.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const announcementData: CreateAnnouncementData = {
@@ -114,7 +125,11 @@ export function SendAnnouncementButton() {
         send_sms_to_alumni: sendSmsToAlumni,
         send_email_to_members: sendEmailToMembers,
         send_email_to_alumni: sendEmailToAlumni,
-        metadata: buildMetadata(),
+        metadata: buildMetadata(
+          primaryLinkUrl.trim()
+            ? { primaryLink: { url: primaryLinkUrl, label: primaryLinkLabel } }
+            : undefined
+        ),
       };
 
       await createAnnouncement(announcementData);
@@ -127,6 +142,8 @@ export function SendAnnouncementButton() {
       setSendSmsToAlumni(false);
       setSendEmailToMembers(false);
       setSendEmailToAlumni(false);
+      setPrimaryLinkUrl('');
+      setPrimaryLinkLabel('');
       resetAttachment();
       setShowModal(false);
     } catch (error) {
@@ -187,6 +204,16 @@ export function SendAnnouncementButton() {
         processImageFile={processImageFile}
         onRemove={removeImage}
         disabled={isSubmitting || announcementsLoading}
+      />
+
+      <AnnouncementPrimaryLinkFields
+        idSuffix={`send-announcement-${idSuffix}`}
+        url={primaryLinkUrl}
+        label={primaryLinkLabel}
+        onUrlChange={setPrimaryLinkUrl}
+        onLabelChange={setPrimaryLinkLabel}
+        disabled={isSubmitting || announcementsLoading}
+        compact={isMobileSheet}
       />
 
       <div className="space-y-1">

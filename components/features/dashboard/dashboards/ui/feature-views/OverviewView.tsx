@@ -28,6 +28,10 @@ import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { isPublishedEventUpcoming } from '@/lib/utils/eventScheduleDisplay';
 import { useAnnouncementImageAttachment } from '@/lib/hooks/useAnnouncementImageAttachment';
 import { AnnouncementImageAttachmentField } from '../AnnouncementImageAttachmentField';
+import {
+  AnnouncementPrimaryLinkFields,
+  isValidHttpsAnnouncementLinkInput,
+} from '../AnnouncementPrimaryLinkFields';
 import { EmbeddedMembershipRequestsSection } from '@/components/features/dashboard/EmbeddedMembershipRequestsSection';
 
 interface OverviewViewProps {
@@ -70,6 +74,8 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
   const [memberSmsRecipientCount, setMemberSmsRecipientCount] = useState<number | null>(null);
   const [alumniSmsRecipientCount, setAlumniSmsRecipientCount] = useState<number | null>(null);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
+  const [primaryLinkUrl, setPrimaryLinkUrl] = useState('');
+  const [primaryLinkLabel, setPrimaryLinkLabel] = useState('');
 
   const {
     pendingImage,
@@ -155,6 +161,11 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
       return;
     }
 
+    if (!isValidHttpsAnnouncementLinkInput(primaryLinkUrl)) {
+      toast.error('Enter a valid https:// link or clear the link field.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const announcementData: CreateAnnouncementData = {
@@ -165,7 +176,11 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
         send_sms_to_alumni: sendSmsToAlumni,
         send_email_to_members: sendEmailToMembers,
         send_email_to_alumni: sendEmailToAlumni,
-        metadata: buildMetadata(),
+        metadata: buildMetadata(
+          primaryLinkUrl.trim()
+            ? { primaryLink: { url: primaryLinkUrl, label: primaryLinkLabel } }
+            : undefined
+        ),
       };
 
       await createAnnouncement(announcementData);
@@ -178,6 +193,8 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
       setSendSmsToAlumni(false);
       setSendEmailToMembers(false);
       setSendEmailToAlumni(false);
+      setPrimaryLinkUrl('');
+      setPrimaryLinkLabel('');
       resetAttachment();
       
       toast.success('Announcement sent successfully!');
@@ -511,135 +528,170 @@ export function OverviewView({ selectedRole, onFeatureChange }: OverviewViewProp
       </div>
 
       {/* Announcements and Quick Actions - Side by Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-h-[500px]">
+      <div className="grid min-h-0 max-h-[500px] grid-cols-1 gap-6 lg:grid-cols-4">
         {/* Announcements Card - Left side, 3/4 width */}
-        <Card className="w-full lg:col-span-3 flex flex-col max-h-[500px] bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
+        <Card className="w-full lg:col-span-3 flex min-h-0 flex-col max-h-[500px] bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
           <CardHeader className="pb-3 flex-shrink-0 border-b border-primary-100/30">
             <CardTitle className="flex items-center space-x-2">
               <Megaphone className="h-5 w-5 text-brand-primary" />
               <span className="text-primary-900">Chapter Announcements</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 flex-1 overflow-y-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Input
-                placeholder="Announcement title..."
-                value={announcementTitle}
-                onChange={(e) => setAnnouncementTitle(e.target.value)}
-                className="md:col-span-2"
-              />
-              <Select 
-                value={announcementType} 
-                onValueChange={(value: string) => setAnnouncementType(value as 'general' | 'urgent' | 'event' | 'academic')}
-              >
-                <SelectItem value="general">General</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
-                <SelectItem value="event">Event</SelectItem>
-                <SelectItem value="academic">Academic</SelectItem>
-              </Select>
-            </div>
-            
-            <Textarea
-              placeholder="Write a chapter announcement..."
-              value={announcement}
-              onChange={(e) => setAnnouncement(e.target.value)}
-              className="min-h-[100px]"
-            />
-
-            <AnnouncementImageAttachmentField
-              idSuffix="overview"
-              pendingImage={pendingImage}
-              imageAlt={imageAlt}
-              onAltChange={setImageAlt}
-              imageUploading={imageUploading}
-              acceptTypes={acceptTypes}
-              onFileChange={handleFileChange}
-              processImageFile={processImageFile}
-              onRemove={removeImage}
-              disabled={isSubmitting || announcementsLoading}
-            />
-            
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-              <div className="flex flex-col space-y-3 flex-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Delivery Options
-                </p>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="send-sms-members"
-                      checked={sendSmsToMembers}
-                      onCheckedChange={(checked) => setSendSmsToMembers(checked as boolean)}
-                    />
-                    <Label htmlFor="send-sms-members" className="text-sm cursor-pointer flex items-center gap-1.5">
-                      <Smartphone className="h-3.5 w-3.5 text-gray-500" />
-                      SMS to Actives
-                      {memberSmsRecipientCount !== null && (
-                        <span className="text-xs text-gray-500 font-normal">({memberSmsRecipientCount})</span>
-                      )}
-                    </Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="send-sms-alumni"
-                      checked={sendSmsToAlumni}
-                      onCheckedChange={(checked) => setSendSmsToAlumni(checked as boolean)}
-                    />
-                    <Label htmlFor="send-sms-alumni" className="text-sm cursor-pointer flex items-center gap-1.5">
-                      <Smartphone className="h-3.5 w-3.5 text-gray-500" />
-                      SMS to Alumni
-                      {alumniSmsRecipientCount !== null && (
-                        <span className="text-xs text-gray-500 font-normal">({alumniSmsRecipientCount})</span>
-                      )}
-                    </Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="send-email-members"
-                      checked={sendEmailToMembers}
-                      onCheckedChange={(checked) => setSendEmailToMembers(checked as boolean)}
-                    />
-                    <Label htmlFor="send-email-members" className="text-sm cursor-pointer flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 text-gray-500" />
-                      Email to Actives
-                      {emailRecipientCount !== null && (
-                        <span className="text-xs text-gray-500 font-normal">({emailRecipientCount})</span>
-                      )}
-                    </Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="send-email-alumni"
-                      checked={sendEmailToAlumni}
-                      onCheckedChange={(checked) => setSendEmailToAlumni(checked as boolean)}
-                    />
-                    <Label htmlFor="send-email-alumni" className="text-sm cursor-pointer flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 text-gray-500" />
-                      Email to Alumni
-                      {alumniEmailRecipientCount !== null && (
-                        <span className="text-xs text-gray-500 font-normal">({alumniEmailRecipientCount})</span>
-                      )}
-                    </Label>
-                  </div>
-                </div>
-                
-                {loadingRecipients && (
-                  <p className="text-xs text-gray-400 pl-6">Loading recipient counts...</p>
-                )}
+          <CardContent className="flex min-h-0 flex-1 flex-col p-6 pt-4">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <Input
+                  placeholder="Announcement title..."
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  className="md:col-span-2"
+                />
+                <Select
+                  value={announcementType}
+                  onValueChange={(value: string) =>
+                    setAnnouncementType(value as 'general' | 'urgent' | 'event' | 'academic')
+                  }
+                >
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                  <SelectItem value="event">Event</SelectItem>
+                  <SelectItem value="academic">Academic</SelectItem>
+                </Select>
               </div>
-              
-              <Button 
-                className="rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 w-full md:w-auto transition-all duration-300"
-                onClick={handleSendAnnouncement}
+
+              <Textarea
+                placeholder="Write a chapter announcement..."
+                value={announcement}
+                onChange={(e) => setAnnouncement(e.target.value)}
+                className="min-h-[100px]"
+              />
+
+              <AnnouncementImageAttachmentField
+                idSuffix="overview"
+                pendingImage={pendingImage}
+                imageAlt={imageAlt}
+                onAltChange={setImageAlt}
+                imageUploading={imageUploading}
+                acceptTypes={acceptTypes}
+                onFileChange={handleFileChange}
+                processImageFile={processImageFile}
+                onRemove={removeImage}
                 disabled={isSubmitting || announcementsLoading}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                {isSubmitting ? 'Sending...' : 'Send Announcement'}
-              </Button>
+              />
+
+              <AnnouncementPrimaryLinkFields
+                idSuffix="overview"
+                url={primaryLinkUrl}
+                label={primaryLinkLabel}
+                onUrlChange={setPrimaryLinkUrl}
+                onLabelChange={setPrimaryLinkLabel}
+                disabled={isSubmitting || announcementsLoading}
+              />
+            </div>
+
+            <div className="mt-3 flex-shrink-0 border-t border-primary-100/30 bg-white/80 pt-3">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-1 flex-col space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Delivery Options
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="send-sms-members"
+                        checked={sendSmsToMembers}
+                        onCheckedChange={(checked) => setSendSmsToMembers(checked as boolean)}
+                      />
+                      <Label
+                        htmlFor="send-sms-members"
+                        className="flex cursor-pointer items-center gap-1.5 text-sm"
+                      >
+                        <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+                        SMS to Actives
+                        {memberSmsRecipientCount !== null && (
+                          <span className="text-xs font-normal text-gray-500">
+                            ({memberSmsRecipientCount})
+                          </span>
+                        )}
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="send-sms-alumni"
+                        checked={sendSmsToAlumni}
+                        onCheckedChange={(checked) => setSendSmsToAlumni(checked as boolean)}
+                      />
+                      <Label
+                        htmlFor="send-sms-alumni"
+                        className="flex cursor-pointer items-center gap-1.5 text-sm"
+                      >
+                        <Smartphone className="h-3.5 w-3.5 text-gray-500" />
+                        SMS to Alumni
+                        {alumniSmsRecipientCount !== null && (
+                          <span className="text-xs font-normal text-gray-500">
+                            ({alumniSmsRecipientCount})
+                          </span>
+                        )}
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="send-email-members"
+                        checked={sendEmailToMembers}
+                        onCheckedChange={(checked) => setSendEmailToMembers(checked as boolean)}
+                      />
+                      <Label
+                        htmlFor="send-email-members"
+                        className="flex cursor-pointer items-center gap-1.5 text-sm"
+                      >
+                        <Mail className="h-3.5 w-3.5 text-gray-500" />
+                        Email to Actives
+                        {emailRecipientCount !== null && (
+                          <span className="text-xs font-normal text-gray-500">
+                            ({emailRecipientCount})
+                          </span>
+                        )}
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="send-email-alumni"
+                        checked={sendEmailToAlumni}
+                        onCheckedChange={(checked) => setSendEmailToAlumni(checked as boolean)}
+                      />
+                      <Label
+                        htmlFor="send-email-alumni"
+                        className="flex cursor-pointer items-center gap-1.5 text-sm"
+                      >
+                        <Mail className="h-3.5 w-3.5 text-gray-500" />
+                        Email to Alumni
+                        {alumniEmailRecipientCount !== null && (
+                          <span className="text-xs font-normal text-gray-500">
+                            ({alumniEmailRecipientCount})
+                          </span>
+                        )}
+                      </Label>
+                    </div>
+                  </div>
+
+                  {loadingRecipients && (
+                    <p className="pl-6 text-xs text-gray-400">Loading recipient counts...</p>
+                  )}
+                </div>
+
+                <Button
+                  className="w-full rounded-full border border-brand-primary/50 bg-white/80 text-brand-primary-hover shadow-lg shadow-navy-100/20 backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:text-primary-900 hover:shadow-xl hover:shadow-navy-100/30 md:w-auto"
+                  onClick={handleSendAnnouncement}
+                  disabled={isSubmitting || announcementsLoading}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {isSubmitting ? 'Sending...' : 'Send Announcement'}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
