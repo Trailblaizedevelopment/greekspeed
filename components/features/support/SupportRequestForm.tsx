@@ -60,11 +60,20 @@ export function SupportRequestForm() {
         }),
       });
 
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        retryAfterSec?: number;
+      };
 
       if (!res.ok) {
         setStatus('error');
-        setErrorMessage(data.error || 'Something went wrong. Please try again.');
+        if (res.status === 429 && typeof data.retryAfterSec === 'number') {
+          setErrorMessage(
+            `${data.error || 'Please wait before sending another message.'} Try again in about ${data.retryAfterSec}s.`
+          );
+        } else {
+          setErrorMessage(data.error || 'Something went wrong. Please try again.');
+        }
         return;
       }
 

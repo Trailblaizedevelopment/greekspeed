@@ -7,6 +7,11 @@ import {
   supportRequestBodySchema,
   type SupportRequestCategory,
 } from '@/lib/validation/supportRequest';
+import {
+  checkSupportSubmissionCooldown,
+  getSupportSubmissionCooldownSeconds,
+  recordSuccessfulSupportSubmission,
+} from '@/lib/server/supportSubmissionRateLimit';
 
 function escapeHtml(text: string): string {
   return text
@@ -96,6 +101,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
+    const cooldownSec = getSupportSubmissionCooldownSeconds();
+    const rate = await checkSupportSubmissionCooldown(supabase, user.id, cooldownSec);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error: 'You recently sent a message. Please wait before submitting again.',
+          retryAfterSec: rate.retryAfterSec,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rate.retryAfterSec) },
+        }
+      );
+    }
+
     let chapterName: string | null = null;
     if (profile.chapter_id) {
       const { data: chapter } = await supabase
@@ -177,6 +197,8 @@ export async function POST(request: NextRequest) {
     if (!sent) {
       return NextResponse.json({ error: 'Failed to send support request' }, { status: 500 });
     }
+
+    await recordSuccessfulSupportSubmission(supabase, user.id);
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error) {
