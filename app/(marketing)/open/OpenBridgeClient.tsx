@@ -32,62 +32,24 @@ export function OpenBridgeClient({
 }: OpenBridgeClientProps) {
   const hasStores = Boolean(iosUrl || androidUrl);
 
-  const title = chapterInviteName ? `Join ${chapterInviteName}` : null;
-
-  const subtitle = chapterInviteName
-    ? 'Continue in your browser to accept this invitation, or open the Trailblaize mobile app through app store.'
-    : 'Pick up where your link left off. Continue in your browser for the full web experience, or download our mobile app.';
-
   const showIntentEyebrow =
     intentLabel && !chapterInviteName && intentLabel !== 'Chapter invitation';
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white flex flex-col">
       <MarketingHeader hideNavigation />
 
       <section
-        className="relative pt-16 pb-24 sm:pt-20 sm:pb-28 overflow-hidden"
+        className="relative flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-12 sm:py-16 overflow-hidden"
         aria-label="Trailblaize — choose web browser or mobile app"
       >
         <div
           className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-accent-50/40 pointer-events-none"
           aria-hidden
         />
-        <div className="relative max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative w-full max-w-xl mx-auto">
           <motion.div {...motionCard}>
-            <p className="text-center text-sm font-semibold tracking-wide text-brand-primary uppercase mb-3">
-              Trailblaize
-            </p>
-
-            {title ? (
-              <h1
-                id="open-bridge-heading"
-                className="text-center text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight leading-tight"
-              >
-                {title}
-              </h1>
-            ) : null}
-
-            <p
-              className={cn(
-                'text-center text-base sm:text-lg text-gray-600 leading-relaxed max-w-md mx-auto',
-                title ? 'mt-3' : 'mt-1'
-              )}
-            >
-              {subtitle}
-            </p>
-
-            {chapterInviteName ? (
-              <p className="mt-2 text-center text-sm text-gray-500">
-                Chapter invitation · verified link
-              </p>
-            ) : null}
-
-            {showIntentEyebrow ? (
-              <p className="mt-2 text-center text-sm text-gray-500">{intentLabel}</p>
-            ) : null}
-
-            <div className="mt-10 rounded-2xl border border-gray-100 bg-white/95 backdrop-blur-sm shadow-xl shadow-gray-200/50 p-6 sm:p-9 space-y-8">
+            <div className="rounded-2xl border border-gray-100 bg-white/95 backdrop-blur-sm shadow-xl shadow-gray-200/50 p-6 sm:p-9 space-y-8">
               <div className="flex justify-center py-1">
                 <Image
                   src="/logo.png"
@@ -98,6 +60,28 @@ export function OpenBridgeClient({
                   priority
                 />
               </div>
+
+              {chapterInviteName ? (
+                <div className="text-center space-y-2 -mt-2">
+                  <h1
+                    id="open-bridge-heading"
+                    className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight leading-tight"
+                  >
+                    Join {chapterInviteName}
+                  </h1>
+                  <p className="text-sm text-gray-500">
+                    Chapter invitation · verified link
+                  </p>
+                  <p className="text-sm text-gray-600 leading-relaxed pt-1">
+                    Continue in your browser to accept this invitation, or use the
+                    mobile app if you already have it installed.
+                  </p>
+                </div>
+              ) : null}
+
+              {showIntentEyebrow ? (
+                <p className="text-center text-sm text-gray-500 -mt-2">{intentLabel}</p>
+              ) : null}
 
               <div className="space-y-3">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
