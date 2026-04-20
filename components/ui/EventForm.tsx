@@ -95,7 +95,11 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
         
         if (response.ok) {
           const data = await response.json();
-          setEmailRecipientCount(data.email_recipients);
+          const activeEmail = typeof data.email_recipients === 'number' ? data.email_recipients : 0;
+          const alumniEmail =
+            typeof data.alumni_email_recipients === 'number' ? data.alumni_email_recipients : 0;
+          // recipient-counts zeros alumni when Alumni visibility is off — sum matches who could receive email
+          setEmailRecipientCount(activeEmail + alumniEmail);
           setSmsRecipientCount(data.sms_recipients);
           setAlumniSmsRecipientCount(
             typeof data.alumni_sms_recipients === 'number'
@@ -380,7 +384,7 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
             <div className="space-y-3 sm:space-y-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3 sm:p-4">
               <Label className="text-base sm:text-sm font-medium text-gray-900">Who can see this event?</Label>
               <p className="text-xs text-gray-500">
-                Notification counts below reflect these choices (email to active members; SMS options are separate).
+                Notification counts below reflect these choices (email includes alumni when Alumni is checked; SMS options are separate).
               </p>
               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-6">
                 <div className="flex items-center space-x-2">
@@ -445,11 +449,12 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
                   <Mail className="h-3 w-3" />
                   {/* Mobile: Shorter text */}
                   <span className="sm:hidden">
-                    Email to <span className="font-medium">{emailRecipientCount}</span> email notifs enabled
+                    Email to <span className="font-medium">{emailRecipientCount}</span> with notifs enabled
                   </span>
                   {/* Desktop: Full text */}
                   <span className="hidden sm:inline">
-                    Email will be sent to <span className="font-medium">{emailRecipientCount}</span> {emailRecipientCount === 1 ? 'member' : 'members'} with email notifications enabled
+                    Email will be sent to <span className="font-medium">{emailRecipientCount}</span>{' '}
+                    {emailRecipientCount === 1 ? 'recipient' : 'recipients'} with email notifications enabled
                   </span>
                 </p>
                 )}
