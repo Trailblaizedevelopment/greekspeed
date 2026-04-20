@@ -116,12 +116,17 @@ export async function POST(request: NextRequest) {
 
     const allowedList = allowedMembers
       .filter((m): m is NonNullable<typeof m> => Boolean(m));
-    const recipients = allowedList
-      .filter((member) => Boolean(member.email))
+
+    type ReminderRecipient = { email: string; firstName: string; chapterName: string };
+    const recipients: ReminderRecipient[] = allowedList
+      .filter(
+        (member): member is (typeof member & { email: string }) =>
+          typeof member.email === 'string' && member.email.trim().length > 0
+      )
       .map((member) => ({
-        email: member.email as string,
+        email: member.email,
         firstName: member.first_name || 'Member',
-        chapterName: chapter?.name || 'Your Chapter',
+        chapterName: chapter?.name ?? 'Your Chapter',
       }));
 
     let startAtRelative = 'Time TBD';

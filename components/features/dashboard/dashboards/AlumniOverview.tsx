@@ -1,15 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Home, Users, User, Search, Building2 } from 'lucide-react';
 import { PersonalAlumniProfile } from './ui/PersonalAlumniProfile';
 import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
 import { NetworkingSpotlightCard } from './ui/NetworkingSpotlightCard';
 import { CalendarEventsWeekCard } from './ui/CalendarEventsWeekCard';
-import { FeatureGuard } from '@/components/shared/FeatureGuard';
+import { SocialFeedEventsRail } from './ui/SocialFeedEventsRail';
 import type { Event } from '@/types/events';
-import { AlumniMobileBottomNavigation } from './ui/AlumniMobileBottomNavigation';
 import { MobileNetworkPage } from './ui/MobileNetworkPage';
 import { MobileProfilePage } from './ui/MobileProfilePage';
 import { AlumniPipeline } from '@/components/features/alumni/AlumniPipeline';
@@ -44,7 +43,8 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
   const chapterId = (isDeveloper ? (fallbackChapterId ?? profile?.chapter_id) : (profile?.chapter_id ?? fallbackChapterId)) ?? null;
   const router = useRouter();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
-  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const selectedProfileState = useState<Profile | null>(null);
+  const selectedProfile = selectedProfileState[0];
   const [activeMobileTab, setActiveMobileTab] = useState('home');
 
   // Desktop: shared events for CalendarEventsWeekCard (same pattern as ActiveMemberOverview)
@@ -79,6 +79,18 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
     fetchAllEvents();
   }, [fetchAllEvents]);
 
+  const alumniMobileFeedEventSlot = useMemo(
+    () => (
+      <SocialFeedEventsRail
+        events={allEvents}
+        loading={eventsLoading}
+        error={eventsError}
+        onRetry={fetchAllEvents}
+      />
+    ),
+    [allEvents, eventsLoading, eventsError, fetchAllEvents]
+  );
+
   const renderMobileContent = () => {
     switch (activeMobileTab) {
       case 'home':
@@ -86,7 +98,12 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
           <div className="space-y-4">
             {/* Social Feed - Primary feature for alumni */}
             <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+              <SocialFeed
+                chapterId={chapterId || ''}
+                initialData={initialFeed}
+                inlineFeedSlot={alumniMobileFeedEventSlot}
+                inlineSlotAfterPostIndex={3}
+              />
             </div>
           </div>
         );
@@ -98,7 +115,12 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
         return (
           <div className="space-y-4">
             <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+              <SocialFeed
+                chapterId={chapterId || ''}
+                initialData={initialFeed}
+                inlineFeedSlot={alumniMobileFeedEventSlot}
+                inlineSlotAfterPostIndex={3}
+              />
             </div>
           </div>
         );
@@ -164,15 +186,13 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
           <div className="col-span-3 col-start-10 row-start-1">
             <div className="space-y-6">
               <PersonalAlumniProfile />
-              <FeatureGuard flagName="events_management_enabled">
-                <CalendarEventsWeekCard
-                  userId={profile?.id}
-                  events={allEvents}
-                  loading={eventsLoading}
-                  error={eventsError}
-                  onRetry={fetchAllEvents}
-                />
-              </FeatureGuard>
+              <CalendarEventsWeekCard
+                userId={profile?.id}
+                events={allEvents}
+                loading={eventsLoading}
+                error={eventsError}
+                onRetry={fetchAllEvents}
+              />
             </div>
           </div>
         </div>
