@@ -75,6 +75,8 @@ export function SearchableSelect({
   const [mounted, setMounted] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isMobile, setIsMobile] = useState(false);
+  /** Inline mobile dropdown: open above trigger when more viewport space above. */
+  const [mobileOpenUpward, setMobileOpenUpward] = useState(false);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -333,15 +335,57 @@ export function SearchableSelect({
       return;
     }
 
+    // Portaled to document.body with position:fixed — flip + cap height using viewport (profile basics, etc.)
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const viewportTop = vv ? vv.offsetTop : 0;
+    const viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const spaceBelow = Math.max(0, viewportBottom - rect.bottom - margin);
+    const spaceAbove = Math.max(0, rect.top - viewportTop - margin);
+
+    const panelCap = Math.min(
+      448,
+      vv ? vv.height * 0.88 : window.innerHeight * 0.7
+    );
+    const minPanel = 120;
+    const maxDropdownPreferUp = 200;
+
+    const shouldOpenUpward =
+      spaceBelow < maxDropdownPreferUp && spaceAbove > spaceBelow;
+
     const vw = window.innerWidth;
     const desiredMin = Math.max(rect.width, 280);
     const maxWidthFromLeft = vw - rect.left - margin;
     const width = Math.min(desiredMin, maxWidthFromLeft);
     const left = Math.max(margin, Math.min(rect.left, vw - width - margin));
-    const top = rect.bottom + 4;
+
+    let top: number;
+    let panelMaxHeightPx: number;
+
+    if (!shouldOpenUpward) {
+      panelMaxHeightPx = Math.min(panelCap, Math.max(minPanel, spaceBelow - gap));
+      top = rect.bottom + gap;
+    } else {
+      panelMaxHeightPx = Math.min(panelCap, Math.max(minPanel, spaceAbove - gap));
+      top = rect.top - panelMaxHeightPx - gap;
+      const minTop = viewportTop + margin;
+      if (top < minTop) {
+        const shrinkBy = minTop - top;
+        top = minTop;
+        panelMaxHeightPx = Math.max(minPanel, panelMaxHeightPx - shrinkBy);
+      }
+    }
+
     setDropdownRect((prev) => {
-      if (prev && prev.top === top && prev.left === left && prev.width === width) return prev;
-      return { top, left, width };
+      if (
+        prev &&
+        prev.top === top &&
+        prev.left === left &&
+        prev.width === width &&
+        prev.panelMaxHeightPx === panelMaxHeightPx
+      ) {
+        return prev;
+      }
+      return { top, left, width, panelMaxHeightPx };
     });
   }, [portalContainerRef]);
 
@@ -390,6 +434,48 @@ export function SearchableSelect({
       ro?.disconnect();
     };
   }, [isOpen, isMobile, hasPortalHost, updateDropdownPosition]);
+
+  // Mobile inline: flip panel above trigger when viewport has more space above (same heuristic as desktop body portal).
+  useLayoutEffect(() => {
+    if (!isMobile || hasPortalHost) return;
+    if (!isOpen) {
+      setMobileOpenUpward(false);
+      return;
+    }
+
+    const update = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      const viewportTop = vv?.offsetTop ?? 0;
+      const viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const margin = 12;
+      const spaceBelow = Math.max(0, viewportBottom - rect.bottom - margin);
+      const spaceAbove = Math.max(0, rect.top - viewportTop - margin);
+      setMobileOpenUpward(spaceBelow < 200 && spaceAbove > spaceBelow);
+    };
+
+    update();
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    vv?.addEventListener('resize', update);
+    vv?.addEventListener('scroll', update);
+
+    const trigger = triggerRef.current;
+    const scrollParents = getScrollParents(trigger);
+    scrollParents.forEach((p) => p.addEventListener('scroll', update, { passive: true }));
+
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+      vv?.removeEventListener('resize', update);
+      vv?.removeEventListener('scroll', update);
+      scrollParents.forEach((p) => p.removeEventListener('scroll', update));
+      setMobileOpenUpward(false);
+    };
+  }, [isOpen, isMobile, hasPortalHost]);
 
   // Desktop-only: manual wheel → scrollTop so list scrolls while parent is locked
   useEffect(() => {
@@ -524,7 +610,10 @@ export function SearchableSelect({
         {isOpen && (
           <div
             ref={dropdownRef}
-            className="absolute left-0 right-0 top-full mt-1 z-50 max-h-[min(60vh,20rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain"
+            className={cn(
+              'absolute left-0 right-0 z-50 max-h-[min(60vh,20rem)] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain',
+              mobileOpenUpward ? 'bottom-full mb-1' : 'top-full mt-1'
+            )}
           >
             {dropdownContent}
           </div>

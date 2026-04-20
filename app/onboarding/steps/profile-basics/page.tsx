@@ -497,9 +497,6 @@ export default function ProfileBasicsPage() {
           mutual_connections: [],
           updated_at: new Date().toISOString(),
         };
-        if (resolvedChapterUuid) {
-          alumniRow.chapter_id = resolvedChapterUuid;
-        }
 
         const { error: alumniError } = await supabase.from('alumni').upsert(alumniRow, {
           onConflict: 'user_id',
