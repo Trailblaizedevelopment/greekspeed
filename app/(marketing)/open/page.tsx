@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import {
+  getOpenBridgeChapterInviteToken,
   getOpenBridgeStoreUrls,
   resolveOpenBridgeContinuePath,
 } from '@/lib/utils/deferredAppRouting';
+import { validateInvitationToken } from '@/lib/utils/invitationUtils';
 import { OpenBridgeClient } from './OpenBridgeClient';
 
 export const metadata: Metadata = {
@@ -25,10 +27,20 @@ export default async function OpenBridgePage({ searchParams }: OpenBridgePagePro
   const { continuePath, intentLabel } = resolveOpenBridgeContinuePath(raw);
   const { ios, android } = getOpenBridgeStoreUrls();
 
+  const inviteToken = getOpenBridgeChapterInviteToken(raw);
+  let chapterInviteName: string | null = null;
+  if (inviteToken) {
+    const validation = await validateInvitationToken(inviteToken);
+    if (validation.valid && validation.chapter_name) {
+      chapterInviteName = validation.chapter_name;
+    }
+  }
+
   return (
     <OpenBridgeClient
       continuePath={continuePath}
       intentLabel={intentLabel}
+      chapterInviteName={chapterInviteName}
       iosUrl={ios}
       androidUrl={android}
     />
