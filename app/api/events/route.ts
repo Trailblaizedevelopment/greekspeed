@@ -3,6 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import { compareEventsByStartAsc, normalizeEventTimeField } from '@/lib/utils/eventScheduleDisplay';
 import { authenticateApiRequest } from '@/lib/api/authenticateApiRequest';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import {
+  filterEventsForAudience,
+  parseAudienceBooleans,
+  validateAudienceSelection,
+  type EventAudienceViewer,
+} from '@/lib/utils/eventAudienceVisibility';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -20,13 +26,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Chapter ID is required' }, { status: 400 });
     }
 
+    let audienceViewer: EventAudienceViewer | null = null;
+
     // TRA-584: Logged-in users must pass the same chapter access rules as the feed (marketing pending → 403).
     // Unauthenticated callers keep prior behavior (e.g. public profile upcoming events).
     const auth = await authenticateApiRequest(request);
     if (auth) {
       const { data: accessProfile, error: accessProfileError } = await auth.supabase
         .from('profiles')
-        .select('chapter_id, signup_channel, is_developer')
+        .select('chapter_id, signup_channel, is_developer, role, chapter_role')
         .eq('id', auth.user.id)
         .single();
 
@@ -47,6 +55,12 @@ export async function GET(request: NextRequest) {
       if (!access.ok) {
         return access.response;
       }
+
+      audienceViewer = {
+        role: accessProfile.role ?? null,
+        chapter_role: accessProfile.chapter_role ?? null,
+        is_developer: accessProfile.is_developer ?? false,
+      };
     }
 
     let query = supabase
@@ -107,11 +121,13 @@ export async function GET(request: NextRequest) {
       };
     }) || [];
 
+    const filtered = filterEventsForAudience(eventsWithCounts, audienceViewer);
+
     if (scope === 'upcoming') {
-      eventsWithCounts.sort(compareEventsByStartAsc);
+      filtered.sort(compareEventsByStartAsc);
     }
 
-    return NextResponse.json(eventsWithCounts, {
+    return NextResponse.json(filtered, {
       headers: {
         'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
       },
@@ -143,15 +159,33 @@ export async function POST(request: NextRequest) {
     // Extract send_sms and send_sms_to_alumni flags (they're not database columns, just notification flags)
     const { send_sms, send_sms_to_alumni, ...dbEventData } = eventData;
 
-    // Create the event
-    const insertData = {
-      ...dbEventData,
+    const { visible_to_active_members, visible_to_alumni } = parseAudienceBooleans(
+      dbEventData as Record<string, unknown>
+    );
+    const audienceCheck = validateAudienceSelection(visible_to_active_members, visible_to_alumni);
+    if (!audienceCheck.ok) {
+      return NextResponse.json({ error: audienceCheck.error }, { status: 400 });
+    }
+
+    // Create the event — only persist known columns (avoid arbitrary client keys on insert)
+    const insertData: Record<string, unknown> = {
+      chapter_id: dbEventData.chapter_id,
+      title: String(dbEventData.title).trim(),
+      description: dbEventData.description ?? null,
+      location: dbEventData.location ?? null,
       start_time: startTime,
       end_time: endTime,
       status: dbEventData.status || 'published',
-      created_by: dbEventData.created_by || 'system', // Will be updated when we add proper auth
-      updated_by: dbEventData.updated_by || 'system'
+      budget_label: dbEventData.budget_label ?? null,
+      budget_amount: dbEventData.budget_amount ?? null,
+      created_by: dbEventData.created_by || 'system',
+      updated_by: dbEventData.updated_by || 'system',
+      visible_to_active_members,
+      visible_to_alumni,
     };
+    if (dbEventData.metadata !== undefined) {
+      insertData.metadata = dbEventData.metadata;
+    }
 
     const { data: newEvent, error } = await supabase
       .from('events')

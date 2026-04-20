@@ -38,6 +38,8 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
     budget_amount: undefined,
     send_sms: false,
     send_sms_to_alumni: false,
+    visible_to_active_members: true,
+    visible_to_alumni: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -59,6 +61,8 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
         budget_amount: event.budget_amount || undefined,
         send_sms: false,
         send_sms_to_alumni: false,
+        visible_to_active_members: event.visible_to_active_members ?? true,
+        visible_to_alumni: event.visible_to_alumni ?? true,
       });
     }
   }, [event]);
@@ -78,8 +82,10 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
       
       setLoadingRecipients(true);
       try {
+        const vActive = formData.visible_to_active_members !== false;
+        const vAlumni = formData.visible_to_alumni !== false;
         const response = await fetch(
-          `/api/events/recipient-counts?chapter_id=${chapterId}`,
+          `/api/events/recipient-counts?chapter_id=${encodeURIComponent(chapterId)}&visible_to_active_members=${vActive}&visible_to_alumni=${vAlumni}`,
           {
             headers: {
               'Authorization': `Bearer ${session.access_token}`
@@ -105,7 +111,7 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
     };
 
     fetchRecipientCounts();
-  }, [chapterId, session?.access_token]);
+  }, [chapterId, session?.access_token, formData.visible_to_active_members, formData.visible_to_alumni]);
 
   // Helper function to determine if event is important
   const checkIfEventIsImportant = (title: string, startTime: string): boolean => {
@@ -146,6 +152,12 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
       newErrors.budget_amount = 'Budget amount cannot be negative';
     }
 
+    const showActive = formData.visible_to_active_members !== false;
+    const showAlumni = formData.visible_to_alumni !== false;
+    if (!showActive && !showAlumni) {
+      newErrors.audience = 'Select at least one audience: Active Members and/or Alumni.';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -179,6 +191,12 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    if (
+      (field === 'visible_to_active_members' || field === 'visible_to_alumni') &&
+      errors.audience
+    ) {
+      setErrors(prev => ({ ...prev, audience: '' }));
     }
   };
 
@@ -356,6 +374,43 @@ export function EventForm({ event, onSubmit, onCancel, loading = false, isOpen =
                   <p className="text-sm text-red-500">{errors.budget_amount}</p>
                 )}
               </div>
+            </div>
+
+            {/* Chapter visibility (who can see this event in the app) */}
+            <div className="space-y-3 sm:space-y-2 rounded-lg border border-gray-100 bg-gray-50/80 p-3 sm:p-4">
+              <Label className="text-base sm:text-sm font-medium text-gray-900">Who can see this event?</Label>
+              <p className="text-xs text-gray-500">
+                Notification counts below reflect these choices (email to active members; SMS options are separate).
+              </p>
+              <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-6">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="visibility_active_members"
+                    checked={formData.visible_to_active_members !== false}
+                    onCheckedChange={(checked) =>
+                      handleInputChange('visible_to_active_members', checked === true)
+                    }
+                  />
+                  <Label htmlFor="visibility_active_members" className="text-base sm:text-sm cursor-pointer">
+                    Active Members
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="visibility_alumni"
+                    checked={formData.visible_to_alumni !== false}
+                    onCheckedChange={(checked) =>
+                      handleInputChange('visible_to_alumni', checked === true)
+                    }
+                  />
+                  <Label htmlFor="visibility_alumni" className="text-base sm:text-sm cursor-pointer">
+                    Alumni
+                  </Label>
+                </div>
+              </div>
+              {errors.audience && (
+                <p className="text-sm text-red-500">{errors.audience}</p>
+              )}
             </div>
             
             {/* SMS Notification Checkboxes */}

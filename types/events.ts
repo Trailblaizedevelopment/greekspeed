@@ -18,6 +18,10 @@ export interface Event {
   updated_at: string;
   /** When set, event is archived (hidden from main views); preserves budget, attendance, RSVP history */
   archived_at?: string | null;
+  /** Chapter-scoped visibility: active members (non-alumni) */
+  visible_to_active_members: boolean;
+  /** Chapter-scoped visibility: alumni */
+  visible_to_alumni: boolean;
   attendee_count?: number;
   maybe_count?: number;
   not_attending_count?: number;
@@ -53,6 +57,10 @@ export interface CreateEventRequest {
    * Used when execs choose the "Send SMS to alumni" option.
    */
   send_sms_to_alumni?: boolean;
+  /** Default true when omitted (DB default). At least one of active/alumni must be true. */
+  visible_to_active_members?: boolean;
+  /** Default true when omitted (DB default). At least one of active/alumni must be true. */
+  visible_to_alumni?: boolean;
   created_by?: string;
   updated_by?: string;
 }

@@ -48,25 +48,39 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
+    const notifyActiveMembers = event.visible_to_active_members ?? true;
+    const notifyAlumniAudience = event.visible_to_alumni ?? true;
 
     // Fetch chapter members (active members and admins only, exclude developers)
-    const { data: members, error: membersError } = await supabase
-      .from('profiles')
-      .select('id, email, first_name, chapter_id, role')
-      .eq('chapter_id', chapterId)
-      .in('role', ['active_member', 'admin'])
-      .neq('is_developer', true) // Exclude developer/ghost accounts from notifications
-      .not('email', 'is', null);
+    let members: Array<{
+      id: string;
+      email: string | null;
+      first_name: string | null;
+      chapter_id: string;
+      role: string;
+    }> | null = null;
 
-    if (membersError) {
-      console.error('Error fetching chapter members:', membersError);
-      return NextResponse.json({ 
-        error: 'Failed to fetch chapter members' 
-      }, { status: 500 });
+    if (notifyActiveMembers) {
+      const { data, error: membersError } = await supabase
+        .from('profiles')
+        .select('id, email, first_name, chapter_id, role')
+        .eq('chapter_id', chapterId)
+        .in('role', ['active_member', 'admin'])
+        .neq('is_developer', true) // Exclude developer/ghost accounts from notifications
+        .not('email', 'is', null);
+
+      if (membersError) {
+        console.error('Error fetching chapter members:', membersError);
+        return NextResponse.json({ 
+          error: 'Failed to fetch chapter members' 
+        }, { status: 500 });
+      }
+      members = data ?? [];
+    } else {
+      members = [];
     }
 
-
-    if (!members || members.length === 0) {
+    if (members.length === 0 && notifyActiveMembers) {
       console.error('No active members found for chapter:', chapterId);
       return NextResponse.json({ 
         error: 'No active members found for this chapter' 
@@ -102,11 +116,13 @@ export async function POST(request: NextRequest) {
 
     const allowedList = allowedMembers
       .filter((m): m is NonNullable<typeof m> => Boolean(m));
-    const recipients = allowedList.map(member => ({
-      email: member.email,
-      firstName: member.first_name || 'Member',
-      chapterName: chapter.name
-    }));
+    const recipients = allowedList
+      .filter((member) => Boolean(member.email))
+      .map((member) => ({
+        email: member.email as string,
+        firstName: member.first_name || 'Member',
+        chapterName: chapter.name
+      }));
 
 
 
@@ -133,7 +149,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Send SMS notifications only if send_sms is true (parallel to email, don't block if SMS fails)
-    if (send_sms === true) {
+    if (send_sms === true && notifyActiveMembers) {
       try {
         console.log('📱 Starting SMS notification process for event:', {
           eventId: event.id,
@@ -281,7 +297,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Send SMS notifications to alumni only if send_sms_to_alumni is true
-    if (send_sms_to_alumni === true) {
+    if (send_sms_to_alumni === true && notifyAlumniAudience) {
       try {
         console.log('📱 Starting SMS notification process for event (alumni):', {
           eventId: event.id,
