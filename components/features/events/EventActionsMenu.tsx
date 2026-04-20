@@ -51,7 +51,7 @@ interface EventActionsMenuProps {
   };
   onClose?: () => void;
   hideOnMobile?: boolean;
-  /** When set, shows “Resend announcements” for chapter managers (same templates as publish). */
+  /** When set, shows “Send Reminder” for chapter managers (same templates as publish). */
   resendNotifications?: EventResendNotificationsConfig;
 }
 
@@ -269,7 +269,7 @@ export function EventActionsMenu({
                   }}
                 >
                   <Mail className="h-4 w-4" />
-                  Resend announcements
+                  Send Reminder
                 </DropdownMenuItem>
               </>
             ) : null}
@@ -280,7 +280,7 @@ export function EventActionsMenu({
       <Dialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
         <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
-            <DialogTitle>Resend announcements</DialogTitle>
+            <DialogTitle>Send Reminder</DialogTitle>
             <DialogDescription>
               Sends the same email, push, and optional SMS as when this event was published, using
               current audience visibility and member preferences.
