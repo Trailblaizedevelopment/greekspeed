@@ -138,7 +138,15 @@ export function OpenBridgeClient({
                         )}
                         aria-label="Download on the App Store. Opens in a new tab."
                       >
-                        <Smartphone className="h-5 w-5 shrink-0 text-gray-700" aria-hidden />
+                        <Image
+                          src="/app-store.svg"
+                          alt=""
+                          width={20}
+                          height={20}
+                          className="h-8 w-8 shrink-0 object-contain"
+                          aria-hidden
+                          unoptimized
+                        />
                         App Store
                       </a>
                     ) : null}
