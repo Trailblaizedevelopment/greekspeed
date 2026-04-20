@@ -87,6 +87,34 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
+    type EventEmailProfile = {
+      id: string;
+      email: string | null;
+      first_name: string | null;
+      chapter_id: string;
+      role: string;
+    };
+
+    let alumniMembers: EventEmailProfile[] = [];
+    if (notifyAlumniAudience) {
+      const { data: alumniData, error: alumniFetchError } = await supabase
+        .from('profiles')
+        .select('id, email, first_name, chapter_id, role')
+        .eq('chapter_id', chapterId)
+        .eq('role', 'alumni')
+        .neq('is_developer', true)
+        .not('email', 'is', null);
+
+      if (alumniFetchError) {
+        console.error('Error fetching chapter alumni for event email:', alumniFetchError);
+        return NextResponse.json(
+          { error: 'Failed to fetch chapter alumni' },
+          { status: 500 }
+        );
+      }
+      alumniMembers = (alumniData ?? []) as EventEmailProfile[];
+    }
+
     // Get chapter name
     const { data: chapter, error: chapterError } = await supabase
       .from('chapters')
@@ -116,13 +144,41 @@ export async function POST(request: NextRequest) {
 
     const allowedList = allowedMembers
       .filter((m): m is NonNullable<typeof m> => Boolean(m));
-    const recipients = allowedList
-      .filter((member) => Boolean(member.email))
-      .map((member) => ({
-        email: member.email as string,
-        firstName: member.first_name || 'Member',
-        chapterName: chapter.name
-      }));
+
+    const allowedAlumni = await Promise.all(
+      alumniMembers.map(async (alum) => {
+        try {
+          const allowed = await canSendEmailNotification(alum.id, 'event');
+          return allowed ? alum : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    const allowedAlumniList = allowedAlumni.filter(
+      (m): m is NonNullable<(typeof allowedAlumni)[number]> => Boolean(m)
+    );
+
+    const toRecipientRow = (member: { email: string | null; first_name: string | null }) => ({
+      email: member.email as string,
+      firstName: member.first_name || 'Member',
+      chapterName: chapter.name,
+    });
+
+    const recipientRows: Array<{ email: string; firstName: string; chapterName: string; _id: string }> = [];
+    const seenRecipientIds = new Set<string>();
+    for (const member of allowedList) {
+      if (!member.email || seenRecipientIds.has(member.id)) continue;
+      seenRecipientIds.add(member.id);
+      recipientRows.push({ ...toRecipientRow(member), _id: member.id });
+    }
+    for (const alum of allowedAlumniList) {
+      if (!alum.email || seenRecipientIds.has(alum.id)) continue;
+      seenRecipientIds.add(alum.id);
+      recipientRows.push({ ...toRecipientRow(alum), _id: alum.id });
+    }
+
+    const recipients = recipientRows.map(({ _id: _unused, ...r }) => r);
 
 
 
@@ -142,9 +198,10 @@ export async function POST(request: NextRequest) {
       eventSlug: event.slug ?? null,
       eventTitle: event.title,
     });
-    for (const member of allowedList) {
-      sendPushToUser(member.id, pushPayload).catch(pushErr => {
-        console.error('Failed to send new event push to', member.id, pushErr);
+    const pushUserIds = [...new Set([...allowedList, ...allowedAlumniList].map((m) => m.id))];
+    for (const userId of pushUserIds) {
+      sendPushToUser(userId, pushPayload).catch((pushErr) => {
+        console.error('Failed to send new event push to', userId, pushErr);
       });
     }
 
