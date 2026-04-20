@@ -27,6 +27,10 @@ export interface Event {
   not_attending_count?: number;
   /** The current user's RSVP status, included when user_id is passed to /api/events */
   user_rsvp_status?: RSVPStatus | null;
+  /** Public slug for shareable event links (when present on the row) */
+  slug?: string | null;
+  /** JSON metadata from `events.metadata` (email stats, last SMS flags, etc.) */
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface EventWithRSVPs extends Event {

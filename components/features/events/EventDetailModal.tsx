@@ -9,9 +9,9 @@ import { Event, RSVPStatus } from '@/types/events';
 import { EventActionsMenu } from './EventActionsMenu';
 // import { EventAttendanceBlock } from './EventAttendanceBlock';
 // import { CheckInScanner } from './CheckInScanner';
-// import { useProfile } from '@/lib/contexts/ProfileContext';
-// import { useAuth } from '@/lib/supabase/auth-context';
-// import { EXECUTIVE_ROLES } from '@/lib/permissions';
+import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useAuth } from '@/lib/supabase/auth-context';
+import { canManageChapterForContext, type ProfileForPermission } from '@/lib/permissions';
 import {
   formatEventDetailSchedule,
   isRsvpWindowOpen,
@@ -131,8 +131,9 @@ export function EventDetailModal({
   currentUserRsvp,
   onRsvpChange,
 }: EventDetailModalProps) {
-  // const { profile } = useProfile();
-  // const { getAuthHeaders } = useAuth();
+  const { profile } = useProfile();
+  const { getAuthHeadersAsync } = useAuth();
+  const [governanceChapterIds, setGovernanceChapterIds] = useState<string[] | null>(null);
   const [attendeeData, setAttendeeData] = useState<AttendeeData | null>(null);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -152,11 +153,35 @@ export function EventDetailModal({
 
   const rsvpOpen = isRsvpWindowOpen(event);
 
-  // const isExec =
-  //   profile?.role === 'admin' ||
-  //   (profile?.chapter_role != null &&
-  //     EXECUTIVE_ROLES.includes(profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]));
-  // const showAttendance = isExec && event.status === 'published';
+  const permissionProfile: ProfileForPermission | null = profile
+    ? {
+        role: profile.role ?? null,
+        chapter_id: profile.chapter_id ?? null,
+        chapter_role: profile.chapter_role ?? null,
+      }
+    : null;
+
+  const managedChapterIdsForResend =
+    permissionProfile?.role === 'governance' ? (governanceChapterIds ?? undefined) : undefined;
+
+  const governancePermissionReady =
+    !permissionProfile ||
+    permissionProfile.role !== 'governance' ||
+    governanceChapterIds !== null;
+
+  const canResendNotifications =
+    event.status === 'published' &&
+    governancePermissionReady &&
+    permissionProfile != null &&
+    canManageChapterForContext(permissionProfile, event.chapter_id, managedChapterIdsForResend);
+
+  const meta = event.metadata;
+  const resendSmsDefaults = {
+    defaultSendSms: meta?.last_publish_send_sms === true,
+    defaultSendSmsToAlumni: meta?.last_publish_send_sms_to_alumni === true,
+    visibleToActiveMembers: event.visible_to_active_members ?? true,
+    visibleToAlumni: event.visible_to_alumni ?? true,
+  };
 
   // Detect mobile
   useEffect(() => {
@@ -165,6 +190,28 @@ export function EventDetailModal({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || profile?.role !== 'governance') {
+      if (!isOpen) setGovernanceChapterIds(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeadersAsync();
+        const res = await fetch('/api/me/governance-chapters', { headers });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { chapterIds?: string[] };
+        if (!cancelled) setGovernanceChapterIds(data.chapterIds ?? []);
+      } catch {
+        if (!cancelled) setGovernanceChapterIds([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, profile?.role, getAuthHeadersAsync]);
 
   // Fetch attendees when modal opens
   useEffect(() => {
@@ -257,7 +304,10 @@ export function EventDetailModal({
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <EventActionsMenu event={event} />
+          <EventActionsMenu
+            event={event}
+            resendNotifications={canResendNotifications ? resendSmsDefaults : undefined}
+          />
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-100 rounded-full transition-colors"
