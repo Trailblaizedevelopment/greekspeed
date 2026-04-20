@@ -237,6 +237,8 @@ Chapter events.
 - `description` (TEXT, nullable)
 - `event_date` (TIMESTAMPTZ)
 - `location` (TEXT, nullable)
+- `visible_to_active_members` (BOOLEAN, NOT NULL, default true) — show to active chapter members
+- `visible_to_alumni` (BOOLEAN, NOT NULL, default true) — show to alumni; constraint requires at least one of the two visibility flags to be true
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
 

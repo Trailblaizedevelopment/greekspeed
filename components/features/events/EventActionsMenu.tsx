@@ -1,8 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { MoreVertical, Calendar, Download, Link2, Share2, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MoreVertical, Calendar, Download, Link2, Share2, ExternalLink, Mail, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useAuth } from '@/lib/supabase/auth-context';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +33,13 @@ import { toast } from 'react-toastify';
 import { ShareEventDrawer } from '@/components/features/messaging/ShareEventDrawer';
 import { cn } from '@/lib/utils';
 
+export interface EventResendNotificationsConfig {
+  defaultSendSms: boolean;
+  defaultSendSmsToAlumni: boolean;
+  visibleToActiveMembers: boolean;
+  visibleToAlumni: boolean;
+}
+
 interface EventActionsMenuProps {
   event: {
     id: string;
@@ -33,6 +51,8 @@ interface EventActionsMenuProps {
   };
   onClose?: () => void;
   hideOnMobile?: boolean;
+  /** When set, shows “Send Reminder” for chapter managers (same templates as publish). */
+  resendNotifications?: EventResendNotificationsConfig;
 }
 
 function CalendarSubmenu({ event }: { event: EventActionsMenuProps['event'] }) {
@@ -106,10 +126,30 @@ function CalendarSubmenu({ event }: { event: EventActionsMenuProps['event'] }) {
   );
 }
 
-export function EventActionsMenu({ event, onClose, hideOnMobile = false }: EventActionsMenuProps) {
+export function EventActionsMenu({
+  event,
+  onClose,
+  hideOnMobile = false,
+  resendNotifications,
+}: EventActionsMenuProps) {
+  const { getAuthHeadersAsync } = useAuth();
   const [showCalendarSubmenu, setShowCalendarSubmenu] = useState(false);
   const [shareDrawerOpen, setShareDrawerOpen] = useState(false);
+  const [resendDialogOpen, setResendDialogOpen] = useState(false);
+  const [sendSmsActive, setSendSmsActive] = useState(false);
+  const [sendSmsAlumni, setSendSmsAlumni] = useState(false);
+  const [resendSubmitting, setResendSubmitting] = useState(false);
   const canAddToCalendar = eventHasCalendarTimes(event);
+
+  useEffect(() => {
+    if (!resendDialogOpen || !resendNotifications) return;
+    setSendSmsActive(
+      Boolean(resendNotifications.defaultSendSms && resendNotifications.visibleToActiveMembers)
+    );
+    setSendSmsAlumni(
+      Boolean(resendNotifications.defaultSendSmsToAlumni && resendNotifications.visibleToAlumni)
+    );
+  }, [resendDialogOpen, resendNotifications]);
 
   const handleCopyLink = async () => {
     const success = await copyEventLinkToClipboard(event.id, null, { ref: 'copy' });
@@ -122,6 +162,40 @@ export function EventActionsMenu({ event, onClose, hideOnMobile = false }: Event
 
   const handleShare = () => {
     setShareDrawerOpen(true);
+  };
+
+  const handleResendConfirm = async () => {
+    setResendSubmitting(true);
+    try {
+      const headers = await getAuthHeadersAsync();
+      const res = await fetch(`/api/events/${event.id}/resend-notifications`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({
+          send_sms: sendSmsActive,
+          send_sms_to_alumni: sendSmsAlumni,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; emailResult?: { totalRecipients: number } };
+      if (!res.ok) {
+        toast.error(data.error || 'Could not resend notifications');
+        return;
+      }
+      toast.success(
+        data.emailResult?.totalRecipients != null
+          ? `Sent to ${data.emailResult.totalRecipients} recipient(s)`
+          : 'Notifications sent'
+      );
+      setResendDialogOpen(false);
+    } catch {
+      toast.error('Something went wrong. Please try again.');
+    } finally {
+      setResendSubmitting(false);
+    }
   };
 
   return (
@@ -184,9 +258,87 @@ export function EventActionsMenu({ event, onClose, hideOnMobile = false }: Event
               <Share2 className="h-4 w-4" />
               Share Event
             </DropdownMenuItem>
+
+            {resendNotifications ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => {
+                    setResendDialogOpen(true);
+                  }}
+                >
+                  <Mail className="h-4 w-4" />
+                  Send Reminder
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <Dialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
+        <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Send Reminder</DialogTitle>
+            <DialogDescription>
+              Sends the same email, push, and optional SMS as when this event was published, using
+              current audience visibility and member preferences.
+            </DialogDescription>
+          </DialogHeader>
+          {resendNotifications ? (
+            <div className="space-y-4 py-2">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="resend-sms-active"
+                  checked={sendSmsActive}
+                  disabled={!resendNotifications.visibleToActiveMembers}
+                  onCheckedChange={(v) => setSendSmsActive(v === true)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="resend-sms-active" className="text-sm font-medium text-gray-900">
+                    SMS to active members and admins
+                  </Label>
+                  <p className="text-xs text-gray-500">
+                    Only members with SMS consent and a valid phone number.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="resend-sms-alumni"
+                  checked={sendSmsAlumni}
+                  disabled={!resendNotifications.visibleToAlumni}
+                  onCheckedChange={(v) => setSendSmsAlumni(v === true)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="resend-sms-alumni" className="text-sm font-medium text-gray-900">
+                    SMS to alumni
+                  </Label>
+                  <p className="text-xs text-gray-500">
+                    Same eligibility rules as active member SMS.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setResendDialogOpen(false)} disabled={resendSubmitting}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleResendConfirm} disabled={resendSubmitting}>
+              {resendSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                'Resend'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ShareEventDrawer
         isOpen={shareDrawerOpen}

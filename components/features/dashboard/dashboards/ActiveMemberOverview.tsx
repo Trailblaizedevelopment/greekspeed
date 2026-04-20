@@ -41,7 +41,6 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
   const searchParams = useSearchParams();
   const router = useRouter();
   const { enabled: financialToolsEnabled } = useFeatureFlag('financial_tools_enabled');
-  const { enabled: eventsManagementEnabled } = useFeatureFlag('events_management_enabled');
   const { enabled: recruitmentCrmEnabled } = useFeatureFlag('recruitment_crm_enabled');
   const [showAddRecruitModal, setShowAddRecruitModal] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -99,13 +98,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
     } else if (tool === 'announcements') {
       setActiveMobileTab('announcements');
     } else if (tool === 'calendar') {
-      // Only set calendar tab if events management is enabled
-      if (eventsManagementEnabled) {
-        setActiveMobileTab('calendar');
-      } else {
-        // If disabled, redirect to home
-        router.push('/dashboard');
-      }
+      setActiveMobileTab('calendar');
     } else if (tool === 'recruitment') {
       // Add this block
       if (recruitmentCrmEnabled) {
@@ -118,16 +111,8 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
     } else if (!tool) {
       setActiveMobileTab('home');
     }
-  }, [searchParams, router, financialToolsEnabled, eventsManagementEnabled, recruitmentCrmEnabled]);
+  }, [searchParams, router, financialToolsEnabled, recruitmentCrmEnabled]);
 
-  // Redirect if user tries to access calendar/events tabs when flag is disabled
-  useEffect(() => {
-    if ((activeMobileTab === 'calendar' || activeMobileTab === 'events') && !eventsManagementEnabled) {
-      router.push('/dashboard');
-      setActiveMobileTab('home');
-    }
-  }, [activeMobileTab, eventsManagementEnabled, router]);
-  
   const renderMobileContent = () => {
     // Handle regular tabs
     switch (activeMobileTab) {
@@ -145,16 +130,8 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
       case 'announcements':
         return <MobileAnnouncementsPage />;
       case 'calendar':
-        // Don't render if events management is disabled (useEffect will redirect)
-        if (!eventsManagementEnabled) {
-          return null;
-        }
         return <MobileCalendarPage />;
       case 'events':
-        // Don't render if events management is disabled (useEffect will redirect)
-        if (!eventsManagementEnabled) {
-          return null;
-        }
         return <MobileEventsPage />;
       default:
         return (
@@ -211,15 +188,13 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           {/* Right Sidebar - Events & Key Info (~30%) */}
           <div className="col-span-4">
             <div className="space-y-4">
-              <FeatureGuard flagName="events_management_enabled">
-                <CalendarEventsWeekCard
-                  userId={profile?.id}
-                  events={allEvents}
-                  loading={eventsLoading}
-                  error={eventsError}
-                  onRetry={fetchAllEvents}
-                />
-              </FeatureGuard>
+              <CalendarEventsWeekCard
+                userId={profile?.id}
+                events={allEvents}
+                loading={eventsLoading}
+                error={eventsError}
+                onRetry={fetchAllEvents}
+              />
               <FeatureGuard flagName="financial_tools_enabled">
                 <DuesStatusCard />
               </FeatureGuard>
@@ -250,15 +225,13 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           {/* Right Sidebar - Events & Networking */}
           <div className="col-span-3 col-start-10 row-start-1">
             <div className="space-y-6">
-              <FeatureGuard flagName="events_management_enabled">
-                <CalendarEventsWeekCard
-                  userId={profile?.id}
-                  events={allEvents}
-                  loading={eventsLoading}
-                  error={eventsError}
-                  onRetry={fetchAllEvents}
-                />
-              </FeatureGuard>
+              <CalendarEventsWeekCard
+                userId={profile?.id}
+                events={allEvents}
+                loading={eventsLoading}
+                error={eventsError}
+                onRetry={fetchAllEvents}
+              />
             </div>
           </div>
         </div>

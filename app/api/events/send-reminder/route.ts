@@ -37,21 +37,33 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
+    const notifyActiveMembers = event.visible_to_active_members ?? true;
 
-    // Get all chapter members (exclude developers)
-    const { data: allMembers, error: membersError } = await supabase
-      .from('profiles')
-      .select('id, email, first_name, chapter_id, role')
-      .eq('chapter_id', chapterId)
-      .in('role', ['active_member', 'admin'])
-      .neq('is_developer', true) // Exclude developer/ghost accounts from notifications
-      .not('email', 'is', null);
+    // Get all chapter members (exclude developers) — only when event is visible to active members
+    let allMembers: Array<{
+      id: string;
+      email: string | null;
+      first_name: string | null;
+      chapter_id: string;
+      role: string;
+    }> = [];
 
-    if (membersError || !allMembers) {
-      console.error('Error fetching chapter members:', membersError);
-      return NextResponse.json({ 
-        error: 'Failed to fetch chapter members' 
-      }, { status: 500 });
+    if (notifyActiveMembers) {
+      const { data, error: membersError } = await supabase
+        .from('profiles')
+        .select('id, email, first_name, chapter_id, role')
+        .eq('chapter_id', chapterId)
+        .in('role', ['active_member', 'admin'])
+        .neq('is_developer', true) // Exclude developer/ghost accounts from notifications
+        .not('email', 'is', null);
+
+      if (membersError || !data) {
+        console.error('Error fetching chapter members:', membersError);
+        return NextResponse.json({ 
+          error: 'Failed to fetch chapter members' 
+        }, { status: 500 });
+      }
+      allMembers = data;
     }
 
 
@@ -104,11 +116,18 @@ export async function POST(request: NextRequest) {
 
     const allowedList = allowedMembers
       .filter((m): m is NonNullable<typeof m> => Boolean(m));
-    const recipients = allowedList.map(member => ({
-      email: member.email,
-      firstName: member.first_name || 'Member',
-      chapterName: chapter?.name || 'Your Chapter'
-    }));
+
+    type ReminderRecipient = { email: string; firstName: string; chapterName: string };
+    const recipients: ReminderRecipient[] = allowedList
+      .filter(
+        (member): member is (typeof member & { email: string }) =>
+          typeof member.email === 'string' && member.email.trim().length > 0
+      )
+      .map((member) => ({
+        email: member.email,
+        firstName: member.first_name || 'Member',
+        chapterName: chapter?.name ?? 'Your Chapter',
+      }));
 
     let startAtRelative = 'Time TBD';
     if (event.start_time) {

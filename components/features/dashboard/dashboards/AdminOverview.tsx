@@ -277,15 +277,13 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
           {/* Right Sidebar - Events & Key Info (~30%) */}
           <div className="col-span-4">
             <div className="space-y-4">
-              <FeatureGuard flagName="events_management_enabled">
-                <CalendarEventsWeekCard
-                  userId={profile?.id}
-                  events={allEvents}
-                  loading={eventsLoading}
-                  error={eventsError}
-                  onRetry={fetchAllEvents}
-                />
-              </FeatureGuard>
+              <CalendarEventsWeekCard
+                userId={profile?.id}
+                events={allEvents}
+                loading={eventsLoading}
+                error={eventsError}
+                onRetry={fetchAllEvents}
+              />
               {chapterId && <TasksPanel chapterId={chapterId} />}
               {/* Include DuesStatusCard on tablet since left sidebar is hidden */}
               <FeatureGuard flagName="financial_tools_enabled">
@@ -314,15 +312,13 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
 
           {/* Right Column - 3 columns wide */}
           <div className="col-span-3 col-start-10 row-start-1 space-y-6">
-            <FeatureGuard flagName="events_management_enabled">
-              <CalendarEventsWeekCard
-                userId={profile?.id}
-                events={allEvents}
-                loading={eventsLoading}
-                error={eventsError}
-                onRetry={fetchAllEvents}
-              />
-            </FeatureGuard>
+            <CalendarEventsWeekCard
+              userId={profile?.id}
+              events={allEvents}
+              loading={eventsLoading}
+              error={eventsError}
+              onRetry={fetchAllEvents}
+            />
             {chapterId && <TasksPanel chapterId={chapterId} />}
             <DocsCompliancePanel />
           </div>

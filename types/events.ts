@@ -18,11 +18,19 @@ export interface Event {
   updated_at: string;
   /** When set, event is archived (hidden from main views); preserves budget, attendance, RSVP history */
   archived_at?: string | null;
+  /** Chapter-scoped visibility: active members (non-alumni) */
+  visible_to_active_members: boolean;
+  /** Chapter-scoped visibility: alumni */
+  visible_to_alumni: boolean;
   attendee_count?: number;
   maybe_count?: number;
   not_attending_count?: number;
   /** The current user's RSVP status, included when user_id is passed to /api/events */
   user_rsvp_status?: RSVPStatus | null;
+  /** Public slug for shareable event links (when present on the row) */
+  slug?: string | null;
+  /** JSON metadata from `events.metadata` (email stats, last SMS flags, etc.) */
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface EventWithRSVPs extends Event {
@@ -53,6 +61,10 @@ export interface CreateEventRequest {
    * Used when execs choose the "Send SMS to alumni" option.
    */
   send_sms_to_alumni?: boolean;
+  /** Default true when omitted (DB default). At least one of active/alumni must be true. */
+  visible_to_active_members?: boolean;
+  /** Default true when omitted (DB default). At least one of active/alumni must be true. */
+  visible_to_alumni?: boolean;
   created_by?: string;
   updated_by?: string;
 }

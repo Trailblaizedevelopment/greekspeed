@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { compareEventsByStartAsc, normalizeEventTimeField } from '@/lib/utils/eventScheduleDisplay';
+import { dispatchChapterEventPublishedNotifications } from '@/lib/services/chapterEventNotificationDispatch';
 import { authenticateApiRequest } from '@/lib/api/authenticateApiRequest';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import {
+  filterEventsForAudience,
+  parseAudienceBooleans,
+  validateAudienceSelection,
+  type EventAudienceViewer,
+} from '@/lib/utils/eventAudienceVisibility';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -20,13 +27,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Chapter ID is required' }, { status: 400 });
     }
 
+    let audienceViewer: EventAudienceViewer | null = null;
+
     // TRA-584: Logged-in users must pass the same chapter access rules as the feed (marketing pending → 403).
     // Unauthenticated callers keep prior behavior (e.g. public profile upcoming events).
     const auth = await authenticateApiRequest(request);
     if (auth) {
       const { data: accessProfile, error: accessProfileError } = await auth.supabase
         .from('profiles')
-        .select('chapter_id, signup_channel, is_developer')
+        .select('chapter_id, signup_channel, is_developer, role, chapter_role')
         .eq('id', auth.user.id)
         .single();
 
@@ -47,6 +56,12 @@ export async function GET(request: NextRequest) {
       if (!access.ok) {
         return access.response;
       }
+
+      audienceViewer = {
+        role: accessProfile.role ?? null,
+        chapter_role: accessProfile.chapter_role ?? null,
+        is_developer: accessProfile.is_developer ?? false,
+      };
     }
 
     let query = supabase
@@ -107,11 +122,13 @@ export async function GET(request: NextRequest) {
       };
     }) || [];
 
+    const filtered = filterEventsForAudience(eventsWithCounts, audienceViewer);
+
     if (scope === 'upcoming') {
-      eventsWithCounts.sort(compareEventsByStartAsc);
+      filtered.sort(compareEventsByStartAsc);
     }
 
-    return NextResponse.json(eventsWithCounts, {
+    return NextResponse.json(filtered, {
       headers: {
         'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
       },
@@ -143,15 +160,33 @@ export async function POST(request: NextRequest) {
     // Extract send_sms and send_sms_to_alumni flags (they're not database columns, just notification flags)
     const { send_sms, send_sms_to_alumni, ...dbEventData } = eventData;
 
-    // Create the event
-    const insertData = {
-      ...dbEventData,
+    const { visible_to_active_members, visible_to_alumni } = parseAudienceBooleans(
+      dbEventData as Record<string, unknown>
+    );
+    const audienceCheck = validateAudienceSelection(visible_to_active_members, visible_to_alumni);
+    if (!audienceCheck.ok) {
+      return NextResponse.json({ error: audienceCheck.error }, { status: 400 });
+    }
+
+    // Create the event — only persist known columns (avoid arbitrary client keys on insert)
+    const insertData: Record<string, unknown> = {
+      chapter_id: dbEventData.chapter_id,
+      title: String(dbEventData.title).trim(),
+      description: dbEventData.description ?? null,
+      location: dbEventData.location ?? null,
       start_time: startTime,
       end_time: endTime,
       status: dbEventData.status || 'published',
-      created_by: dbEventData.created_by || 'system', // Will be updated when we add proper auth
-      updated_by: dbEventData.updated_by || 'system'
+      budget_label: dbEventData.budget_label ?? null,
+      budget_amount: dbEventData.budget_amount ?? null,
+      created_by: dbEventData.created_by || 'system',
+      updated_by: dbEventData.updated_by || 'system',
+      visible_to_active_members,
+      visible_to_alumni,
     };
+    if (dbEventData.metadata !== undefined) {
+      insertData.metadata = dbEventData.metadata;
+    }
 
     const { data: newEvent, error } = await supabase
       .from('events')
@@ -164,50 +199,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create event' }, { status: 500 });
     }
 
-    // NEW: Send email notifications if event is published
     if (newEvent.status === 'published') {
-      
       try {
-        const baseUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3000' 
-        : process.env.NEXT_PUBLIC_APP_URL || 'https://www.trailblaize.net';
-        const emailUrl = `${baseUrl}/api/events/send-email`;
-        
-        // Trigger email sending asynchronously - pass send_sms and send_sms_to_alumni flags
-        const emailResponse = await fetch(emailUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            eventId: newEvent.id,
-            chapterId: newEvent.chapter_id,
-            send_sms: send_sms || false,
-            send_sms_to_alumni: send_sms_to_alumni || false
-          })
+        const notifyResult = await dispatchChapterEventPublishedNotifications(supabase, {
+          eventId: newEvent.id,
+          chapterId: newEvent.chapter_id,
+          send_sms: Boolean(send_sms),
+          send_sms_to_alumni: Boolean(send_sms_to_alumni),
         });
-
-        // Email API response received
-
-        if (emailResponse.ok) {
-          const emailResult = await emailResponse.json();
-          // Event notification emails sent successfully
-        } else {
-          const errorText = await emailResponse.text();
-          console.error('Failed to send event notification emails');
-          console.error('Response status:', emailResponse.status);
-          console.error('Response text:', errorText);
+        if (!notifyResult.ok) {
+          console.error('Failed to send event notifications:', notifyResult.status, notifyResult.error);
         }
       } catch (emailError) {
         console.error('Error sending event notification emails:', emailError);
         console.error('Error details:', {
           message: emailError instanceof Error ? emailError.message : 'Unknown error',
-          stack: emailError instanceof Error ? emailError.stack : 'No stack trace'
+          stack: emailError instanceof Error ? emailError.stack : 'No stack trace',
         });
-        // Don't fail the event creation if email fails
       }
-    } else {
-      // Event status is not published, skipping email notifications
     }
 
     return NextResponse.json({ 

@@ -232,10 +232,8 @@ function MobileBottomNavigationImpl({
       ];
       
       // Filter out dues if financial tools are disabled
-      // Filter out calendar if events management is disabled
       return options.filter(opt => {
         if (opt.id === 'dues' && !financialToolsEnabled) return false;
-        if (opt.id === 'calendar' && !eventsManagementEnabled) return false;
         return true;
       });
     }
@@ -269,6 +267,11 @@ function MobileBottomNavigationImpl({
 
     if (userRole === 'governance' && pathname === '/dashboard/governance') {
       return 'home';
+    }
+
+    // Standalone calendar deep link — not a primary tab for any role
+    if (pathname === '/dashboard/calendar') {
+      return '__standalone_calendar__';
     }
 
     // Try to match by route (exact pathname match, ignoring query params)
