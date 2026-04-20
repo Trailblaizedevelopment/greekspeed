@@ -100,6 +100,19 @@ function firstString(
 }
 
 /**
+ * Returns the chapter-invite token when `intent=invite` and the token format is valid.
+ * Used server-side for safe preview (e.g. chapter name on `/open`) without exposing invalid tokens.
+ */
+export function getOpenBridgeChapterInviteToken(
+  raw: Record<string, string | string[] | undefined>
+): string | null {
+  const intent = firstString(raw.intent)?.toLowerCase().trim();
+  const token = firstString(raw.token)?.trim();
+  if (intent !== 'invite' || !token || !INVITE_TOKEN_RE.test(token)) return null;
+  return token;
+}
+
+/**
  * Resolves Branch / app-open landing query params to a same-origin continue path.
  * Falls back to `/` when nothing valid is provided.
  */
