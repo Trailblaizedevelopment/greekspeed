@@ -40,6 +40,7 @@ const profilesEqual = (a: Profile | null, b: Profile | null): boolean => {
     // IMPORTANT: include these so onboarding completion updates propagate
     a.onboarding_completed === b.onboarding_completed &&
     a.onboarding_completed_at === b.onboarding_completed_at &&
+    a.community_terms_accepted_at === b.community_terms_accepted_at &&
     a.signup_channel === b.signup_channel &&
     // Welcome modal dismissal must refresh client state when only this bit flips
     a.welcome_seen === b.welcome_seen

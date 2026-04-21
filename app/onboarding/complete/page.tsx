@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import Image from 'next/image';
 import {
   CheckCircle2,
-  Sparkles,
   ArrowRight,
   Loader2,
   Users,
@@ -30,10 +32,11 @@ import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumni
 export default function OnboardingCompletePage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { profile, refreshProfile } = useProfile();
-  const { finishOnboarding, isComplete } = useOnboarding();
+  const { profile } = useProfile();
+  const { finishOnboarding } = useOnboarding();
 
   const [isFinishing, setIsFinishing] = useState(false);
+  const [acceptedCommunityTerms, setAcceptedCommunityTerms] = useState(false);
 
   // Fire confetti on mount
   useEffect(() => {
@@ -66,9 +69,12 @@ export default function OnboardingCompletePage() {
 
   // Handle go to dashboard
   const handleGoToDashboard = async () => {
+    if (!acceptedCommunityTerms) return;
     setIsFinishing(true);
     try {
-      await finishOnboarding();
+      await finishOnboarding({
+        communityTermsAcceptedAt: new Date().toISOString(),
+      });
       // finishOnboarding handles the redirect
     } catch (error) {
       console.error('Error finishing onboarding:', error);
@@ -149,10 +155,41 @@ export default function OnboardingCompletePage() {
         </CardContent>
       </Card>
 
+      {/* Community / UGC terms (explicit acceptance before dashboard — App Store UGC safety) */}
+      <div className="w-full max-w-md mb-6 rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-sm text-gray-700">
+        <p className="mb-3">
+          Feeds, messages, and other community features depend on everyone following chapter and platform
+          rules. <strong>There is no tolerance</strong> for abusive behavior or objectionable content.
+        </p>
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id="onboarding-community-terms"
+            checked={acceptedCommunityTerms}
+            onCheckedChange={(checked) => setAcceptedCommunityTerms(checked === true)}
+            disabled={isFinishing}
+            className="mt-0.5"
+          />
+          <div className="grid gap-1.5 leading-snug">
+            <Label htmlFor="onboarding-community-terms" className="text-sm font-medium text-gray-900 cursor-pointer">
+              I have read and agree to the{' '}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-primary hover:text-brand-primary-hover underline"
+              >
+                Terms of Service
+              </Link>
+              , including the community and user-generated content standards described there.
+            </Label>
+          </div>
+        </div>
+      </div>
+
       {/* CTA Button */}
       <Button
         onClick={handleGoToDashboard}
-        disabled={isFinishing}
+        disabled={isFinishing || !acceptedCommunityTerms}
         size="lg"
         className="bg-brand-primary hover:bg-brand-primary-hover text-lg px-8 py-6 rounded-full"
       >

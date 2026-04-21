@@ -69,6 +69,8 @@ export interface Profile {
   welcome_seen?: boolean;
   onboarding_completed?: boolean;
   onboarding_completed_at?: string;
+  /** ISO timestamp when user explicitly accepted community / UGC terms (e.g. onboarding). */
+  community_terms_accepted_at?: string | null;
   signup_channel?: SignupChannel | null;
 }
 

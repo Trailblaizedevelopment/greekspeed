@@ -58,7 +58,7 @@ export default function NotificationsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { profile, refreshProfile } = useProfile();
-  const { completeStep, goToPreviousStep, finishOnboarding } = useOnboarding();
+  const { completeStep, goToPreviousStep } = useOnboarding();
 
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
