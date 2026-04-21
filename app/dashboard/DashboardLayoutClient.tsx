@@ -33,6 +33,11 @@ import {
 import { ChapterFeaturesProvider } from '@/lib/contexts/ChapterFeaturesContext';
 import { OneSignalDashboardLoader } from '@/components/features/dashboard/OneSignalDashboardLoader';
 import { PwaPromptProvider } from '@/lib/contexts/PwaPromptContext';
+import { cn } from '@/lib/utils';
+import {
+  DashboardMessagesMobileChromeProvider,
+  useDashboardMessagesMobileChrome,
+} from '@/lib/contexts/DashboardMessagesMobileChromeContext';
 
 export default function DashboardLayoutClient({
   children,
@@ -152,28 +157,37 @@ export default function DashboardLayoutClient({
       <ChapterFeaturesProvider>
         <OneSignalDashboardLoader userId={profile?.id} />
         <PwaPromptProvider userId={profile?.id}>
-        {/* min-h-screen allows content to grow so window can scroll; SocialFeed uses useWindowVirtualizer */}
-        <div className="min-h-screen flex flex-col bg-gray-50">
-          {/* Always show the header */}
-          <DashboardHeader />
-          
-          <main className="flex-1 min-h-0 flex flex-col">
-            <ModalProvider>
-              <ProfileModalProvider>
-                {children}
-                
-                {/* Global Edit Profile Modal - Rendered at layout level */}
-                <EditProfileModalWrapper />
-                
-                {/* Global User Profile Modal - Rendered at layout level */}
-                <UserProfileModalWrapper />
-              </ProfileModalProvider>
-            </ModalProvider>
-          </main>
-        </div>
+          <DashboardMessagesMobileChromeProvider>
+            {/* min-h-screen allows content to grow so window can scroll; SocialFeed uses useWindowVirtualizer */}
+            <DashboardScaffold>{children}</DashboardScaffold>
+          </DashboardMessagesMobileChromeProvider>
         </PwaPromptProvider>
       </ChapterFeaturesProvider>
     </ActiveChapterProvider>
+  );
+}
+
+function DashboardScaffold({ children }: { children: React.ReactNode }) {
+  const { mobileMessageThreadFullscreen } = useDashboardMessagesMobileChrome();
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <div className={cn(mobileMessageThreadFullscreen && 'max-md:hidden')}>
+        <DashboardHeader />
+      </div>
+
+      <main className="flex-1 min-h-0 flex flex-col">
+        <ModalProvider>
+          <ProfileModalProvider>
+            {children}
+
+            <EditProfileModalWrapper />
+
+            <UserProfileModalWrapper />
+          </ProfileModalProvider>
+        </ModalProvider>
+      </main>
+    </div>
   );
 }
 
