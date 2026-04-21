@@ -29,19 +29,6 @@ export function invalidateProfileCache(userId?: string, slug?: string) {
 }
 
 /**
- * Get chapter name from chapter ID
- */
-const getChapterName = (chapterId: string): string => {
-  const chapterMap: Record<string, string> = {
-    "404e65ab-1123-44a0-81c7-e8e75118e741": "Sigma Chi Eta (Ole Miss)",
-    "8ede10e8-b848-427d-8f4a-aacf74cea2c2": "Phi Gamma Delta Omega Chi (Chapman)",
-    "b25a4acf-59f0-46d4-bb5c-d41fda5b3252": "Phi Delta Theta Mississippi Alpha (Ole Miss)",
-    "ff740e3f-c45c-4728-a5d5-22088c19d847": "Kappa Sigma Delta-Xi (Ole Miss)"
-  };
-  return chapterMap[chapterId] || chapterId;
-};
-
-/**
  * Fetch user profile by ID
  * Handles both alumni and regular users
  */
@@ -89,8 +76,8 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
         banner_url: alumniData.profile?.banner_url || null,
         email: alumniData.email,
         phone: alumniData.phone,
-        chapter: alumniData.chapter ? getChapterName(alumniData.chapter) : null,
-        chapter_id: alumniData.chapter,
+        chapter: alumniData.profile?.chapter ?? null,
+        chapter_id: alumniData.profile?.chapter_id ?? alumniData.chapter ?? null,
       bio: alumniData.description || alumniData.profile?.bio || null,
       location: alumniData.location || alumniData.profile?.location || null,
       username: alumniData.profile?.username || null,
@@ -178,7 +165,7 @@ export function alumniToUnifiedProfile(alumni: Alumni): UnifiedUserProfile {
     avatar_url: alumni.avatar || null,
     email: alumni.email || null,
     phone: alumni.phone || null,
-    chapter: alumni.chapter ? getChapterName(alumni.chapter) : null,
+    chapter: alumni.chapter || null,
     chapter_id: alumni.chapter,
     bio: alumni.description,
     location: alumni.location,
@@ -264,8 +251,8 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
         banner_url: alumniData.profile?.banner_url || null,
         email: alumniData.email,
         phone: alumniData.phone,
-        chapter: alumniData.chapter ? getChapterName(alumniData.chapter) : null,
-        chapter_id: alumniData.chapter,
+        chapter: alumniData.profile?.chapter ?? null,
+        chapter_id: alumniData.profile?.chapter_id ?? alumniData.chapter ?? null,
       bio: alumniData.description || alumniData.profile?.bio || null,
       location: alumniData.location || alumniData.profile?.location || null,
       username: alumniData.profile?.username || null,

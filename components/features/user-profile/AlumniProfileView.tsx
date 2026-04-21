@@ -32,19 +32,6 @@ interface AlumniProfileViewProps {
   hideCloseButton?: boolean;
 }
 
-const getChapterName = (chapterId: string | null | undefined): string => {
-  if (!chapterId) return '';
-  
-  const chapterMap: Record<string, string> = {
-    "404e65ab-1123-44a0-81c7-e8e75118e741": "Sigma Chi Eta (Ole Miss)",
-    "8ede10e8-b848-427d-8f4a-aacf74cea2c2": "Phi Gamma Delta Omega Chi (Chapman)",
-    "b25a4acf-59f0-46d4-bb5c-d41fda5b3252": "Phi Delta Theta Mississippi Alpha (Ole Miss)",
-    "ff740e3f-c45c-4728-a5d5-22088c19d847": "Kappa Sigma Delta-Xi (Ole Miss)"
-  };
-  
-  return chapterMap[chapterId] || chapterId;
-};
-
 export function AlumniProfileView({ profile, onClose, hideCloseButton = false }: AlumniProfileViewProps) {
   const { user } = useAuth();
   const router = useRouter();
@@ -425,7 +412,7 @@ export function AlumniProfileView({ profile, onClose, hideCloseButton = false }:
               {profile.chapter && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-gray-500">Chapter</span>
-                  <span className="text-gray-900">{getChapterName(profile.chapter_id)}</span>
+                  <span className="text-gray-900">{profile.chapter}</span>
                 </div>
               )}
               {alumni.lastContact && (
