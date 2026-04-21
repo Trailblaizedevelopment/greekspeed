@@ -7,6 +7,10 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const { searchParams } = new URL(request.url);
     const chapterId = searchParams.get('chapter_id');
+    const visibleToActive =
+      searchParams.get('visible_to_active_members') === 'false' ? false : true;
+    const visibleToAlumni =
+      searchParams.get('visible_to_alumni') === 'false' ? false : true;
 
     if (!chapterId) {
       return NextResponse.json({ error: 'Chapter ID required' }, { status: 400 });
@@ -43,23 +47,27 @@ export async function GET(request: NextRequest) {
 
     // Count email recipients (has email AND email_enabled AND event_notifications)
     let emailCount = 0;
-    for (const member of members) {
-      if (member.email) {
-        try {
-          const allowed = await canSendEmailNotification(member.id, 'event');
-          if (allowed) emailCount++;
-        } catch {
-          // Skip on error
+    if (visibleToActive) {
+      for (const member of members) {
+        if (member.email) {
+          try {
+            const allowed = await canSendEmailNotification(member.id, 'event');
+            if (allowed) emailCount++;
+          } catch {
+            // Skip on error
+          }
         }
       }
     }
 
     // Count SMS recipients (has phone AND sms_consent = true)
-    const smsCount = members.filter(member => 
-      member.phone && 
-      member.phone.trim() !== '' && 
-      member.sms_consent === true
-    ).length;
+    const smsCount = visibleToActive
+      ? members.filter(member => 
+          member.phone && 
+          member.phone.trim() !== '' && 
+          member.sms_consent === true
+        ).length
+      : 0;
 
     // Get alumni in the same chapter
     const { data: alumni, error: alumniError } = await supabase
@@ -79,23 +87,27 @@ export async function GET(request: NextRequest) {
 
     // Count alumni email recipients using same preference logic
     let alumniEmailCount = 0;
-    for (const alum of alumni) {
-      if (alum.email) {
-        try {
-          const allowed = await canSendEmailNotification(alum.id, 'event');
-          if (allowed) alumniEmailCount++;
-        } catch {
-          // Skip on error
+    if (visibleToAlumni) {
+      for (const alum of alumni) {
+        if (alum.email) {
+          try {
+            const allowed = await canSendEmailNotification(alum.id, 'event');
+            if (allowed) alumniEmailCount++;
+          } catch {
+            // Skip on error
+          }
         }
       }
     }
 
     // Count alumni SMS recipients (has phone AND sms_consent = true)
-    const alumniSmsCount = alumni.filter(alum => 
-      alum.phone && 
-      alum.phone.trim() !== '' && 
-      alum.sms_consent === true
-    ).length;
+    const alumniSmsCount = visibleToAlumni
+      ? alumni.filter(alum => 
+          alum.phone && 
+          alum.phone.trim() !== '' && 
+          alum.sms_consent === true
+        ).length
+      : 0;
 
     return NextResponse.json({
       email_recipients: emailCount,

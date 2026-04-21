@@ -3,24 +3,17 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Clock, Users, HelpCircle, X, Filter, Loader2, MoreVertical } from 'lucide-react';
+import { Calendar, MapPin, Clock, Users, HelpCircle, X, Filter, MoreVertical } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { Event, RSVPStatus } from '@/types/events';
 import { formatEventCardSchedule } from '@/lib/utils/eventScheduleDisplay';
-import { useFeatureRedirect } from '@/lib/hooks/useFeatureRedirect';
 import { EventDetailModal } from '@/components/features/events/EventDetailModal';
 import { EventActionsMenu } from '@/components/features/events/EventActionsMenu';
 
 type EventFilter = 'all' | 'attending' | 'maybe' | 'not_attending';
 
 export function MobileEventsPage() {
-  // Feature flag protection - redirects if events_management_enabled is false
-  const { loading: flagLoading } = useFeatureRedirect({
-    flagName: 'events_management_enabled',
-    redirectTo: '/dashboard'
-  });
-
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,20 +142,6 @@ export function MobileEventsPage() {
   const handleModalRsvpChange = async (eventId: string, status: RSVPStatus) => {
     await handleRSVP(eventId, status as 'attending' | 'maybe' | 'not_attending');
   };
-
-  // Show loading state while checking feature flag
-  if (flagLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 pt-4 pb-20 px-4">
-        <div className="max-w-md mx-auto">
-          <div className="text-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-brand-primary mx-auto mb-2" />
-            <p className="text-gray-500 text-sm">Loading...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (

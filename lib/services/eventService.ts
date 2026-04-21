@@ -43,6 +43,9 @@ export async function fetchEventBySlugOrId(slugOrId: string): Promise<Event | nu
         .eq('id', slugOrId)
         .eq('status', 'published') // Only show published events publicly
         .is('archived_at', null) // Exclude archived events
+        // Public marketing page: only events visible to both in-app audiences
+        .eq('visible_to_active_members', true)
+        .eq('visible_to_alumni', true)
         .single();
     } else {
       // Slug-based lookup (if slug column exists)
@@ -53,6 +56,8 @@ export async function fetchEventBySlugOrId(slugOrId: string): Promise<Event | nu
         .or(`event_slug.eq.${slugOrId},id.eq.${slugOrId}`)
         .eq('status', 'published')
         .is('archived_at', null) // Exclude archived events
+        .eq('visible_to_active_members', true)
+        .eq('visible_to_alumni', true)
         .single();
     }
 
@@ -67,6 +72,8 @@ export async function fetchEventBySlugOrId(slugOrId: string): Promise<Event | nu
           .eq('id', slugOrId)
           .eq('status', 'published')
           .is('archived_at', null)
+          .eq('visible_to_active_members', true)
+          .eq('visible_to_alumni', true)
           .single();
         
         if (fallbackError || !fallbackData) {

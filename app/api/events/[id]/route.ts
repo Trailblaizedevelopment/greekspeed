@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { normalizeEventTimeField } from '@/lib/utils/eventScheduleDisplay';
+import { authenticateApiRequest } from '@/lib/api/authenticateApiRequest';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import { assertEventVisibleToViewer, validateAudienceSelection } from '@/lib/utils/eventAudienceVisibility';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -27,9 +30,51 @@ export async function GET(
       .eq('id', id)
       .single();
 
-    if (error) {
+    if (error || !event) {
       console.error('Error fetching event:', error);
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    const auth = await authenticateApiRequest(request);
+    if (auth) {
+      const { data: accessProfile, error: accessProfileError } = await auth.supabase
+        .from('profiles')
+        .select('chapter_id, signup_channel, is_developer, role, chapter_role')
+        .eq('id', auth.user.id)
+        .single();
+
+      if (accessProfileError || !accessProfile) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+
+      const access = await assertAuthenticatedChapterReadAccess(
+        auth.supabase,
+        auth.user.id,
+        {
+          chapter_id: accessProfile.chapter_id,
+          signup_channel: accessProfile.signup_channel,
+          is_developer: accessProfile.is_developer,
+        },
+        event.chapter_id as string
+      );
+      if (!access.ok) {
+        return access.response;
+      }
+
+      const viewer = {
+        role: accessProfile.role ?? null,
+        chapter_role: accessProfile.chapter_role ?? null,
+        is_developer: accessProfile.is_developer ?? false,
+      };
+      if (!assertEventVisibleToViewer(event, viewer)) {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      }
+    } else {
+      if (
+        !assertEventVisibleToViewer(event, null)
+      ) {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      }
     }
 
     return NextResponse.json(event);
@@ -46,6 +91,16 @@ export async function PATCH(
   try {
     const { id } = await params;
     const updateData = await request.json();
+
+    const { data: existingEvent, error: existingError } = await supabase
+      .from('events')
+      .select('visible_to_active_members, visible_to_alumni')
+      .eq('id', id)
+      .single();
+
+    if (existingError || !existingEvent) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
 
     const startPatch =
       'start_time' in updateData ? normalizeEventTimeField(updateData.start_time) : undefined;
@@ -64,6 +119,29 @@ export async function PATCH(
     const merged: Record<string, unknown> = { ...allowedUpdateData };
     if ('start_time' in updateData) merged.start_time = startPatch;
     if ('end_time' in updateData) merged.end_time = endPatch;
+
+    if (
+      'visible_to_active_members' in updateData ||
+      'visible_to_alumni' in updateData
+    ) {
+      const nextActive =
+        'visible_to_active_members' in updateData
+          ? Boolean(updateData.visible_to_active_members)
+          : Boolean(existingEvent.visible_to_active_members);
+      const nextAlumni =
+        'visible_to_alumni' in updateData
+          ? Boolean(updateData.visible_to_alumni)
+          : Boolean(existingEvent.visible_to_alumni);
+      const aud = validateAudienceSelection(nextActive, nextAlumni);
+      if (!aud.ok) {
+        return NextResponse.json({ error: aud.error }, { status: 400 });
+      }
+      merged.visible_to_active_members = nextActive;
+      merged.visible_to_alumni = nextAlumni;
+    } else {
+      delete merged.visible_to_active_members;
+      delete merged.visible_to_alumni;
+    }
 
     // Update the event
     const { data: updatedEvent, error } = await supabase

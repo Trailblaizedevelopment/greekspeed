@@ -248,53 +248,47 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
   // Show loading until both profile and alumni data are ready
   if (profileLoading || loading || !isInitialized) {
     return (
-      <div className="sticky top-6">
-        <Card className="bg-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
-              <span className="ml-2 text-gray-600">Loading profile...</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="bg-white">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
+            <span className="ml-2 text-gray-600">Loading profile...</span>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className="sticky top-6">
-        <Card className="bg-white">
-          <CardContent className="p-6">
-            <div className="text-center text-red-600">
-              <p>{error}</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => loadAlumniData(true)}
-                className="mt-2"
-              >
-                Try Again
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="bg-white">
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            <p>{error}</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => loadAlumniData(true)}
+              className="mt-2"
+            >
+              Try Again
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   if (!profile || profile.role !== 'alumni' || !alumniData) {
     return (
-      <div className="sticky top-6">
-        <Card className="bg-white">
-          <CardContent className="p-6">
-            <div className="text-center text-gray-600">
-              <User className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p>No alumni profile found</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="bg-white">
+        <CardContent className="p-6">
+          <div className="text-center text-gray-600">
+            <User className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+            <p>No alumni profile found</p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -449,13 +443,12 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
     );
   }
 
-  // Desktop Layout (Original)
+  // Desktop Layout — scrolls with page (matches admin/active sidebar columns)
   return (
     <>
-      <div className="sticky top-6">
-        <Card className="bg-white overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 3rem)' }}>
+      <Card className="bg-white overflow-hidden">
           {/* Header with backdrop and avatar */}
-          <div className="relative h-24 flex-shrink-0">
+          <div className="relative h-24">
             <img 
               src={alumniData.banner_url || DEFAULT_BANNER_IMAGE} 
               alt={`${alumniData.full_name} banner`}
@@ -480,7 +473,7 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
             </div>
           </div>
 
-          <CardContent className="pt-8 pb-4 flex-1 overflow-y-auto">
+          <CardContent className="pt-8 pb-4">
             {/* Profile Information */}
             <div className="text-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-1">
@@ -627,7 +620,6 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
             </Button>
           </CardContent>
         </Card>
-      </div>
 
       {/* Edit Profile Modal */}
       {editModalOpen && (

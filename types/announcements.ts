@@ -1,3 +1,25 @@
+import type { AnnouncementPrimaryLink } from '@/lib/validation/announcementMetadata';
+
+/** Re-export: shape matches server validation in `sanitizeAnnouncementMetadataForCreate`. */
+export type { AnnouncementPrimaryLink } from '@/lib/validation/announcementMetadata';
+
+/** One image in announcements.metadata.images (v1: max one in API validation). */
+export interface AnnouncementImageMetadataEntry {
+  url: string;
+  alt?: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
+/**
+ * Whitelisted announcement `metadata` for creates and persisted rows (images + optional primary link).
+ * Server strips any other keys.
+ */
+export interface AnnouncementMetadata {
+  images?: AnnouncementImageMetadataEntry[];
+  primary_link?: AnnouncementPrimaryLink;
+}
+
 export interface Announcement {
   id: string;
   chapter_id: string;
@@ -9,7 +31,7 @@ export interface Announcement {
   scheduled_at?: string;
   is_sent: boolean;
   sent_at?: string;
-  metadata?: Record<string, any>;
+  metadata?: AnnouncementMetadata | null;
   created_at: string;
   updated_at: string;
   sender?: {
@@ -82,7 +104,8 @@ export interface CreateAnnouncementData {
   /** Send an email notification to active members/admins */
   send_email_to_alumni?: boolean;
 
-  metadata?: Record<string, any>;
+  /** Optional attachment metadata; only `images` and `primary_link` are stored per API validation. */
+  metadata?: AnnouncementMetadata;
 }
 
 /**
@@ -126,12 +149,4 @@ export interface RecipientPreviewResponse {
     total_members: number;
     total_alumni: number;
   };
-}
-
-/** One image in announcements.metadata.images (v1: max one in API validation later) */
-export interface AnnouncementImageMetadataEntry {
-  url: string;
-  alt?: string;
-  mimeType: string;
-  sizeBytes: number;
 }

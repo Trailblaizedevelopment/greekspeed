@@ -6,6 +6,8 @@ import { X, MessageSquare, AlertTriangle, GraduationCap, Calendar } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Announcement } from '@/types/announcements';
 import { Loader2, Check } from 'lucide-react';
+import { getPrimaryLinkFromMetadata } from '@/lib/validation/announcementMetadata';
+import { AnnouncementPrimaryLinkDisplay } from './AnnouncementPrimaryLinkDisplay';
 
 // Helper to get icon and color based on announcement type
 const getAnnouncementTypeConfig = (type: string) => {
@@ -67,6 +69,7 @@ export function AnnouncementDetailDrawer({
 
   const typeConfig = getAnnouncementTypeConfig(announcement.announcement_type);
   const TypeIcon = typeConfig.icon;
+  const primaryLink = getPrimaryLinkFromMetadata(announcement.metadata);
 
   const handleMarkAsRead = () => {
     onMarkAsRead(announcement.id)
@@ -117,6 +120,9 @@ export function AnnouncementDetailDrawer({
           isMobile ? 'max-h-[50dvh]' : 'max-h-[50vh]'
         }`}
       >
+        {primaryLink && (
+          <AnnouncementPrimaryLinkDisplay link={primaryLink} variant="drawer" />
+        )}
         <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
           {announcement.content}
         </p>

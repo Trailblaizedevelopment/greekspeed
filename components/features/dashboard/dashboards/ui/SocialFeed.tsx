@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,9 +28,21 @@ export interface SocialFeedInitialData {
 interface SocialFeedProps {
   chapterId: string;
   initialData?: SocialFeedInitialData;
+  /**
+   * When set, splices this block into the virtualized feed after the post at
+   * `inlineSlotAfterPostIndex` (0-based). If there are fewer posts, the slot is appended after the last post.
+   */
+  inlineFeedSlot?: ReactNode;
+  /** 0-based index: slot is inserted immediately after that post. Default 3 (after the 4th post). */
+  inlineSlotAfterPostIndex?: number;
 }
 
-export function SocialFeed({ chapterId, initialData }: SocialFeedProps) {
+export function SocialFeed({
+  chapterId,
+  initialData,
+  inlineFeedSlot,
+  inlineSlotAfterPostIndex = 3,
+}: SocialFeedProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [reportPost, setReportPost] = useState<Post | null>(null);
@@ -158,6 +170,26 @@ export function SocialFeed({ chapterId, initialData }: SocialFeedProps) {
     );
   }, [mergedPosts, feedFilter, connectedUserIds]);
 
+  type FeedRow = { kind: 'post'; post: Post } | { kind: 'slot'; key: string };
+
+  const feedRows = useMemo((): FeedRow[] => {
+    if (!inlineFeedSlot) {
+      return filteredPosts.map((post) => ({ kind: 'post' as const, post }));
+    }
+    const rows: FeedRow[] = [];
+    const threshold = Math.max(0, inlineSlotAfterPostIndex);
+    for (let i = 0; i < filteredPosts.length; i++) {
+      rows.push({ kind: 'post', post: filteredPosts[i] });
+      if (i === threshold) {
+        rows.push({ kind: 'slot', key: 'feed-events-inline' });
+      }
+    }
+    if (filteredPosts.length > 0 && filteredPosts.length <= threshold) {
+      rows.push({ kind: 'slot', key: 'feed-events-inline' });
+    }
+    return rows;
+  }, [filteredPosts, inlineFeedSlot, inlineSlotAfterPostIndex]);
+
   useEffect(() => {
     const handleScroll = () => setHasScrolled(true);
     window.addEventListener('scroll', handleScroll, { once: true });
@@ -194,7 +226,7 @@ export function SocialFeed({ chapterId, initialData }: SocialFeedProps) {
   }, [fetchNextPage, hasNextPage, isFetchingNextPage, hasScrolled]); // ← Added hasScrolled
 
   const rowVirtualizer = useWindowVirtualizer({
-    count: filteredPosts.length,
+    count: feedRows.length,
     estimateSize: () => 420,
     measureElement: (el) => el?.getBoundingClientRect().height ?? 420,
     overscan: 8,
@@ -494,7 +526,7 @@ export function SocialFeed({ chapterId, initialData }: SocialFeedProps) {
             <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
             <p className="text-gray-500 text-sm sm:text-base">Loading feed…</p>
           </div>
-        ) : filteredPosts.length === 0 ? (
+        ) : feedRows.length === 0 ? (
           <div className="text-center py-8 sm:py-12">
             {feedFilter === 'connections' && mergedPosts.length > 0 ? (
               <>
@@ -515,9 +547,31 @@ export function SocialFeed({ chapterId, initialData }: SocialFeedProps) {
               style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
             >
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const post = filteredPosts[virtualRow.index];
-                if (!post) return null;
+                const row = feedRows[virtualRow.index];
+                if (!row) return null;
 
+                if (row.kind === 'slot') {
+                  return (
+                    <div
+                      key={`${row.key}-${virtualRow.index}`}
+                      data-index={virtualRow.index}
+                      className="absolute left-0 right-0"
+                      style={{
+                        transform: `translateY(${virtualRow.start}px)`,
+                        width: '100%',
+                      }}
+                      ref={(el) => {
+                        if (el) {
+                          rowVirtualizer.measureElement(el);
+                        }
+                      }}
+                    >
+                      {inlineFeedSlot}
+                    </div>
+                  );
+                }
+
+                const post = row.post;
                 return (
                   <div
                     key={post.id}
@@ -543,7 +597,7 @@ export function SocialFeed({ chapterId, initialData }: SocialFeedProps) {
                       onCommentAdded={handleCommentAdded}
                       isExpanded={expandedPostId === post.id}
                       variant="feed"
-                      showDivider={virtualRow.index < filteredPosts.length - 1}
+                      showDivider={virtualRow.index < feedRows.length - 1}
                       onToggleExpand={() => {
                         setExpandedPostId((prev) => (prev === post.id ? null : post.id));
                         invalidateFeedRowHeights();

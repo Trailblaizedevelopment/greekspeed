@@ -1,6 +1,7 @@
 import sgMail from '@sendgrid/mail';
 import { getEmailBaseUrl } from '@/lib/utils/urlUtils';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
+import { getPrimaryLinkFromMetadata } from '@/lib/validation/announcementMetadata';
 
 function escapeHtmlForEmail(text: string): string {
   return text
@@ -53,6 +54,8 @@ export interface ChapterAnnouncementEmail {
   /** Public HTTPS URL for optional announcement image (SendGrid template: conditional block) */
   imageUrl?: string | null;
   imageAlt?: string | null;
+  /** Announcement row `metadata` JSON — used for optional `primary_link` in SendGrid dynamic template */
+  metadata?: unknown | null;
 }
 
 // NEW: Event notification interface
@@ -146,10 +149,23 @@ export class EmailService {
     announcementType,
     imageUrl,
     imageAlt,
+    metadata,
   }: ChapterAnnouncementEmail): Promise<boolean> {
     try {
       const baseUrl = getEmailBaseUrl().replace(/\/$/, '');
       const hasImage = Boolean(imageUrl && imageUrl.length > 0);
+      const inAppAnnouncementsUrl = `${baseUrl}/dashboard/announcements`;
+
+      const primaryLink = getPrimaryLinkFromMetadata(metadata);
+      const hasPrimaryLink = Boolean(primaryLink);
+      const primaryLinkUrl = primaryLink?.url ?? '';
+      const primaryLinkLabel = primaryLink?.label?.trim() ?? '';
+
+      const ctaUrl = primaryLink?.url ?? inAppAnnouncementsUrl;
+      const ctaLabel = primaryLink?.url
+        ? primaryLinkLabel || 'Open link'
+        : 'Read Full Announcement';
+
       const msg = {
         to,
         from: {
@@ -168,6 +184,11 @@ export class EmailService {
             has_image: hasImage,
             image_url: hasImage ? imageUrl : '',
             image_alt: imageAlt && imageAlt.trim() ? imageAlt.trim() : '',
+            has_primary_link: hasPrimaryLink,
+            primary_link_url: primaryLinkUrl,
+            primary_link_label: primaryLinkLabel,
+            /** In-app list URL for optional secondary CTA in SendGrid when `has_primary_link` is true */
+            in_app_announcements_url: inAppAnnouncementsUrl,
           },
           recipient: {
             first_name: firstName,
@@ -177,8 +198,8 @@ export class EmailService {
             name: chapterName
           },
           cta: {
-            label: 'Read Full Announcement',
-            url: `${baseUrl}/dashboard/announcements`
+            label: ctaLabel,
+            url: ctaUrl,
           },
           unsubscribe: `{{unsubscribe}}`,
           unsubscribe_preferences: `{{unsubscribe_preferences}}`
@@ -223,6 +244,7 @@ export class EmailService {
       announcementType: 'general' | 'urgent' | 'event' | 'academic';
       imageUrl?: string | null;
       imageAlt?: string | null;
+      metadata?: unknown | null;
       // priority: 'low' | 'normal' | 'high' | 'urgent';
     }
   ): Promise<{ successful: number; failed: number }> {

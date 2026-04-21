@@ -10,7 +10,6 @@ import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { Event, RSVPStatus } from '@/types/events';
 import { formatEventCardSchedule, isValidIsoDateTime } from '@/lib/utils/eventScheduleDisplay';
 import { toast } from 'react-toastify';
-import { useFeatureRedirect } from '@/lib/hooks/useFeatureRedirect';
 import { EventDetailModal } from '@/components/features/events/EventDetailModal';
 import { EventActionsMenu } from '@/components/features/events/EventActionsMenu';
 
@@ -19,12 +18,6 @@ const MAX_DESCRIPTION_CHARS = 150;
 type EventFilter = 'all' | 'attending' | 'maybe' | 'not_attending';
 
 export function MobileCalendarPage() {
-  // Feature flag protection - redirects if events_management_enabled is false
-  const { loading: flagLoading } = useFeatureRedirect({
-    flagName: 'events_management_enabled',
-    redirectTo: '/dashboard'
-  });
-
   const [activeTab, setActiveTab] = useState<'calendar' | 'events'>('calendar');
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [events, setEvents] = useState<Event[]>([]);
@@ -307,21 +300,6 @@ export function MobileCalendarPage() {
       </div>
     );
   };
-
-
-  // Show loading state while checking feature flag
-  if (flagLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 pt-4 pb-20 px-4">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
-            <span className="ml-2 text-gray-600">Loading...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (loading && activeTab === 'calendar') {
     return (
