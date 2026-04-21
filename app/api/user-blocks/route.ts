@@ -9,10 +9,16 @@ function createServiceClient() {
   return createClient(url, key);
 }
 
-async function getBearerUser(supabase: ReturnType<typeof createClient>, request: NextRequest) {
+/** Matches `createServiceClient()` return so `getUser` accepts the same client instance (build-safe). */
+type ServiceSupabase = NonNullable<ReturnType<typeof createServiceClient>>;
+
+async function getUserFromBearer(
+  supabase: ServiceSupabase,
+  request: NextRequest,
+): Promise<{ user: { id: string } | null; error: string | null }> {
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) {
-    return { user: null as { id: string } | null, error: 'Authentication required' as const };
+    return { user: null, error: 'Authentication required' };
   }
   const token = authHeader.replace('Bearer ', '');
   const {
@@ -20,7 +26,7 @@ async function getBearerUser(supabase: ReturnType<typeof createClient>, request:
     error,
   } = await supabase.auth.getUser(token);
   if (error || !user) {
-    return { user: null, error: 'Invalid authentication' as const };
+    return { user: null, error: 'Invalid authentication' };
   }
   return { user, error: null };
 }
@@ -34,7 +40,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing environment variables' }, { status: 500 });
   }
 
-  const { user, error } = await getBearerUser(supabase, request);
+  const { user, error } = await getUserFromBearer(supabase, request);
   if (error || !user) {
     return NextResponse.json({ error: error ?? 'Unauthorized' }, { status: 401 });
   }
@@ -63,7 +69,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing environment variables' }, { status: 500 });
   }
 
-  const { user, error } = await getBearerUser(supabase, request);
+  const { user, error } = await getUserFromBearer(supabase, request);
   if (error || !user) {
     return NextResponse.json({ error: error ?? 'Unauthorized' }, { status: 401 });
   }
@@ -149,7 +155,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Missing environment variables' }, { status: 500 });
   }
 
-  const { user, error } = await getBearerUser(supabase, request);
+  const { user, error } = await getUserFromBearer(supabase, request);
   if (error || !user) {
     return NextResponse.json({ error: error ?? 'Unauthorized' }, { status: 401 });
   }
