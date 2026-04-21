@@ -41,6 +41,7 @@ export default function RoleChapterPage() {
   const profileChapter = profile?.chapter ?? '';
   const profileRole = profile?.role ?? '';
   const profileChapterId = profile?.chapter_id ?? '';
+  const profileSignupChannel = profile?.signup_channel;
   const { completeStep } = useOnboarding();
   const { chapters, loading: chaptersLoading } = useChapters();
 
@@ -78,6 +79,13 @@ export default function RoleChapterPage() {
       }
     }
 
+    if (profileSignupChannel === 'chapter_slug') {
+      setHasChapterJoinFromLink(true);
+    }
+    if (profileSignupChannel === 'invitation') {
+      setHasInvitation(true);
+    }
+
     if (profileChapter || profileRole) {
       const matchingChapter = chapters.find((c) => c.name === profileChapter);
       const nextChapter = profileChapter || undefined;
@@ -97,7 +105,6 @@ export default function RoleChapterPage() {
         }
         return { ...prev, chapter, chapterId, role };
       });
-      return;
     }
 
     if (!invitationToken && storedChapterSlug && joinRoleValid) {
@@ -116,7 +123,7 @@ export default function RoleChapterPage() {
         role: storedJoinRole as 'alumni' | 'active_member',
       }));
     }
-  }, [chapters, profileChapter, profileRole, profileChapterId]);
+  }, [chapters, profileChapter, profileRole, profileChapterId, profileSignupChannel]);
 
   useEffect(() => {
     const invitationType = sessionStorage.getItem('invitation_type');
@@ -186,6 +193,27 @@ export default function RoleChapterPage() {
 
   const selectChapterValue =
     formData.chapter || profile?.chapter?.trim() || '';
+
+  /**
+   * Invite / public chapter join: chapter is fixed (never show other chapters).
+   * Marketing OAuth self-serve keeps the directory dropdown.
+   */
+  const lockChapterSelection = useMemo(() => {
+    if (profile?.signup_channel === 'marketing_alumni') return false;
+    return (
+      hasChapterJoinFromLink ||
+      hasInvitation ||
+      profile?.signup_channel === 'invitation' ||
+      profile?.signup_channel === 'chapter_slug'
+    );
+  }, [
+    profile?.signup_channel,
+    hasChapterJoinFromLink,
+    hasInvitation,
+  ]);
+
+  const lockedChapterDisplayName = (formData.chapter || profile?.chapter || '').trim();
+  const showChapterDirectoryPicker = !lockChapterSelection;
 
   // Invitation / callback users: already have chapter + role on profile. Marketing alumni must
   // still complete the form to POST a membership request (email sign-up may prefill chapter name).
@@ -589,7 +617,7 @@ export default function RoleChapterPage() {
               <div>
                 <h3 className="font-medium text-blue-900 text-sm mb-1">Chapter join</h3>
                 <p className="text-sm text-blue-800">
-                  You&apos;re signing up as an active member from your chapter&apos;s link. Confirm your chapter below, then continue.
+                  You&apos;re signing up as an active member from your chapter&apos;s link. Your chapter is fixed to this sign-up; confirm your role below, then continue.
                 </p>
               </div>
             </div>
@@ -624,34 +652,63 @@ export default function RoleChapterPage() {
             Welcome! Let&apos;s Get Started
           </CardTitle>
           <CardDescription>
-            {formData.role === 'active_member' && hasChapterJoinFromLink
-              ? 'Confirm your chapter and role, then continue setting up your profile'
-              : 'Select your chapter to continue setting up your profile'}
+            {showChapterDirectoryPicker
+              ? formData.role === 'active_member' && hasChapterJoinFromLink
+                ? 'Confirm your chapter and role, then continue setting up your profile'
+                : 'Select your chapter to continue setting up your profile'
+              : 'Your chapter is set from your join link or invitation. Continue below.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Chapter Selection */}
+            {/* Chapter: directory picker (marketing self-serve only) vs read-only (invite / chapter join) */}
             <div className="space-y-2">
               <Label htmlFor="chapter" className="flex items-center gap-2">
                 Your Chapter *
               </Label>
-              <Select
-                value={selectChapterValue}
-                onValueChange={handleChapterChange}
-                disabled={chaptersLoading}
-              >
-                <SelectTrigger className={cn(errors.chapter && 'border-red-500')}>
-                  <SelectValue placeholder="Select your chapter" />
-                </SelectTrigger>
-                <SelectContent>
-                  {chapterSelectOptions.map((chapter) => (
-                    <SelectItem key={chapter.id} value={chapter.name}>
-                      {chapter.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {showChapterDirectoryPicker ? (
+                <Select
+                  value={selectChapterValue}
+                  onValueChange={handleChapterChange}
+                  disabled={chaptersLoading}
+                >
+                  <SelectTrigger id="chapter" className={cn(errors.chapter && 'border-red-500')}>
+                    <SelectValue placeholder="Select your chapter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chapterSelectOptions.map((chapter) => (
+                      <SelectItem key={chapter.id} value={chapter.name}>
+                        {chapter.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div
+                  className={cn(
+                    'p-4 bg-gray-50 border border-gray-200 rounded-xl',
+                    errors.chapter && 'border-red-500'
+                  )}
+                >
+                  {lockedChapterDisplayName ? (
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-gray-100 rounded-full">
+                        <Building2 className="h-5 w-5 text-gray-700" />
+                      </div>
+                      <p className="font-semibold text-gray-900">{lockedChapterDisplayName}</p>
+                    </div>
+                  ) : invitationLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      Loading your chapter…
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      Chapter details could not be loaded. Refresh the page or contact support.
+                    </p>
+                  )}
+                </div>
+              )}
               {errors.chapter && (
                 <p className="text-sm text-red-500">{errors.chapter}</p>
               )}
@@ -698,7 +755,13 @@ export default function RoleChapterPage() {
             <div className="pt-4">
               <Button
                 type="submit"
-                disabled={loading || chaptersLoading}
+                disabled={
+                  loading ||
+                  chaptersLoading ||
+                  (lockChapterSelection &&
+                    !lockedChapterDisplayName &&
+                    (invitationLoading || chapters.length === 0))
+                }
                 className="w-full bg-brand-primary hover:bg-brand-primary-hover rounded-full"
               >
                 {loading ? (
