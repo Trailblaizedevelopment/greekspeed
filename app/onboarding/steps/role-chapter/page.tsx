@@ -686,7 +686,7 @@ export default function RoleChapterPage() {
               ) : (
                 <div
                   className={cn(
-                    'p-4 bg-gray-50 border border-gray-200 rounded-xl',
+                    'p-4 bg-gray-50 border border-gray-200 rounded-full',
                     errors.chapter && 'border-red-500'
                   )}
                 >
