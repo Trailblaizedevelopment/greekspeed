@@ -9,6 +9,7 @@ import { UserAvatar } from '@/components/features/profile/UserAvatar';
 import { ArrowLeft } from 'lucide-react';
 import { ClickableAvatar } from '@/components/features/user-profile/ClickableAvatar';
 import { ClickableUserName } from '@/components/features/user-profile/ClickableUserName';
+import { useDashboardMessagesMobileChrome } from '@/lib/contexts/DashboardMessagesMobileChromeContext';
 
 interface ChatWindowProps {
   messages: Message[];
@@ -50,6 +51,7 @@ export function ChatWindow({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
+  const { mobileMessageThreadFullscreen } = useDashboardMessagesMobileChrome();
   const [isMobile, setIsMobile] = useState(false);
   const [appHeaderHeight, setAppHeaderHeight] = useState(0);
   const [bottomNavHeight, setBottomNavHeight] = useState(80);
@@ -74,12 +76,17 @@ export function ChatWindow({
         return;
       }
 
+      if (mobileMessageThreadFullscreen) {
+        setAppHeaderHeight(0);
+        return;
+      }
+
       const appHeader = document.querySelector('header') || 
                        document.querySelector('[data-app-header]') ||
                        document.querySelector('.sticky.top-0');
       
-      const height = appHeader?.getBoundingClientRect().height || 56;
-      setAppHeaderHeight(height);
+      const height = appHeader?.getBoundingClientRect().height ?? 0;
+      setAppHeaderHeight(height > 0 ? height : 56);
     };
 
     getAppHeaderHeight();
@@ -90,7 +97,7 @@ export function ChatWindow({
       window.removeEventListener('resize', getAppHeaderHeight);
       clearTimeout(timeout);
     };
-  }, [isMobile]);
+  }, [isMobile, mobileMessageThreadFullscreen]);
 
   // Get MobileBottomNavigation height
   useEffect(() => {

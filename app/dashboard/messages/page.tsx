@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronRight } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
+import { useDashboardMessagesMobileChrome } from '@/lib/contexts/DashboardMessagesMobileChromeContext';
 
 // ✅ Create a separate component that uses useSearchParams
 function MessagesPageContent() {
@@ -21,6 +22,14 @@ function MessagesPageContent() {
   const searchParams = useSearchParams();
   const connectionId = searchParams.get('connection');
   const router = useRouter();
+  const { setMobileMessageThreadFullscreen } = useDashboardMessagesMobileChrome();
+
+  // Fullscreen mobile thread: hide global dashboard header (back in chat returns to list + header).
+  useEffect(() => {
+    const fullscreen = isMobile && !!selectedConnectionId;
+    setMobileMessageThreadFullscreen(fullscreen);
+    return () => setMobileMessageThreadFullscreen(false);
+  }, [isMobile, selectedConnectionId, setMobileMessageThreadFullscreen]);
 
   // ✅ Prevent body scrolling on mobile when chat is open
   useEffect(() => {
