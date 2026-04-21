@@ -670,8 +670,8 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
                   </div>
                 </div>
 
-                {/* Tab Content - same pattern as dashboard profile (PostCard variant="profile") */}
-                <div className="divide-y divide-gray-200">
+                {/* Tab Content — posts match dashboard profile (PostCard variant="feed" + row dividers) */}
+                <div>
                   {activeTab === 'posts' && (
                     <>
                       {!isLoggedIn ? (
@@ -706,11 +706,12 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
                         </div>
                       ) : userPosts.length > 0 ? (
-                        userPosts.map((post) => (
+                        userPosts.map((post, index) => (
                           <PostCard
-                            variant="profile"
+                            variant="feed"
                             key={post.id}
                             post={post}
+                            showDivider={index < userPosts.length - 1}
                             onLike={async (postId) => { await likePost(postId); }}
                             onDelete={isOwnProfile ? (postId) => handleDeleteClick(postId) : undefined}
                             onCommentAdded={async () => { await refetchPosts(); }}
