@@ -158,8 +158,7 @@ export default function OnboardingCompletePage() {
       {/* Community / UGC terms (explicit acceptance before dashboard — App Store UGC safety) */}
       <div className="w-full max-w-md mb-6 rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-sm text-gray-700">
         <p className="mb-3">
-          Feeds, messages, and other community features depend on everyone following chapter and platform
-          rules. <strong>There is no tolerance</strong> for abusive behavior or objectionable content.
+          Feeds, messages, and other community features depend on proper complaince. <strong>There is no tolerance</strong> for abusive behavior or objectionable content.
         </p>
         <div className="flex items-start gap-3">
           <Checkbox
@@ -180,7 +179,7 @@ export default function OnboardingCompletePage() {
               >
                 Terms of Service
               </Link>
-              , including the community and user-generated content standards described there.
+             .
             </Label>
           </div>
         </div>
