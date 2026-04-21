@@ -38,21 +38,29 @@ function MessagesPageContent() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Prevent body scrolling on mobile to keep the messages container stable
+  // ✅ Prevent body scrolling on mobile when chat view is active
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const mobile = window.innerWidth < 768;
-    if (mobile) {
+    
+    const isMobile = window.innerWidth < 768;
+    const showChatViewOnMobile = isMobile && selectedConnectionId;
+    
+    if (showChatViewOnMobile) {
+      // Prevent body scrolling
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
+    } else {
+      // Restore body scrolling
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     }
 
     return () => {
+      // Cleanup: restore scrolling when component unmounts
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, [isMobile]);
+  }, [selectedConnectionId, isMobile]);
 
   // ✅ Add effect to handle URL parameters
   useEffect(() => {
@@ -107,7 +115,8 @@ function MessagesPageContent() {
   const showChatViewOnMobile = isMobile && selectedConnectionId;
 
   return (
-    <div className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100vh-4rem)] flex flex-col overflow-hidden pb-20 sm:pb-0">
+    // Use full screen height, prevent all scrolling on container
+    <div className="h-screen sm:h-[calc(100vh-4rem)] flex flex-col overflow-hidden fixed inset-0 sm:relative sm:inset-auto">
       {/* Mobile Header - Only show when in list view */}
       {showListViewOnMobile && (
         <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
