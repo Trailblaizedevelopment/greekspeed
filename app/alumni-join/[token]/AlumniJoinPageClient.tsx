@@ -136,11 +136,14 @@ export default function AlumniJoinPageClient() {
         chapter_name: invitation.chapter_name
       });
 
-      // Use Supabase's queryParams option (more reliable than URL query params)
+      const callback = new URL(`${window.location.origin}/auth/callback`);
+      callback.searchParams.set('invitation_token', invitation.token);
+      callback.searchParams.set('invitation_type', 'alumni');
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callback.toString(),
           queryParams: {
             invitation_token: invitation.token,
             invitation_type: 'alumni',
@@ -189,11 +192,14 @@ export default function AlumniJoinPageClient() {
         chapter_name: invitation.chapter_name
       });
 
-      // Use Supabase's queryParams option (more reliable than URL query params)
+      const callback = new URL(`${window.location.origin}/auth/callback`);
+      callback.searchParams.set('invitation_token', invitation.token);
+      callback.searchParams.set('invitation_type', 'alumni');
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'linkedin_oidc',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callback.toString(),
           scopes: 'openid profile email',
           queryParams: {
             invitation_token: invitation.token,
