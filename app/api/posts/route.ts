@@ -64,18 +64,29 @@ export async function GET(request: NextRequest) {
       return access.response;
     }
 
+    const { data: blockRows, error: blocksError } = await supabase
+      .from('user_blocks')
+      .select('blocked_user_id')
+      .eq('blocker_id', user.id);
+
+    if (blocksError) {
+      console.error('user_blocks fetch error (posts feed):', blocksError);
+    }
+
+    const blockedAuthorIds = [
+      ...new Set(
+        (blockRows ?? [])
+          .map((r) => r.blocked_user_id as string | undefined)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
 
-    // -------------------------------------------------------------------------
-    // Parallelize all three queries instead of running them sequentially.
-    // This mirrors the pattern already used in the server RSC (page.tsx).
-    // -------------------------------------------------------------------------
-    const [postsResult, likesResult, bookmarksResult, countResult] = await Promise.all([
-      // Query 1: Posts with author only (no comments - loaded on-demand)
-      supabase
-        .from('posts')
-        .select(`
+    let postsQuery = supabase
+      .from('posts')
+      .select(`
           id,
           chapter_id,
           author_id,
@@ -98,9 +109,28 @@ export async function GET(request: NextRequest) {
             member_status
           )
         `)
-        .eq('chapter_id', chapterId)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1),
+      .eq('chapter_id', chapterId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (blockedAuthorIds.length > 0) {
+      postsQuery = postsQuery.not('author_id', 'in', `(${blockedAuthorIds.join(',')})`);
+    }
+
+    let countQuery = supabase
+      .from('posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('chapter_id', chapterId);
+
+    if (blockedAuthorIds.length > 0) {
+      countQuery = countQuery.not('author_id', 'in', `(${blockedAuthorIds.join(',')})`);
+    }
+
+    // -------------------------------------------------------------------------
+    // Parallelize queries (posts, likes, bookmarks, count).
+    // -------------------------------------------------------------------------
+    const [postsResult, likesResult, bookmarksResult, countResult] = await Promise.all([
+      postsQuery,
 
       // Query 2: User likes (runs in parallel — filtered to post IDs after)
       supabase
@@ -114,11 +144,7 @@ export async function GET(request: NextRequest) {
         .select('post_id')
         .eq('user_id', user.id),
 
-      // Query 4: Total count for pagination
-      supabase
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-        .eq('chapter_id', chapterId),
+      countQuery,
     ]);
 
     const { data: posts, error: postsError } = postsResult;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { notifyModerationWebhook } from '@/lib/services/moderationWebhookService';
 
 /**
  * POST /api/posts/[id]/report
@@ -37,7 +38,7 @@ export async function POST(
 
     const { data: post, error: postError } = await supabase
       .from('posts')
-      .select('id, chapter_id')
+      .select('id, chapter_id, author_id')
       .eq('id', postId)
       .single();
 
@@ -73,6 +74,15 @@ export async function POST(
         { status: 500 }
       );
     }
+
+    notifyModerationWebhook({
+      event: 'post_report',
+      post_id: postId,
+      chapter_id: post.chapter_id,
+      reporter_id: user.id,
+      author_id: post.author_id,
+      reason: reason || undefined,
+    });
 
     return NextResponse.json({ success: true, message: 'Report submitted' });
   } catch (error) {

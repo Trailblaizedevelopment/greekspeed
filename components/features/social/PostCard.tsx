@@ -138,6 +138,8 @@ interface PostCardProps {
   onDelete?: (postId: string) => void;
   onEdit?: (postId: string) => void;
   onReport?: (postId: string) => void;
+  /** Dashboard feed: open block confirmation (API + refresh handled by parent). */
+  onBlockAuthor?: (post: Post) => void;
   onBookmark?: (postId: string) => void;
   onCommentAdded?: () => void;
   isExpanded?: boolean;
@@ -154,6 +156,7 @@ function PostCardInner({
   onDelete,
   onEdit,
   onReport,
+  onBlockAuthor,
   onBookmark,
   onCommentAdded,
   isExpanded: isExpandedProp,
@@ -714,6 +717,7 @@ function PostCardInner({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onReport={onReport}
+                onBlockAuthor={onBlockAuthor}
                 onBookmark={onBookmark}
                 onDeleteClick={handleDeleteClick}
                 useDeleteModal
@@ -998,6 +1002,7 @@ function PostCardInner({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onReport={onReport}
+                onBlockAuthor={onBlockAuthor}
                 onBookmark={onBookmark}
                 onDeleteClick={handleDeleteClick}
                 useDeleteModal
