@@ -33,6 +33,8 @@ export interface Connection {
 interface ConnectionsContextType {
   connections: Connection[];
   loading: boolean;
+  /** True after the initial `/api/connections` fetch for the current user has finished (success or error). */
+  initialFetchDone: boolean;
   error: string | null;
   sendConnectionRequest: (recipientId: string, message?: string) => Promise<any>;
   updateConnectionStatus: (connectionId: string, status: 'accepted' | 'declined' | 'blocked') => Promise<any>;
@@ -48,6 +50,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialFetchDone, setInitialFetchDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Use useRef to store stable function reference
@@ -55,22 +58,24 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
 
   const fetchConnections = useCallback(async () => {
     if (!user?.id) return;
-    
+
+    setInitialFetchDone(false);
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch(`/api/connections?userId=${user.id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch connections');
       }
-      
+
       const data = await response.json();
       setConnections(data.connections || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch connections');
     } finally {
       setLoading(false);
+      setInitialFetchDone(true);
     }
   }, [user?.id]);
 
@@ -181,7 +186,11 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   }, [user, connections]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setConnections([]);
+      setInitialFetchDone(false);
+      return;
+    }
     if (fetchConnectionsRef.current) {
       fetchConnectionsRef.current();
     }
@@ -191,6 +200,7 @@ export function ConnectionsProvider({ children }: { children: ReactNode }) {
   const value = {
     connections,
     loading,
+    initialFetchDone,
     error,
     sendConnectionRequest,
     updateConnectionStatus,

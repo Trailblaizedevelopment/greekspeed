@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,8 @@ import { ClickableAvatar } from '@/components/features/user-profile/ClickableAva
 import { ClickableUserName } from '@/components/features/user-profile/ClickableUserName';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
 import type { ChapterMemberData } from '@/types/chapter';
+import type { Connection } from '@/lib/contexts/ConnectionsContext';
+import { cn } from '@/lib/utils';
 
 function seededRandom(seed: number) {
   let value = seed;
@@ -35,18 +37,84 @@ function seededShuffle<T>(array: T[], seed: number): T[] {
   return shuffled;
 }
 
+/** Exclude only terminal connection states; pending (sent/received) stay in the rail. */
+function buildSpotlightOrder(
+  chapterMembers: ChapterMemberData[],
+  profileId: string,
+  connections: Connection[],
+  sessionSeed: number
+): ChapterMemberData[] {
+  const excludedIds = new Set<string>();
+  for (const c of connections) {
+    if (c.status !== 'accepted' && c.status !== 'blocked' && c.status !== 'declined') continue;
+    const other = c.requester_id === profileId ? c.recipient_id : c.requester_id;
+    excludedIds.add(other);
+  }
+
+  const membersWithAvatars = chapterMembers.filter(
+    (member) =>
+      member.id !== profileId &&
+      !excludedIds.has(member.id) &&
+      member.avatar_url &&
+      member.avatar_url.trim() !== ''
+  );
+
+  let availableMembers = membersWithAvatars;
+  if (membersWithAvatars.length < 5) {
+    const membersWithoutAvatars = chapterMembers.filter(
+      (member) =>
+        member.id !== profileId &&
+        !excludedIds.has(member.id) &&
+        (!member.avatar_url || member.avatar_url.trim() === '')
+    );
+    availableMembers = [...membersWithAvatars, ...membersWithoutAvatars];
+  }
+
+  const alumniMembers = availableMembers.filter((member) => member.role === 'alumni');
+  const activeMembers = availableMembers.filter((member) => member.role === 'active_member');
+  const adminMembers = availableMembers.filter((member) => member.role === 'admin');
+  const otherMembers = availableMembers.filter(
+    (member) =>
+      member.role !== 'alumni' && member.role !== 'active_member' && member.role !== 'admin'
+  );
+
+  const shuffledAlumni = weightedRandomShuffle(alumniMembers, calculateNetworkingPriority, 0.4);
+  const shuffledActive = weightedRandomShuffle(activeMembers, calculateNetworkingPriority, 0.4);
+  const shuffledAdmin = weightedRandomShuffle(adminMembers, calculateNetworkingPriority, 0.4);
+  const shuffledOther = weightedRandomShuffle(otherMembers, calculateNetworkingPriority, 0.4);
+
+  const prioritizedMembers = [
+    ...shuffledAlumni,
+    ...shuffledActive,
+    ...shuffledAdmin,
+    ...shuffledOther,
+  ];
+  const topPool = prioritizedMembers.slice(0, Math.min(20, prioritizedMembers.length));
+  if (topPool.length <= 10) return topPool;
+  const shuffledPool = seededShuffle(topPool, sessionSeed);
+  return shuffledPool.slice(0, 10);
+}
+
 export function NetworkingSpotlightCard() {
   const { profile } = useProfile();
   const chapterId = useScopedChapterId();
   const { members: chapterMembers, loading: membersLoading } = useChapterMembers(chapterId ?? undefined);
-  const { connections, sendConnectionRequest } = useConnections();
+  const {
+    connections,
+    sendConnectionRequest,
+    getConnectionStatus,
+    loading: connectionsLoading,
+    initialFetchDone,
+  } = useConnections();
   const router = useRouter();
   const [connectionLoading, setConnectionLoading] = useState<string | null>(null);
   const [showConnectionDialog, setShowConnectionDialog] = useState(false);
   const [selectedMemberForConnection, setSelectedMemberForConnection] = useState<ChapterMemberData | null>(null);
-  const [localConnectionsSnapshot, setLocalConnectionsSnapshot] = useState<Array<{ requester_id: string; recipient_id: string }>>([]);
-  const [snapshotTaken, setSnapshotTaken] = useState(false);
   const [sessionSeed, setSessionSeed] = useState<number | null>(null);
+  const [frozenSpotlightMembers, setFrozenSpotlightMembers] = useState<ChapterMemberData[]>([]);
+  const [hasFrozenSpotlightOnce, setHasFrozenSpotlightOnce] = useState(false);
+  const [optimisticPendingSentIds, setOptimisticPendingSentIds] = useState<Set<string>>(() => new Set());
+  const orderFrozenRef = useRef(false);
 
   useEffect(() => {
     const storageKey = 'networking-spotlight-seed';
@@ -61,69 +129,52 @@ export function NetworkingSpotlightCard() {
   }, []);
 
   useEffect(() => {
-    if (profile?.id && connections.length >= 0 && !snapshotTaken) {
-      setLocalConnectionsSnapshot(
-        connections.map((c: { requester_id: string; recipient_id: string }) => ({
-          requester_id: c.requester_id,
-          recipient_id: c.recipient_id,
-        }))
-      );
-      setSnapshotTaken(true);
-    }
-  }, [profile?.id, connections, snapshotTaken]);
+    orderFrozenRef.current = false;
+    setFrozenSpotlightMembers([]);
+    setHasFrozenSpotlightOnce(false);
+  }, [chapterId]);
 
-  const networkingSpotlight = useMemo(() => {
-    if (!chapterMembers || !profile || !snapshotTaken || sessionSeed === null) return [];
+  useEffect(() => {
+    orderFrozenRef.current = false;
+    setFrozenSpotlightMembers([]);
+    setHasFrozenSpotlightOnce(false);
+  }, [profile?.id]);
 
-    const connectedUserIds = new Set(
-      localConnectionsSnapshot.map((conn) =>
-        conn.requester_id === profile.id ? conn.recipient_id : conn.requester_id
-      )
-    );
-
-    const membersWithAvatars = chapterMembers.filter(
-      (member) =>
-        member.id !== profile.id &&
-        !connectedUserIds.has(member.id) &&
-        member.avatar_url &&
-        member.avatar_url.trim() !== ''
-    );
-
-    let availableMembers = membersWithAvatars;
-    if (membersWithAvatars.length < 5) {
-      const membersWithoutAvatars = chapterMembers.filter(
-        (member) =>
-          member.id !== profile.id &&
-          !connectedUserIds.has(member.id) &&
-          (!member.avatar_url || member.avatar_url.trim() === '')
-      );
-      availableMembers = [...membersWithAvatars, ...membersWithoutAvatars];
+  useEffect(() => {
+    if (orderFrozenRef.current) return;
+    if (
+      !chapterMembers?.length ||
+      !profile?.id ||
+      sessionSeed === null ||
+      membersLoading ||
+      connectionsLoading ||
+      !initialFetchDone
+    ) {
+      return;
     }
 
-    const alumniMembers = availableMembers.filter((member) => member.role === 'alumni');
-    const activeMembers = availableMembers.filter((member) => member.role === 'active_member');
-    const adminMembers = availableMembers.filter((member) => member.role === 'admin');
-    const otherMembers = availableMembers.filter(
-      (member) =>
-        member.role !== 'alumni' && member.role !== 'active_member' && member.role !== 'admin'
-    );
+    const ordered = buildSpotlightOrder(chapterMembers, profile.id, connections, sessionSeed);
+    orderFrozenRef.current = true;
+    setFrozenSpotlightMembers(ordered);
+    setHasFrozenSpotlightOnce(true);
+  }, [
+    chapterMembers,
+    profile?.id,
+    sessionSeed,
+    membersLoading,
+    connectionsLoading,
+    initialFetchDone,
+    connections,
+    chapterId,
+  ]);
 
-    const shuffledAlumni = weightedRandomShuffle(alumniMembers, calculateNetworkingPriority, 0.4);
-    const shuffledActive = weightedRandomShuffle(activeMembers, calculateNetworkingPriority, 0.4);
-    const shuffledAdmin = weightedRandomShuffle(adminMembers, calculateNetworkingPriority, 0.4);
-    const shuffledOther = weightedRandomShuffle(otherMembers, calculateNetworkingPriority, 0.4);
-
-    const prioritizedMembers = [
-      ...shuffledAlumni,
-      ...shuffledActive,
-      ...shuffledAdmin,
-      ...shuffledOther,
-    ];
-    const topPool = prioritizedMembers.slice(0, Math.min(20, prioritizedMembers.length));
-    if (topPool.length <= 10) return topPool;
-    const shuffledPool = seededShuffle(topPool, sessionSeed);
-    return shuffledPool.slice(0, 10);
-  }, [chapterMembers, profile, snapshotTaken, localConnectionsSnapshot, sessionSeed]);
+  const getRowConnectionStatus = useCallback(
+    (memberId: string) => {
+      if (optimisticPendingSentIds.has(memberId)) return 'pending_sent' as const;
+      return getConnectionStatus(memberId);
+    },
+    [getConnectionStatus, optimisticPendingSentIds]
+  );
 
   const handleConnect = (member: ChapterMemberData) => {
     if (!profile) return;
@@ -133,21 +184,26 @@ export function NetworkingSpotlightCard() {
 
   const handleSendConnectionRequest = async (message?: string) => {
     if (!profile || !selectedMemberForConnection) return;
-    setConnectionLoading(selectedMemberForConnection.id);
+    const recipientId = selectedMemberForConnection.id;
+    setConnectionLoading(recipientId);
+    setOptimisticPendingSentIds((prev) => new Set(prev).add(recipientId));
     try {
-      await sendConnectionRequest(selectedMemberForConnection.id, message);
-      setLocalConnectionsSnapshot((prev) => [
-        ...prev,
-        {
-          requester_id: profile.id,
-          recipient_id: selectedMemberForConnection.id,
-        },
-      ]);
+      await sendConnectionRequest(recipientId, message);
       setShowConnectionDialog(false);
       setSelectedMemberForConnection(null);
     } catch (error) {
       console.error('Failed to send connection request:', error);
+      setOptimisticPendingSentIds((prev) => {
+        const next = new Set(prev);
+        next.delete(recipientId);
+        return next;
+      });
     } finally {
+      setOptimisticPendingSentIds((prev) => {
+        const next = new Set(prev);
+        next.delete(recipientId);
+        return next;
+      });
       setConnectionLoading(null);
     }
   };
@@ -168,14 +224,21 @@ export function NetworkingSpotlightCard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0 flex-1 min-h-0 flex flex-col overflow-hidden">
-          {membersLoading ? (
+          {membersLoading || (!initialFetchDone && !hasFrozenSpotlightOnce) ? (
             <div className="text-center py-8 flex-shrink-0">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-primary mx-auto mb-2" />
               <p className="text-xs text-gray-500">Loading members...</p>
             </div>
-          ) : networkingSpotlight.length > 0 ? (
+          ) : frozenSpotlightMembers.length > 0 ? (
             <div className="flex-1 min-h-0 max-h-[480px] overflow-y-auto space-y-4">
-                {networkingSpotlight.map((member) => (
+                {frozenSpotlightMembers.map((member) => {
+                  const rowStatus = member.id ? getRowConnectionStatus(member.id) : 'none';
+                  const isRequested = rowStatus === 'pending_sent';
+                  const isIncoming = rowStatus === 'pending_received';
+                  const isConnected = rowStatus === 'accepted';
+                  const showConnect = rowStatus === 'none' || rowStatus === 'declined';
+
+                  return (
                   <div
                     key={member.id}
                     className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors"
@@ -241,27 +304,50 @@ export function NetworkingSpotlightCard() {
                           <span className="text-xs text-gray-500">
                             {member.grad_year ? `Class of ${member.grad_year}` : 'Recent'}
                           </span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleConnect(member)}
-                            disabled={connectionLoading === member.id}
-                            className="text-brand-primary border-brand-primary hover:bg-primary-50 text-xs h-7 px-2 !rounded-full"
-                          >
-                            {connectionLoading === member.id ? (
-                              <div className="w-3 h-3 border border-brand-primary border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <>
-                                <UserPlus className="w-3 h-3 mr-1" />
-                                Connect
-                              </>
-                            )}
-                          </Button>
+                          {showConnect ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleConnect(member)}
+                              disabled={connectionLoading === member.id}
+                              className="text-brand-primary border-brand-primary hover:bg-primary-50 text-xs h-7 px-2 !rounded-full"
+                            >
+                              {connectionLoading === member.id ? (
+                                <div className="w-3 h-3 border border-brand-primary border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="w-3 h-3 mr-1" />
+                                  Connect
+                                </>
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled
+                              className={cn(
+                                'text-xs h-7 px-2 !rounded-full',
+                                isRequested && 'text-gray-500 border-gray-200 bg-gray-50',
+                                isIncoming && 'text-gray-500 border-gray-200 bg-gray-50',
+                                isConnected && 'text-gray-500 border-gray-200 bg-gray-50'
+                              )}
+                            >
+                              {isRequested
+                                ? 'Requested'
+                                : isIncoming
+                                  ? 'Incoming'
+                                  : isConnected
+                                    ? 'Connected'
+                                    : 'Unavailable'}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500 flex-shrink-0">
