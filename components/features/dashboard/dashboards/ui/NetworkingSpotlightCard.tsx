@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +37,11 @@ function seededShuffle<T>(array: T[], seed: number): T[] {
   return shuffled;
 }
 
-/** Exclude only terminal connection states; pending (sent/received) stay in the rail. */
+/**
+ * Build the frozen spotlight pool: exclude terminal states and historic outbound pending
+ * (pending_sent) so the rail favors people you have not already requested. Inbound pending
+ * does not exclude the other person (they can still appear with "Incoming").
+ */
 function buildSpotlightOrder(
   chapterMembers: ChapterMemberData[],
   profileId: string,
@@ -46,9 +50,14 @@ function buildSpotlightOrder(
 ): ChapterMemberData[] {
   const excludedIds = new Set<string>();
   for (const c of connections) {
-    if (c.status !== 'accepted' && c.status !== 'blocked' && c.status !== 'declined') continue;
-    const other = c.requester_id === profileId ? c.recipient_id : c.requester_id;
-    excludedIds.add(other);
+    if (c.status === 'accepted' || c.status === 'blocked' || c.status === 'declined') {
+      const other = c.requester_id === profileId ? c.recipient_id : c.requester_id;
+      excludedIds.add(other);
+      continue;
+    }
+    if (c.status === 'pending' && c.requester_id === profileId) {
+      excludedIds.add(c.recipient_id);
+    }
   }
 
   const membersWithAvatars = chapterMembers.filter(
@@ -113,8 +122,11 @@ export function NetworkingSpotlightCard() {
   const [sessionSeed, setSessionSeed] = useState<number | null>(null);
   const [frozenSpotlightMembers, setFrozenSpotlightMembers] = useState<ChapterMemberData[]>([]);
   const [hasFrozenSpotlightOnce, setHasFrozenSpotlightOnce] = useState(false);
+  /** Rows for requests sent this session when the recipient is not already in the frozen rail. */
+  const [sessionPinnedRequested, setSessionPinnedRequested] = useState<ChapterMemberData[]>([]);
   const [optimisticPendingSentIds, setOptimisticPendingSentIds] = useState<Set<string>>(() => new Set());
   const orderFrozenRef = useRef(false);
+  const frozenMembersRef = useRef<ChapterMemberData[]>([]);
 
   useEffect(() => {
     const storageKey = 'networking-spotlight-seed';
@@ -132,13 +144,37 @@ export function NetworkingSpotlightCard() {
     orderFrozenRef.current = false;
     setFrozenSpotlightMembers([]);
     setHasFrozenSpotlightOnce(false);
+    setSessionPinnedRequested([]);
   }, [chapterId]);
 
   useEffect(() => {
     orderFrozenRef.current = false;
     setFrozenSpotlightMembers([]);
     setHasFrozenSpotlightOnce(false);
+    setSessionPinnedRequested([]);
   }, [profile?.id]);
+
+  useEffect(() => {
+    frozenMembersRef.current = frozenSpotlightMembers;
+  }, [frozenSpotlightMembers]);
+
+  const displaySpotlightMembers = useMemo(() => {
+    const seen = new Set<string>();
+    const out: ChapterMemberData[] = [];
+    for (const m of frozenSpotlightMembers) {
+      if (m.id && !seen.has(m.id)) {
+        seen.add(m.id);
+        out.push(m);
+      }
+    }
+    for (const m of sessionPinnedRequested) {
+      if (m.id && !seen.has(m.id)) {
+        seen.add(m.id);
+        out.push(m);
+      }
+    }
+    return out;
+  }, [frozenSpotlightMembers, sessionPinnedRequested]);
 
   useEffect(() => {
     if (orderFrozenRef.current) return;
@@ -187,8 +223,15 @@ export function NetworkingSpotlightCard() {
     const recipientId = selectedMemberForConnection.id;
     setConnectionLoading(recipientId);
     setOptimisticPendingSentIds((prev) => new Set(prev).add(recipientId));
+    const memberSnapshot = { ...selectedMemberForConnection };
     try {
       await sendConnectionRequest(recipientId, message);
+      setSessionPinnedRequested((prev) => {
+        if (!memberSnapshot.id) return prev;
+        if (frozenMembersRef.current.some((m) => m.id === memberSnapshot.id)) return prev;
+        if (prev.some((m) => m.id === memberSnapshot.id)) return prev;
+        return [...prev, memberSnapshot];
+      });
       setShowConnectionDialog(false);
       setSelectedMemberForConnection(null);
     } catch (error) {
@@ -229,9 +272,9 @@ export function NetworkingSpotlightCard() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-primary mx-auto mb-2" />
               <p className="text-xs text-gray-500">Loading members...</p>
             </div>
-          ) : frozenSpotlightMembers.length > 0 ? (
+          ) : displaySpotlightMembers.length > 0 ? (
             <div className="flex-1 min-h-0 max-h-[480px] overflow-y-auto space-y-4">
-                {frozenSpotlightMembers.map((member) => {
+                {displaySpotlightMembers.map((member) => {
                   const rowStatus = member.id ? getRowConnectionStatus(member.id) : 'none';
                   const isRequested = rowStatus === 'pending_sent';
                   const isIncoming = rowStatus === 'pending_received';
