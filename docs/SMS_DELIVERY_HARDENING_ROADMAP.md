@@ -126,6 +126,8 @@ Reference: [Telnyx — receive webhooks](https://developers.telnyx.com/docs/v2/m
 
 **Representative options:** Braze, Iterable, Customer.io, Salesforce Marketing Cloud, Adobe Journey Optimizer.
 
+**Notification infrastructure (orchestration, often before a full CDP):** For a **Courier vs Novu** comparison aligned to Telnyx + SendGrid + OneSignal, see [NOTIFICATION_ORCHESTRATION_COURIER_VS_NOVU.md](./NOTIFICATION_ORCHESTRATION_COURIER_VS_NOVU.md).
+
 **Integration pattern (when ready):**
 
 1. **Single source of truth** for consent and chapter membership remains in Trailblaize (Supabase).
