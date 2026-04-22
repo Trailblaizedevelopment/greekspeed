@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUserIdForGeocoding } from '@/lib/api/geocodingAuth';
 import { MAPBOX_GEOCODE_V6_FORWARD_URL } from '@/lib/mapbox/constants';
-import { mapGeocodeV6FeatureToCanonicalPlace } from '@/lib/mapbox/mapGeocodeV6FeatureToCanonicalPlace';
-import { geocodingConfirmBodySchema } from '@/lib/validation/geocoding';
-import { parseCanonicalPlaceConfirmed, type CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
+import { mapGeocodeV6FeaturesToSuggestions } from '@/lib/mapbox/geocodeSuggestDto';
+import {
+  geocodingSuggestQuerySchema,
+  geocodingSuggestTypesOrDefault,
+  parseGeocodingSuggestLimit,
+} from '@/lib/validation/geocoding';
 
 /**
- * POST /api/geocoding/confirm
+ * GET /api/geocoding/suggest
  *
- * Re-resolves a Mapbox `mapbox_id` with `permanent=true` (when enabled) and returns a
- * validated {@link CanonicalPlaceConfirmed} for persisting to `profiles` / `alumni`.
+ * Ephemeral autocomplete: Mapbox forward geocode with `permanent=false` (default).
+ * Client should debounce and use `q` length ≥ 2 before calling.
  *
- * Auth: Bearer token or Supabase session cookie (same-origin).
+ * Query: `q` (required), optional `country`, `types`, `limit` (1–10), `worldview`, `proximity`, `language`.
  *
  * @see https://docs.mapbox.com/api/search/geocoding/#forward-geocoding-with-search-text-input
- * @see https://docs.mapbox.com/api/search/geocoding/#storing-geocoding-results
+ * @see https://docs.mapbox.com/api/search/geocoding/#autocomplete-and-pricing
  */
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -43,34 +46,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    let json: unknown;
-    try {
-      json = await request.json();
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    const { searchParams } = new URL(request.url);
+    const rawQuery = {
+      q: searchParams.get('q') ?? '',
+      country: searchParams.get('country') ?? undefined,
+      types: searchParams.get('types') ?? undefined,
+      worldview: searchParams.get('worldview') ?? undefined,
+      proximity: searchParams.get('proximity') ?? undefined,
+      language: searchParams.get('language') ?? undefined,
+    };
 
-    const parsedBody = geocodingConfirmBodySchema.safeParse(json);
-    if (!parsedBody.success) {
+    const parsed = geocodingSuggestQuerySchema.safeParse(rawQuery);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Invalid request', details: parsedBody.error.flatten() },
+        { error: 'Invalid query', details: parsed.error.flatten() },
         { status: 400 }
       );
     }
 
-    const { mapbox_id, worldview } = parsedBody.data;
-    const usePermanent = process.env.MAPBOX_GEOCODING_PERMANENT !== 'false';
+    const { q, country, types, worldview, proximity, language } = parsed.data;
+    const limit = parseGeocodingSuggestLimit(searchParams.get('limit'));
+    const typesParam = geocodingSuggestTypesOrDefault(types);
 
     const params = new URLSearchParams({
-      q: mapbox_id,
+      q,
       access_token: mapboxToken,
-      limit: '1',
-      autocomplete: 'false',
-      permanent: usePermanent ? 'true' : 'false',
+      limit: String(limit),
+      autocomplete: 'true',
+      permanent: 'false',
+      types: typesParam,
     });
-    if (worldview) {
-      params.set('worldview', worldview);
-    }
+    if (country) params.set('country', country);
+    if (worldview) params.set('worldview', worldview);
+    if (proximity) params.set('proximity', proximity);
+    if (language) params.set('language', language);
 
     const mapboxUrl = `${MAPBOX_GEOCODE_V6_FORWARD_URL}?${params.toString()}`;
     const mapboxRes = await fetch(mapboxUrl, { method: 'GET', next: { revalidate: 0 } });
@@ -92,37 +101,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid geocoding response' }, { status: 502 });
     }
 
-    const feature = geojson.features?.[0] as Parameters<typeof mapGeocodeV6FeatureToCanonicalPlace>[0] | undefined;
-    if (!feature) {
-      return NextResponse.json({ error: 'No result found for the given mapbox_id' }, { status: 404 });
-    }
-
-    const partial = mapGeocodeV6FeatureToCanonicalPlace(feature, { worldview: worldview ?? null });
-    const resolved_at = new Date().toISOString();
-    const candidate: Record<string, unknown> = {
-      provider: 'mapbox' as const,
-      resolved_at,
-      ...partial,
-    };
-
-    const validated = parseCanonicalPlaceConfirmed(candidate);
-    if (!validated.success) {
-      return NextResponse.json(
-        { error: 'Could not normalize geocoding result', details: validated.error.flatten() },
-        { status: 502 }
-      );
-    }
-
-    const place: CanonicalPlaceConfirmed = validated.data;
+    const features = Array.isArray(geojson.features) ? geojson.features : [];
+    const suggestions = mapGeocodeV6FeaturesToSuggestions(features);
 
     return NextResponse.json({
       data: {
-        place,
-        permanent: usePermanent,
+        suggestions,
+        limit,
       },
     });
   } catch (e) {
-    console.error('geocoding confirm error:', e instanceof Error ? e.message : e);
+    console.error('geocoding suggest error:', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
