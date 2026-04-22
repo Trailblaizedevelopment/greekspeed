@@ -118,6 +118,8 @@ Uses separate Supabase projects for dev and prod — determined entirely by env 
 
 Required env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SENDGRID_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`.
 
+Optional (Mapbox geocoding): `MAPBOX_SECRET_ACCESS_TOKEN` for `GET /api/geocoding/suggest` and `POST /api/geocoding/confirm`. Set `MAPBOX_GEOCODING_PERMANENT=false` only for local/dev without Mapbox billing; omit or `true` for stored results per [Mapbox permanent geocoding](https://docs.mapbox.com/api/search/geocoding/#storing-geocoding-results).
+
 **Supabase Auth → URL Configuration → Redirect URLs:** allow the app OAuth callback with query strings used by chapter join (e.g. `chapter_slug`, `join_role`). Add each origin with a wildcard suffix, for example `https://www.trailblaize.net/auth/callback*`, `https://greekspeed.vercel.app/auth/callback*`, and `http://localhost:3000/auth/callback*` for local dev. See [Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls).
 
 ## Branch Workflow
