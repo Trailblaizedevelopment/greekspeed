@@ -827,6 +827,7 @@ export default function ProfileBasicsPage() {
                       }
                       fieldId="onboarding-hometown"
                       country="us"
+                      types="place,locality,postcode"
                       value={hometownPlace}
                       onChange={(place) => {
                         setHometownPlace(place);
