@@ -1,3 +1,5 @@
+import type { CanonicalPlace } from './canonicalPlace';
+
 export type SystemRole = 'admin' | 'active_member' | 'alumni' | 'developer' | 'governance';
 
 export type ChapterRole = 
@@ -56,6 +58,10 @@ export interface Profile {
   phone: string | null;
   sms_consent: boolean;
   location: string | null;
+  /** CanonicalPlace JSON (TRA-652); nullable until Mapbox picker / backfill. */
+  current_place?: CanonicalPlace | null;
+  /** CanonicalPlace JSON (TRA-652); nullable until Mapbox picker / backfill. */
+  hometown_place?: CanonicalPlace | null;
   avatar_url: string | null;
   banner_url?: string | null;
   linkedin_url?: string | null; // Add this field

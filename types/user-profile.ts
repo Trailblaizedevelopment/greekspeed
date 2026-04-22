@@ -1,5 +1,4 @@
-import { Alumni } from '@/lib/alumniConstants';
-import { Profile } from './profile';
+import type { CanonicalPlace } from './canonicalPlace';
 
 /**
  * Unified user profile type that works for both alumni and regular users
@@ -22,6 +21,8 @@ export interface UnifiedUserProfile {
   chapter_id?: string | null;
   bio?: string | null;
   location?: string | null;
+  current_place?: CanonicalPlace | null;
+  hometown_place?: CanonicalPlace | null;
   username?: string | null;
   profile_slug?: string | null;
   created_at?: string | null;
