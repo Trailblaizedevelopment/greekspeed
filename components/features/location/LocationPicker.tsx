@@ -88,15 +88,32 @@ interface ConfirmResponse {
   error?: string;
 }
 
-function menuStyle(rect: DOMRect): React.CSSProperties {
+/** Dropdown anchored to viewport (portal target: `document.body`). */
+function menuStyleFixed(inputRect: DOMRect): React.CSSProperties {
   return {
     position: 'fixed',
-    top: rect.bottom + 4,
-    left: rect.left,
-    width: Math.max(rect.width, 220),
+    top: inputRect.bottom + 4,
+    left: inputRect.left,
+    width: Math.max(inputRect.width, 220),
     maxHeight: 'min(40vh, 280px)',
     overflowY: 'auto',
     zIndex: 10060,
+  };
+}
+
+/**
+ * Dropdown inside a positioned portal (e.g. Vaul drawer). `fixed` + viewport rects breaks when an
+ * ancestor has `transform`; use `absolute` relative to the portal box instead.
+ */
+function menuStyleAnchoredToPortal(inputRect: DOMRect, portalRect: DOMRect): React.CSSProperties {
+  return {
+    position: 'absolute',
+    top: inputRect.bottom - portalRect.top + 4,
+    left: inputRect.left - portalRect.left,
+    width: Math.max(inputRect.width, 220),
+    maxHeight: 'min(40vh, 280px)',
+    overflowY: 'auto',
+    zIndex: 80,
   };
 }
 
@@ -148,11 +165,17 @@ export function LocationPicker({
   }, [value]);
 
   const updateMenuPosition = useCallback(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setMenuPos(menuStyle(rect));
-  }, []);
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const inputRect = wrap.getBoundingClientRect();
+    const portal = suggestionsPortalRef?.current ?? null;
+    if (portal) {
+      const portalRect = portal.getBoundingClientRect();
+      setMenuPos(menuStyleAnchoredToPortal(inputRect, portalRect));
+    } else {
+      setMenuPos(menuStyleFixed(inputRect));
+    }
+  }, [suggestionsPortalRef]);
 
   useLayoutEffect(() => {
     if (!open || suggestions.length === 0) {
@@ -167,9 +190,14 @@ export function LocationPicker({
     const onScrollOrResize = () => updateMenuPosition();
     window.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
+
+    const scrollEl = wrapRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+    scrollEl?.addEventListener('scroll', onScrollOrResize, { passive: true });
+
     return () => {
       window.removeEventListener('scroll', onScrollOrResize, true);
       window.removeEventListener('resize', onScrollOrResize);
+      scrollEl?.removeEventListener('scroll', onScrollOrResize);
     };
   }, [open, updateMenuPosition]);
 
@@ -355,7 +383,7 @@ export function LocationPicker({
       id={listboxId}
       role="listbox"
       aria-label={postcodeMode ? 'ZIP code suggestions' : 'Location suggestions'}
-      className="rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+      className="shrink-0 rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
       style={menuPos}
     >
       {suggestions.map((s, idx) => (
