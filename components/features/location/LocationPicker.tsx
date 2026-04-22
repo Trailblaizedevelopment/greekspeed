@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import {
   useCallback,
   useEffect,
@@ -71,6 +71,11 @@ export interface LocationPickerProps {
    * Mapbox `types=postcode` only; after confirm, display is still full city/state from the canonical place.
    */
   postcodeMode?: boolean;
+  /**
+   * When inside a modal drawer (e.g. Vaul), portal the suggestion list here so clicks are not
+   * swallowed as “outside” the drawer. Omit to use `document.body` (fine for non-modal pages).
+   */
+  suggestionsPortalRef?: RefObject<HTMLElement | null>;
 }
 
 interface SuggestResponse {
@@ -110,6 +115,7 @@ export function LocationPicker({
   debounceMs = DEFAULT_DEBOUNCE_MS,
   allowClear = true,
   postcodeMode = false,
+  suggestionsPortalRef,
 }: LocationPickerProps) {
   const listboxId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -362,8 +368,9 @@ export function LocationPicker({
             'cursor-pointer px-3 py-2 text-sm text-gray-900',
             highlightIndex === idx ? 'bg-gray-100' : 'hover:bg-gray-50'
           )}
-          onMouseDown={(ev) => {
+          onPointerDown={(ev) => {
             ev.preventDefault();
+            ev.stopPropagation();
             void handleSelect(s);
           }}
           onMouseEnter={() => setHighlightIndex(idx)}
@@ -425,7 +432,12 @@ export function LocationPicker({
           </span>
         )}
       </div>
-      {showMenu ? createPortal(listbox, document.body) : null}
+      {showMenu && listbox
+        ? createPortal(
+            listbox,
+            suggestionsPortalRef?.current ?? document.body
+          )
+        : null}
       <p className="text-xs text-gray-500">
         {postcodeMode
           ? 'Enter your ZIP code and pick a match — we save the full city, state, and country from Mapbox.'

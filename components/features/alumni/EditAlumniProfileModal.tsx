@@ -1068,6 +1068,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                     fieldId="alumni-current-location"
                     country="us"
                     postcodeMode
+                    suggestionsPortalRef={selectDropdownPortalRef}
                     value={locationPickerValue}
                     onChange={(place) => {
                       setFormData((prev) => {
