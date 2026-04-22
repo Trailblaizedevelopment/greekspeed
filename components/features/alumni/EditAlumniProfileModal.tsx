@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Drawer } from 'vaul';
 import { X, User, Mail, Building, Briefcase, HelpCircle, Image, Upload, Linkedin, MapPin, Phone, Home, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,14 @@ import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
+import { LocationPicker } from '@/components/features/location/LocationPicker';
+import type { Profile } from '@/types/profile';
+import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
+import {
+  formatCanonicalPlaceDisplay,
+  parseCanonicalPlace,
+  parseCanonicalPlaceConfirmed,
+} from '@/types/canonicalPlace';
 
 const editAlumniIndustryOptions = buildIndustrySelectOptions('Select Industry');
 
@@ -61,11 +69,24 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
     linkedin_url: '',
     hometown: '',
     is_email_public: true,
-    is_phone_public: true
+    is_phone_public: true,
+    /** JSON string of {@link import('@/types/canonicalPlace').CanonicalPlaceConfirmed} from LocationPicker. */
+    current_place_json: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  const locationPickerValue = useMemo(() => {
+    const raw = formData.current_place_json?.trim();
+    if (!raw) return null;
+    try {
+      const parsed = parseCanonicalPlace(JSON.parse(raw));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  }, [formData.current_place_json]);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -151,7 +172,18 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       
       // Check for saved form data first, then use alumni data
       const savedFormData = loadFormDataFromStorage();
-      const initialFormData = savedFormData || {
+      const rawCurrentPlace = profile?.current_place ?? data.current_place;
+      let serverCurrentPlaceJson = '';
+      let locationFromPlace = '';
+      if (rawCurrentPlace) {
+        const confirmed = parseCanonicalPlaceConfirmed(rawCurrentPlace);
+        if (confirmed.success) {
+          serverCurrentPlaceJson = JSON.stringify(confirmed.data);
+          locationFromPlace = formatCanonicalPlaceDisplay(confirmed.data);
+        }
+      }
+
+      const defaults = {
         first_name: data.first_name || '',
         last_name: data.last_name || '',
         username: profile?.username || profile?.profile_slug || '',
@@ -162,15 +194,27 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
         company: data.company || '',
         job_title: data.job_title || '',
         phone: data.phone || '',
-        location: data.location || '',
+        location: locationFromPlace || data.location || '',
         description: data.description || '',
         is_actively_hiring: data.is_actively_hiring || false,
         tags: Array.isArray(data.tags) ? data.tags.join(', ') : (data.tags || ''),
         linkedin_url: data.linkedin_url || '',
         hometown: data.hometown || '',
         is_email_public: data.is_email_public !== false, // Default to true if not set
-        is_phone_public: data.is_phone_public !== false  // Default to true if not set
+        is_phone_public: data.is_phone_public !== false, // Default to true if not set
+        current_place_json: serverCurrentPlaceJson,
       };
+
+      const initialFormData = savedFormData
+        ? {
+            ...defaults,
+            ...savedFormData,
+            current_place_json:
+              typeof (savedFormData as { current_place_json?: string }).current_place_json === 'string'
+                ? (savedFormData as { current_place_json: string }).current_place_json
+                : serverCurrentPlaceJson,
+          }
+        : defaults;
 
       setFormData(initialFormData);
       
@@ -185,7 +229,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       setLoadingAlumni(false);
       setIsModalReady(true);
     }
-  }, [profile?.id, loadFormDataFromStorage, saveFormDataToStorage]);
+  }, [profile?.id, profile?.current_place, loadFormDataFromStorage, saveFormDataToStorage]);
 
   // Create alumni record if it doesn't exist
   const createAlumniRecord = useCallback(async () => {
@@ -508,6 +552,19 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
 
     setLoading(true);
     try {
+      let persistedCurrentPlace: CanonicalPlaceConfirmed | null = null;
+      if (formData.current_place_json?.trim()) {
+        try {
+          const p = parseCanonicalPlaceConfirmed(JSON.parse(formData.current_place_json));
+          if (p.success) persistedCurrentPlace = p.data;
+        } catch {
+          /* ignore invalid JSON */
+        }
+      }
+
+      const locationLine =
+        formatCanonicalPlaceDisplay(persistedCurrentPlace) || formData.location?.trim() || '';
+
       const baselineValues = {
         role: profile.role || null,
         job_title: alumniData?.job_title || null,
@@ -529,7 +586,8 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
         company: formData.company?.trim() || 'Not Specified', 
         job_title: formData.job_title?.trim() || 'Not Specified',
         phone: formData.phone?.trim() || 'Not Specified',
-        location: formData.location?.trim() || 'Not Specified',
+        location: locationLine || 'Not Specified',
+        current_place: persistedCurrentPlace,
         hometown: formData.hometown?.trim() || 'Not Specified',
         description: formData.description?.trim() || null,
         linkedin_url: formData.linkedin_url?.trim() || null,
@@ -561,12 +619,13 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       console.log('✅ Alumni data updated successfully:', data);
 
       // Update basic profile fields for consistency
-      const profileUpdates: any = {
+      const profileUpdates: Partial<Profile> = {
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
         email: formData.email.trim(),
         phone: formData.phone?.trim() || null,
-        location: formData.location?.trim() || null,
+        location: locationLine || null,
+        current_place: persistedCurrentPlace,
         linkedin_url: formData.linkedin_url?.trim() || null
       };
 
@@ -585,7 +644,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
         job_title: formData.job_title?.trim() || null,
         company: formData.company?.trim() || null,
         industry: formData.industry?.trim() || null,
-        location: formData.location?.trim() || null,
+        location: locationLine || null,
         hometown: formData.hometown?.trim() || null,
       };
       
@@ -999,19 +1058,27 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="location" className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      Current Location
-                    </Label>
-                    <Input
-                      id="location"
-                      value={formData.location}
-                      onChange={(e) => handleInputChange('location', e.target.value)}
-                      className="mt-1"
-                      placeholder="Tampa, Florida"
-                    />
-                  </div>
+                  <LocationPicker
+                    label={
+                      <span className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" aria-hidden />
+                        Current location
+                      </span>
+                    }
+                    fieldId="alumni-current-location"
+                    value={locationPickerValue}
+                    onChange={(place) => {
+                      setFormData((prev) => {
+                        const next = {
+                          ...prev,
+                          current_place_json: place ? JSON.stringify(place) : '',
+                          location: place ? formatCanonicalPlaceDisplay(place) : '',
+                        };
+                        saveFormDataToStorage(next);
+                        return next;
+                      });
+                    }}
+                  />
                   <div>
                     <Label htmlFor="hometown" className="flex items-center gap-2">
                       <Home className="w-4 h-4" />
