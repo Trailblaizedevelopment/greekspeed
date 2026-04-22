@@ -17,6 +17,19 @@ import {
   isRsvpWindowOpen,
   // isValidIsoDateTime,
 } from '@/lib/utils/eventScheduleDisplay';
+import { EVENT_RESEND_DIALOG_OUTSIDE_LOCK_ID } from '@/lib/constants';
+
+function preventDrawerDismissForPortaledEventUi(event: { preventDefault: () => void; target: EventTarget | null }) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest('[data-trailblaize-dropdown-portal]')) {
+    event.preventDefault();
+    return;
+  }
+  if (target.closest(`[data-tb-portal-outside-lock="${EVENT_RESEND_DIALOG_OUTSIDE_LOCK_ID}"]`)) {
+    event.preventDefault();
+  }
+}
 
 interface Attendee {
   user_id: string;
@@ -527,6 +540,8 @@ export function EventDetailModal({
             shadow-2xl border border-gray-200
             outline-none
           `}
+          onPointerDownOutside={preventDrawerDismissForPortaledEventUi}
+          onInteractOutside={preventDrawerDismissForPortaledEventUi}
         >
           {modalContent}
         </Drawer.Content>

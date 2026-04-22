@@ -32,12 +32,21 @@ import { copyEventLinkToClipboard } from '@/lib/utils/eventLinkUtils';
 import { toast } from 'react-toastify';
 import { ShareEventDrawer } from '@/components/features/messaging/ShareEventDrawer';
 import { cn } from '@/lib/utils';
+import { EVENT_RESEND_DIALOG_OUTSIDE_LOCK_ID } from '@/lib/constants';
 
 export interface EventResendNotificationsConfig {
   defaultSendSms: boolean;
   defaultSendSmsToAlumni: boolean;
   visibleToActiveMembers: boolean;
   visibleToAlumni: boolean;
+}
+
+function audienceVisibilitySummary(config: EventResendNotificationsConfig): string {
+  const { visibleToActiveMembers: actives, visibleToAlumni: alumni } = config;
+  if (actives && alumni) return 'This event is visible to active members, admins, and alumni.';
+  if (actives) return 'This event is visible to active members and admins only (not alumni).';
+  if (alumni) return 'This event is visible to alumni only (not active members).';
+  return 'This event is not visible to actives or alumni.';
 }
 
 interface EventActionsMenuProps {
@@ -278,55 +287,106 @@ export function EventActionsMenu({
       </div>
 
       <Dialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
-        <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+        <DialogContent
+          portalOutsideLockId={EVENT_RESEND_DIALOG_OUTSIDE_LOCK_ID}
+          className={cn(
+            'max-h-[min(90dvh,90svh)] overflow-y-auto overflow-x-hidden',
+            'rounded-2xl border-gray-200 bg-white p-5 shadow-xl sm:rounded-2xl sm:p-6',
+            'w-[calc(100vw-2rem)] max-w-md sm:max-w-md'
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle>Send Reminder</DialogTitle>
             <DialogDescription>
-              Sends the same email, push, and optional SMS as when this event was published, using
-              current audience visibility and member preferences.
+              Sends the same notifications as when the event was published.
             </DialogDescription>
           </DialogHeader>
           {resendNotifications ? (
             <div className="space-y-4 py-2">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="resend-sms-active"
-                  checked={sendSmsActive}
-                  disabled={!resendNotifications.visibleToActiveMembers}
-                  onCheckedChange={(v) => setSendSmsActive(v === true)}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="resend-sms-active" className="text-sm font-medium text-gray-900">
-                    SMS to active members and admins
-                  </Label>
-                  <p className="text-xs text-gray-500">
-                    Only members with SMS consent and a valid phone number.
-                  </p>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-gray-700">Audience</span>
+                <span
+                  className={cn(
+                    'rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                    resendNotifications.visibleToActiveMembers
+                      ? 'border-brand-primary/40 bg-brand-primary/10 text-brand-primary'
+                      : 'border-gray-200 bg-gray-50 text-gray-400'
+                  )}
+                >
+                  Actives{resendNotifications.visibleToActiveMembers ? ' · on' : ' · off'}
+                </span>
+                <span
+                  className={cn(
+                    'rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                    resendNotifications.visibleToAlumni
+                      ? 'border-brand-primary/40 bg-brand-primary/10 text-brand-primary'
+                      : 'border-gray-200 bg-gray-50 text-gray-400'
+                  )}
+                >
+                  Alumni{resendNotifications.visibleToAlumni ? ' · on' : ' · off'}
+                </span>
               </div>
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="resend-sms-alumni"
-                  checked={sendSmsAlumni}
-                  disabled={!resendNotifications.visibleToAlumni}
-                  onCheckedChange={(v) => setSendSmsAlumni(v === true)}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="resend-sms-alumni" className="text-sm font-medium text-gray-900">
-                    SMS to alumni
-                  </Label>
-                  <p className="text-xs text-gray-500">
-                    Same eligibility rules as active member SMS.
-                  </p>
+              <p className="text-xs text-gray-600 leading-relaxed">
+                {audienceVisibilitySummary(resendNotifications)}
+              </p>
+              {resendNotifications.visibleToActiveMembers ? (
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="resend-sms-active"
+                    checked={sendSmsActive}
+                    onCheckedChange={(v) => setSendSmsActive(v === true)}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="resend-sms-active" className="text-sm font-medium text-gray-900">
+                      SMS to active members and admins
+                    </Label>
+                    <p className="text-xs text-gray-500">
+                      Only members with SMS consent and a valid phone number.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : null}
+              {resendNotifications.visibleToAlumni ? (
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="resend-sms-alumni"
+                    checked={sendSmsAlumni}
+                    onCheckedChange={(v) => setSendSmsAlumni(v === true)}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="resend-sms-alumni" className="text-sm font-medium text-gray-900">
+                      SMS to alumni
+                    </Label>
+                    <p className="text-xs text-gray-500">
+                      Same eligibility rules as active member SMS.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              {!resendNotifications.visibleToActiveMembers && !resendNotifications.visibleToAlumni ? (
+                <p className="text-xs text-gray-500">
+                  SMS is not available for this event&apos;s visibility settings.
+                </p>
+              ) : null}
             </div>
           ) : null}
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => setResendDialogOpen(false)} disabled={resendSubmitting}>
+          <DialogFooter className="mt-2 gap-3 sm:mt-0 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-full sm:h-10 sm:w-auto"
+              onClick={() => setResendDialogOpen(false)}
+              disabled={resendSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={handleResendConfirm} disabled={resendSubmitting}>
+            <Button
+              type="button"
+              className="h-11 w-full rounded-full sm:h-10 sm:w-auto"
+              onClick={handleResendConfirm}
+              disabled={resendSubmitting}
+            >
               {resendSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
