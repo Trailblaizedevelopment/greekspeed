@@ -29,7 +29,6 @@ Trailblaize is a Next.js 15 application using the App Router, React 19, TypeScri
 - **SMS**: Twilio, Telnyx
 - **Monitoring**: Sentry
 - **Analytics**: Vercel Analytics
-- **Maps / geocoding (planned)**: Mapbox Geocoding v6 for structured profile locations — see [ADR 001: Canonical profile place](./adr/001-canonical-profile-place.md).
 
 ## Project Structure
 

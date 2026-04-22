@@ -1,5 +1,3 @@
-import type { CanonicalPlace } from '@/types/canonicalPlace';
-
 export interface Alumni {
   id: string; // This will be the user_id for connection functionality
   alumniId?: string; // Original alumni table ID
@@ -18,8 +16,6 @@ export interface Alumni {
   isEmailPublic?: boolean;  // camelCase version for API response
   isPhonePublic?: boolean;  // camelCase version for API response
   location: string;
-  /** Denormalized from `profiles.current_place` (TRA-653); optional until backfill. */
-  currentPlace?: CanonicalPlace | null;
   description: string;
   mutualConnections: MutualConnection[];
   mutualConnectionsCount: number;

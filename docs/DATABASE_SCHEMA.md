@@ -21,10 +21,7 @@ User profiles - the central user table.
 - `chapter_role` (TEXT, nullable) - e.g., "president", "treasurer"
 - `member_status` (TEXT) - "active", "alumni", etc.
 - `bio` (TEXT, nullable)
-- `location` (TEXT, nullable) — legacy display / free-text; prefer `current_place` when set
-- `hometown` (TEXT, nullable) — legacy display / free-text; prefer `hometown_place` when set
-- `current_place` (JSONB, nullable) — CanonicalPlace per [ADR 001](./adr/001-canonical-profile-place.md); structured current location (e.g. Mapbox Geocoding v6)
-- `hometown_place` (JSONB, nullable) — CanonicalPlace for hometown
+- `location` (TEXT, nullable)
 - `username` (TEXT, nullable)
 - `profile_slug` (TEXT, nullable)
 - `onboarding_completed` (BOOLEAN, default: false)
@@ -56,16 +53,6 @@ const { data } = await supabase
   .eq('chapter_id', chapterId)
   .eq('member_status', 'active');
 ```
-
-### `alumni`
-Alumni directory row per user (often mirrors chapter + professional fields).
-
-**Key Columns:**
-- `user_id` (UUID, Primary Key / unique with `profiles.id`) — links to `profiles.id`
-- `location` (TEXT, nullable) — legacy free-text; prefer `current_place` when set
-- `current_place` (JSONB, nullable) — denormalized **CanonicalPlace** (same shape as `profiles.current_place`); synced from `profiles` via trigger `profiles_current_place_to_alumni` when `profiles.current_place` changes. Application upserts should still set geo fields for new alumni rows until trigger runs on next profile update.
-
-See [ADR 001](./adr/001-canonical-profile-place.md). **Hometown** stays on `profiles.hometown_place` / `profiles.hometown` only (not on `alumni` in v1).
 
 ### `chapters`
 Greek life chapters (fraternities/sororities).
