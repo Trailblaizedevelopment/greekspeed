@@ -6,6 +6,7 @@ import DashboardPageClient from './DashboardPageClient';
 import type { Post, PostsResponse } from '@/types/posts';
 import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 import type { Profile } from '@/types/profile';
+import { getHiddenUserIdsForViewer, supabaseInList } from '@/lib/services/userBlockService';
 
 const POSTS_PAGE_LIMIT = 10;
 
@@ -57,18 +58,7 @@ export default async function DashboardPage() {
 
   if (profile?.chapter_id) {
     try {
-      const { data: blockRows } = await supabase
-        .from('user_blocks')
-        .select('blocked_user_id')
-        .eq('blocker_id', authUser.id);
-
-      const blockedAuthorIds = [
-        ...new Set(
-          (blockRows ?? [])
-            .map((r) => r.blocked_user_id as string | undefined)
-            .filter((id): id is string => typeof id === 'string' && id.length > 0),
-        ),
-      ];
+      const hiddenAuthorIds = await getHiddenUserIdsForViewer(supabase, authUser.id);
 
       let postsSelect = supabase
         .from('posts')
@@ -101,8 +91,8 @@ export default async function DashboardPage() {
         .order('created_at', { ascending: false })
         .range(0, POSTS_PAGE_LIMIT - 1);
 
-      if (blockedAuthorIds.length > 0) {
-        postsSelect = postsSelect.not('author_id', 'in', `(${blockedAuthorIds.join(',')})`);
+      if (hiddenAuthorIds.length > 0) {
+        postsSelect = postsSelect.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
       }
 
       let countSelect = supabase
@@ -110,8 +100,8 @@ export default async function DashboardPage() {
         .select('*', { count: 'exact', head: true })
         .eq('chapter_id', profile.chapter_id);
 
-      if (blockedAuthorIds.length > 0) {
-        countSelect = countSelect.not('author_id', 'in', `(${blockedAuthorIds.join(',')})`);
+      if (hiddenAuthorIds.length > 0) {
+        countSelect = countSelect.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
       }
 
       // ---------------------------------------------------------------------------

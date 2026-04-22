@@ -9,6 +9,7 @@
 import type { MentionData } from '@/lib/utils/mentionUtils';
 import { sendPushToUser } from '@/lib/services/oneSignalPushService';
 import { getEmailBaseUrl } from '@/lib/utils/urlUtils';
+import { getHiddenUserIdsForViewer } from '@/lib/services/userBlockService';
 
 interface MentionNotificationParams {
   mentionedUsers: MentionData[];
@@ -36,6 +37,10 @@ export async function sendMentionNotifications({
   const uniqueIds = [...new Set(recipientIds)];
   if (uniqueIds.length === 0) return;
 
+  const hiddenFromActor = new Set(await getHiddenUserIdsForViewer(supabase, actorUserId));
+  const eligibleIds = uniqueIds.filter((id) => !hiddenFromActor.has(id));
+  if (eligibleIds.length === 0) return;
+
   const { data: actorProfile } = await supabase
     .from('profiles')
     .select('first_name, full_name')
@@ -52,7 +57,7 @@ export async function sendMentionNotifications({
     : `${actorName} mentioned you in a ${label}`;
 
   await Promise.allSettled(
-    uniqueIds.map((userId) =>
+    eligibleIds.map((userId) =>
       sendPushToUser(userId, {
         title: 'You were mentioned',
         body,

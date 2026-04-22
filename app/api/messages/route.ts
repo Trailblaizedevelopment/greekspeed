@@ -4,6 +4,7 @@ import { EmailService } from '@/lib/services/emailService';
 import { canSendEmailNotification } from '@/lib/utils/checkEmailPreferences';
 import { buildPushPayload } from '@/lib/services/notificationPushPayload';
 import { sendPushToUser } from '@/lib/services/oneSignalPushService';
+import { getHiddenUserIdsForViewer } from '@/lib/services/userBlockService';
 
 // Configure function timeout for Vercel (60 seconds for Pro plan)
 export const maxDuration = 60;
@@ -18,6 +19,20 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    const token = authHeader.replace('Bearer ', '');
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Invalid authentication' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const connectionId = searchParams.get('connectionId');
     const page = parseInt(searchParams.get('page') || '1');
@@ -27,6 +42,29 @@ export async function GET(request: NextRequest) {
     if (!connectionId) {
       return NextResponse.json({ error: 'Connection ID required' }, { status: 400 });
     }
+
+    const { data: connection, error: connectionError } = await supabase
+      .from('connections')
+      .select('id, status, requester_id, recipient_id')
+      .eq('id', connectionId)
+      .single();
+
+    if (connectionError || !connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
+    }
+
+    if (connection.status !== 'accepted') {
+      return NextResponse.json(
+        { error: 'Connection is not accepted', status: connection.status },
+        { status: 400 },
+      );
+    }
+
+    if (connection.requester_id !== user.id && connection.recipient_id !== user.id) {
+      return NextResponse.json({ error: 'User is not part of this connection' }, { status: 403 });
+    }
+
+    // History remains readable; inbox hides blocked threads. New sends are blocked in POST.
 
     // Build query with pagination
     let query = supabase
@@ -176,6 +214,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'User is not part of this connection' 
       }, { status: 403 });
+    }
+
+    const otherUserId =
+      connection.requester_id === user.id
+        ? (connection.recipient_id as string)
+        : (connection.requester_id as string);
+    const hiddenForSender = await getHiddenUserIdsForViewer(supabase, user.id);
+    if (hiddenForSender.includes(otherUserId)) {
+      return NextResponse.json(
+        { error: 'Messaging is not available with this member.' },
+        { status: 403 },
+      );
     }
 
     // ✅ FIXED: Use the actual authenticated user's ID as sender_id
@@ -331,9 +381,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create message' }, { status: 500 });
     }
 
-    // Push: notify the other party in the connection
+    // Push / email / SMS: do not notify if recipient has blocked sender (or mutual hide).
     const recipientUserId =
       connection.requester_id === senderId ? connection.recipient_id : connection.requester_id;
+    const hiddenForRecipient = await getHiddenUserIdsForViewer(
+      supabase,
+      recipientUserId as string,
+    );
+    const allowOutboundMessageNotify = !hiddenForRecipient.includes(senderId);
+
     const senderProfile = Array.isArray(message?.sender) ? message?.sender?.[0] : message?.sender;
     const pushPayload = buildPushPayload('new_message', {
       connectionId,
@@ -345,13 +401,16 @@ export async function POST(request: NextRequest) {
       recipientUserId,
       connectionId,
       payload: pushPayload,
+      allowOutboundMessageNotify,
     });
 
-    try {
-      const pushResult = await sendPushToUser(recipientUserId, pushPayload);
-      console.log('[Push] new_message result', pushResult);
-    } catch (pushErr) {
-      console.error('[Push] Failed to send new message push', pushErr);
+    if (allowOutboundMessageNotify) {
+      try {
+        const pushResult = await sendPushToUser(recipientUserId, pushPayload);
+        console.log('[Push] new_message result', pushResult);
+      } catch (pushErr) {
+        console.error('[Push] Failed to send new message push', pushErr);
+      }
     }
 
     // #region agent log
@@ -364,6 +423,10 @@ export async function POST(request: NextRequest) {
 
     // Send email and SMS notifications (parallel, don't block if notifications fail)
     try {
+      if (!allowOutboundMessageNotify) {
+        return NextResponse.json({ message });
+      }
+
       // Fetch recipient profile with all fields needed for both email and SMS
       const { data: recipientProfile, error: recipientError } = await supabase
         .from('profiles')

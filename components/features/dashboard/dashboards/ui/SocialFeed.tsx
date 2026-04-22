@@ -389,7 +389,7 @@ export function SocialFeed({
       toast.success(
         data?.alreadyBlocked
           ? 'This user was already blocked.'
-          : 'User blocked. Their posts will no longer appear in your feed.',
+          : "User blocked. You will no longer see each other's posts, comments, or messages.",
       );
       refresh();
     } catch (err) {

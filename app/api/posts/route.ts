@@ -6,6 +6,7 @@ import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
 import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import { getHiddenUserIdsForViewer, supabaseInList } from '@/lib/services/userBlockService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -64,22 +65,7 @@ export async function GET(request: NextRequest) {
       return access.response;
     }
 
-    const { data: blockRows, error: blocksError } = await supabase
-      .from('user_blocks')
-      .select('blocked_user_id')
-      .eq('blocker_id', user.id);
-
-    if (blocksError) {
-      console.error('user_blocks fetch error (posts feed):', blocksError);
-    }
-
-    const blockedAuthorIds = [
-      ...new Set(
-        (blockRows ?? [])
-          .map((r) => r.blocked_user_id as string | undefined)
-          .filter((id): id is string => typeof id === 'string' && id.length > 0),
-      ),
-    ];
+    const hiddenAuthorIds = await getHiddenUserIdsForViewer(supabase, user.id);
 
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
@@ -113,8 +99,8 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (blockedAuthorIds.length > 0) {
-      postsQuery = postsQuery.not('author_id', 'in', `(${blockedAuthorIds.join(',')})`);
+    if (hiddenAuthorIds.length > 0) {
+      postsQuery = postsQuery.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
     }
 
     let countQuery = supabase
@@ -122,8 +108,8 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact', head: true })
       .eq('chapter_id', chapterId);
 
-    if (blockedAuthorIds.length > 0) {
-      countQuery = countQuery.not('author_id', 'in', `(${blockedAuthorIds.join(',')})`);
+    if (hiddenAuthorIds.length > 0) {
+      countQuery = countQuery.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
     }
 
     // -------------------------------------------------------------------------

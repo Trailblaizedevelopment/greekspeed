@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { notifyModerationWebhook } from '@/lib/services/moderationWebhookService';
+import { getHiddenUserIdsForViewer } from '@/lib/services/userBlockService';
 
 function createServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,7 +33,9 @@ async function getUserFromBearer(
 }
 
 /**
- * GET /api/user-blocks — list blocked user IDs for the current user.
+ * GET /api/user-blocks
+ * - `blockedUserIds`: users you blocked (for unblock UI).
+ * - `hiddenUserIds`: mutual hide set — anyone you blocked or who blocked you (for feed-style filtering).
  */
 export async function GET(request: NextRequest) {
   const supabase = createServiceClient();
@@ -56,7 +59,8 @@ export async function GET(request: NextRequest) {
   }
 
   const blockedUserIds = (data ?? []).map((r) => r.blocked_user_id as string);
-  return NextResponse.json({ blockedUserIds });
+  const hiddenUserIds = await getHiddenUserIdsForViewer(supabase, user.id);
+  return NextResponse.json({ blockedUserIds, hiddenUserIds });
 }
 
 /**

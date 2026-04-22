@@ -9,6 +9,7 @@ import { canSendEmailNotification } from '@/lib/utils/checkEmailPreferences';
 import { EmailService } from '@/lib/services/emailService';
 import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
 import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
+import { getHiddenUserIdsForViewer, supabaseInList } from '@/lib/services/userBlockService';
 
 export async function GET(
   request: NextRequest,
@@ -76,11 +77,13 @@ export async function GET(
       return access.response;
     }
 
+    const hiddenUserIds = await getHiddenUserIdsForViewer(supabase, user.id);
+
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
 
     // Fetch comments with author information and like status
-    const { data: comments, error } = await supabase
+    let commentsQuery = supabase
       .from('post_comments')
       .select(`
         *,
@@ -95,6 +98,12 @@ export async function GET(
       .eq('post_id', postId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (hiddenUserIds.length > 0) {
+      commentsQuery = commentsQuery.not('author_id', 'in', supabaseInList(hiddenUserIds));
+    }
+
+    const { data: comments, error } = await commentsQuery;
 
     if (error) {
       console.error('Comments fetch error:', error);
@@ -118,7 +127,7 @@ export async function GET(
       }
     }
 
-    // Get total count for pagination
+    // Global comment count for pagination (matches `posts.comments_count` semantics).
     const { count: totalCount } = await supabase
       .from('post_comments')
       .select('*', { count: 'exact', head: true })
