@@ -25,6 +25,14 @@ import { cn } from '@/lib/utils';
 const DEFAULT_DEBOUNCE_MS = 300;
 const DEFAULT_MIN_QUERY = 2;
 
+/**
+ * Default Mapbox Geocoding `types` for “where do you live” style fields: cities, towns,
+ * neighborhoods, postcodes — **not** top-level `region` (US states), so autocomplete
+ * favors municipal results (e.g. “Tampa”) over “Florida”.
+ * @see https://docs.mapbox.com/api/search/geocoding/#forward-geocoding-with-search-text-input
+ */
+export const LOCATION_PICKER_DEFAULT_SUGGEST_TYPES = 'place,locality,postcode';
+
 export interface LocationPickerProps {
   label: ReactNode;
   /** Persisted or draft canonical place; null when empty. */
@@ -35,6 +43,11 @@ export interface LocationPickerProps {
   fieldId: string;
   /** Optional ISO 3166-1 alpha-2 filter forwarded to suggest. */
   country?: string;
+  /**
+   * Mapbox Geocoding `types` (comma-separated). Omit to use {@link LOCATION_PICKER_DEFAULT_SUGGEST_TYPES}.
+   * Example for state pickers: `place,locality,region,postcode`.
+   */
+  types?: string;
   /** Optional Mapbox `worldview` for suggest + confirm. */
   worldview?: string;
   disabled?: boolean;
@@ -75,10 +88,11 @@ export function LocationPicker({
   onChange,
   fieldId,
   country,
+  types,
   worldview,
   disabled,
   className,
-  placeholder = 'Start typing a city or region…',
+  placeholder = 'Start typing a city, ZIP, or area…',
   minQueryLength = DEFAULT_MIN_QUERY,
   debounceMs = DEFAULT_DEBOUNCE_MS,
   allowClear = true,
@@ -148,7 +162,12 @@ export function LocationPicker({
       setError(null);
 
       try {
-        const params = new URLSearchParams({ q: trimmed, limit: '8' });
+        const typesForQuery = types?.trim() || LOCATION_PICKER_DEFAULT_SUGGEST_TYPES;
+        const params = new URLSearchParams({
+          q: trimmed,
+          limit: '8',
+          types: typesForQuery,
+        });
         if (country) params.set('country', country);
         if (worldview) params.set('worldview', worldview);
 
@@ -175,7 +194,7 @@ export function LocationPicker({
         setSuggestLoading(false);
       }
     },
-    [country, effectiveMin, worldview]
+    [country, effectiveMin, types, worldview]
   );
 
   useEffect(() => {
@@ -385,7 +404,7 @@ export function LocationPicker({
       </div>
       {showMenu ? createPortal(listbox, document.body) : null}
       <p className="text-xs text-gray-500">
-        Choose a suggestion — free text alone is not saved as your location.
+        Pick a city, ZIP, or area from the list — free text alone is not saved as your location.
       </p>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
