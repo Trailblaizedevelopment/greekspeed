@@ -1066,6 +1066,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                       </span>
                     }
                     fieldId="alumni-current-location"
+                    country="us"
                     value={locationPickerValue}
                     onChange={(place) => {
                       setFormData((prev) => {

@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { mapbox_id, worldview } = parsedBody.data;
+    const { mapbox_id, country, worldview } = parsedBody.data;
     const usePermanent = process.env.MAPBOX_GEOCODING_PERMANENT !== 'false';
 
     const params = new URLSearchParams({
@@ -70,6 +70,9 @@ export async function POST(request: NextRequest) {
       autocomplete: 'false',
       permanent: usePermanent ? 'true' : 'false',
     });
+    if (country) {
+      params.set('country', country);
+    }
     if (worldview) {
       params.set('worldview', worldview);
     }

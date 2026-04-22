@@ -219,6 +219,7 @@ export function LocationPicker({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mapbox_id: suggestion.mapbox_id,
+            ...(country ? { country } : {}),
             ...(worldview ? { worldview } : {}),
           }),
         });
@@ -246,7 +247,7 @@ export function LocationPicker({
         setConfirmLoading(false);
       }
     },
-    [cancelBlurClose, closeList, onChange, worldview]
+    [cancelBlurClose, closeList, country, onChange, worldview]
   );
 
   const handleInputChange = (next: string) => {
