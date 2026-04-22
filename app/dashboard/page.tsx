@@ -6,6 +6,7 @@ import DashboardPageClient from './DashboardPageClient';
 import type { Post, PostsResponse } from '@/types/posts';
 import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 import type { Profile } from '@/types/profile';
+import { getHiddenUserIdsForViewer, supabaseInList } from '@/lib/services/userBlockService';
 
 const POSTS_PAGE_LIMIT = 10;
 
@@ -57,14 +58,12 @@ export default async function DashboardPage() {
 
   if (profile?.chapter_id) {
     try {
-      // ---------------------------------------------------------------------------
-      // Run posts, likes, and count queries IN PARALLEL (saves ~200-400ms)
-      // ---------------------------------------------------------------------------
-      const [postsResult, likesResult, countResult] = await Promise.all([
-        supabase
-          .from('posts')
-          .select(
-            `
+      const hiddenAuthorIds = await getHiddenUserIdsForViewer(supabase, authUser.id);
+
+      let postsSelect = supabase
+        .from('posts')
+        .select(
+          `
               id,
               chapter_id,
               author_id,
@@ -87,20 +86,36 @@ export default async function DashboardPage() {
                 member_status
               )
             `,
-          )
-          .eq('chapter_id', profile.chapter_id)
-          .order('created_at', { ascending: false })
-          .range(0, POSTS_PAGE_LIMIT - 1),
+        )
+        .eq('chapter_id', profile.chapter_id)
+        .order('created_at', { ascending: false })
+        .range(0, POSTS_PAGE_LIMIT - 1);
+
+      if (hiddenAuthorIds.length > 0) {
+        postsSelect = postsSelect.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
+      }
+
+      let countSelect = supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('chapter_id', profile.chapter_id);
+
+      if (hiddenAuthorIds.length > 0) {
+        countSelect = countSelect.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
+      }
+
+      // ---------------------------------------------------------------------------
+      // Run posts, likes, and count queries IN PARALLEL (saves ~200-400ms)
+      // ---------------------------------------------------------------------------
+      const [postsResult, likesResult, countResult] = await Promise.all([
+        postsSelect,
 
         supabase
           .from('post_likes')
           .select('post_id')
           .eq('user_id', authUser.id),
 
-        supabase
-          .from('posts')
-          .select('*', { count: 'exact', head: true })
-          .eq('chapter_id', profile.chapter_id),
+        countSelect,
       ]);
 
       const { data: posts, error: postsError } = postsResult;

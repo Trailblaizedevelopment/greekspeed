@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import { getHiddenUserIdsForViewer, supabaseInList } from '@/lib/services/userBlockService';
 
 const DEFAULT_LIMIT = 10;
 
@@ -67,6 +68,8 @@ export async function GET(request: NextRequest) {
       return access.response;
     }
 
+    const hiddenUserIds = await getHiddenUserIdsForViewer(supabase, user.id);
+
     const selectCols = 'id, username, full_name, first_name, last_name, avatar_url';
 
     let users: Array<{
@@ -80,7 +83,7 @@ export async function GET(request: NextRequest) {
     let searchError: unknown = null;
 
     if (query.length === 0) {
-      const result = await supabase
+      let q = supabase
         .from('profiles')
         .select(selectCols)
         .eq('chapter_id', chapterId)
@@ -88,17 +91,25 @@ export async function GET(request: NextRequest) {
         .neq('id', user.id)
         .order('full_name', { ascending: true, nullsFirst: false })
         .limit(DEFAULT_LIMIT);
+      if (hiddenUserIds.length > 0) {
+        q = q.not('id', 'in', supabaseInList(hiddenUserIds));
+      }
+      const result = await q;
       users = result.data;
       searchError = result.error;
     } else {
       const wildcardQuery = `%${query}%`;
-      const result = await supabase
+      let q = supabase
         .from('profiles')
         .select(selectCols)
         .eq('chapter_id', chapterId)
         .not('username', 'is', null)
         .or(`username.ilike.${wildcardQuery},full_name.ilike.${wildcardQuery}`)
         .limit(DEFAULT_LIMIT);
+      if (hiddenUserIds.length > 0) {
+        q = q.not('id', 'in', supabaseInList(hiddenUserIds));
+      }
+      const result = await q;
       users = result.data;
       searchError = result.error;
     }

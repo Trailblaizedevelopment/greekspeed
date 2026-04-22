@@ -7,8 +7,6 @@ import { supabase } from '@/lib/supabase/client';
 import {
   OnboardingStep,
   OnboardingProgress,
-  ONBOARDING_STEPS,
-  OAUTH_ONBOARDING_STEPS,
   STEP_CONFIG,
   getNextStep,
   getPreviousStep,
@@ -24,6 +22,10 @@ import {
 // ============================================================================
 // Context Types
 // ============================================================================
+
+export interface FinishOnboardingOptions {
+  communityTermsAcceptedAt: string;
+}
 
 interface OnboardingContextType {
   // State
@@ -41,7 +43,7 @@ interface OnboardingContextType {
   // Actions
   completeStep: (step: OnboardingStep) => Promise<void>;
   skipStep: (step: OnboardingStep) => Promise<void>;
-  finishOnboarding: () => Promise<void>;
+  finishOnboarding: (options: FinishOnboardingOptions) => Promise<void>;
 
   // Helpers
   canGoBack: boolean;
@@ -211,13 +213,29 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   }, [skippedSteps, completedSteps, currentStep, effectiveSteps, saveProgress, router]);
 
   // Finish onboarding
-  const finishOnboarding = useCallback(async () => {
+  const finishOnboarding = useCallback(async (options: FinishOnboardingOptions) => {
     if (!profile?.id) return;
+
+    const now = new Date().toISOString();
+    const communityAt = options.communityTermsAcceptedAt;
 
     try {
       // TRA-580: marketing alumni without chapter assignment must not flip onboarding_completed
       // until a chapter admin approves (profiles.chapter_id is set). Avoid dashboard redirect loops.
       if (isAwaitingChapterMembershipApproval(profile)) {
+        const { error: pendingError } = await supabase
+          .from('profiles')
+          .update({
+            community_terms_accepted_at: communityAt,
+            updated_at: now,
+          })
+          .eq('id', profile.id);
+
+        if (pendingError) {
+          console.error('Error saving community terms (pending chapter):', pendingError);
+          throw pendingError;
+        }
+
         setPendingMembershipFlowAcknowledged(profile.id);
         localStorage.removeItem(`onboarding_progress_${profile.id}`);
         await refreshProfile();
@@ -229,8 +247,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
         .from('profiles')
         .update({
           onboarding_completed: true,
-          onboarding_completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          onboarding_completed_at: now,
+          community_terms_accepted_at: communityAt,
+          updated_at: now,
         })
         .eq('id', profile.id);
 

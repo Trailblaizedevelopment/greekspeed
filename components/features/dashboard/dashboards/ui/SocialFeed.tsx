@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Plus, Image as ImageIcon, Paperclip, Calendar, Smile } from 'lucide-react';
 import { usePosts } from '@/lib/hooks/usePosts';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -46,6 +54,8 @@ export function SocialFeed({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [reportPost, setReportPost] = useState<Post | null>(null);
+  const [blockTargetPost, setBlockTargetPost] = useState<Post | null>(null);
+  const [blockSubmitting, setBlockSubmitting] = useState(false);
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [hasScrolled, setHasScrolled] = useState(false);
   const [feedFilter, setFeedFilter] = useState<'all' | 'connections'>('all');
@@ -358,6 +368,38 @@ export function SocialFeed({
     toast.success('Report submitted');
   };
 
+  const handleRequestBlockAuthor = useCallback((post: Post) => {
+    setBlockTargetPost(post);
+  }, []);
+
+  const handleConfirmBlockAuthor = useCallback(async () => {
+    if (!blockTargetPost?.author_id) return;
+    setBlockSubmitting(true);
+    try {
+      const res = await fetch('/api/user-blocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ blockedUserId: blockTargetPost.author_id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to block user');
+      }
+      setBlockTargetPost(null);
+      toast.success(
+        data?.alreadyBlocked
+          ? 'This user was already blocked.'
+          : "User blocked. You will no longer see each other's posts, comments, or messages.",
+      );
+      refresh();
+    } catch (err) {
+      console.error('Block user failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to block user');
+    } finally {
+      setBlockSubmitting(false);
+    }
+  }, [blockTargetPost, getAuthHeaders, refresh]);
+
   const handleBookmark = async (postId: string) => {
     try {
       const bookmarked = await toggleBookmark(postId);
@@ -593,6 +635,7 @@ export function SocialFeed({
                       onDelete={handleDeletePost}
                       onEdit={handleEditPost}
                       onReport={handleReportPost}
+                      onBlockAuthor={handleRequestBlockAuthor}
                       onBookmark={handleBookmark}
                       onCommentAdded={handleCommentAdded}
                       isExpanded={expandedPostId === post.id}
@@ -688,6 +731,40 @@ export function SocialFeed({
         post={reportPost}
         onSubmit={handleSubmitReport}
       />
+
+      <Dialog open={!!blockTargetPost} onOpenChange={(open) => !open && setBlockTargetPost(null)}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Block this user?</DialogTitle>
+            <DialogDescription>
+              You won&apos;t see posts from{' '}
+              <span className="font-medium text-gray-800">
+                {blockTargetPost?.author?.full_name ?? 'this user'}
+              </span>{' '}
+              in your chapter feed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setBlockTargetPost(null)}
+              disabled={blockSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-full bg-gray-900 hover:bg-gray-800"
+              onClick={() => void handleConfirmBlockAuthor()}
+              disabled={blockSubmitting}
+            >
+              {blockSubmitting ? 'Blocking…' : 'Block user'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 } 

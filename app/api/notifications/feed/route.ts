@@ -5,6 +5,7 @@ import {
   getManageableChapterIdsForMembershipFeed,
   listPendingMembershipRequestsForFeed,
 } from '@/lib/services/membershipRequestFeedService';
+import { getHiddenUserIdsForViewer } from '@/lib/services/userBlockService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const hiddenUserSet = new Set(await getHiddenUserIdsForViewer(supabase, userId));
+    const isHiddenUser = (uid: string | null | undefined) => !!uid && hiddenUserSet.has(uid);
+
     const notifications: any[] = [];
 
     // 1. Get recent connection requests (pending, received by user)
@@ -49,6 +53,7 @@ export async function GET(request: NextRequest) {
       connectionRequests.forEach(conn => {
         // Handle potential array type from Supabase relationship
         const requester = Array.isArray(conn.requester) ? conn.requester[0] : conn.requester;
+        if (isHiddenUser(requester?.id)) return;
         notifications.push({
           id: `connection-request-${conn.id}`,
           type: 'connection_request',
@@ -81,6 +86,7 @@ export async function GET(request: NextRequest) {
         20
       );
       for (const row of pendingMembershipRows) {
+        if (isHiddenUser(row.user_id)) continue;
         const applicantRel = Array.isArray(row.applicant) ? row.applicant[0] : row.applicant;
         const chapterRel = Array.isArray(row.chapter) ? row.chapter[0] : row.chapter;
         const nameParts = [applicantRel?.first_name, applicantRel?.last_name]
@@ -138,6 +144,7 @@ export async function GET(request: NextRequest) {
       acceptedConnections.forEach(conn => {
         // Handle potential array type from Supabase relationship
         const recipient = Array.isArray(conn.recipient) ? conn.recipient[0] : conn.recipient;
+        if (isHiddenUser(recipient?.id)) return;
         notifications.push({
           id: `connection-accepted-${conn.id}`,
           type: 'connection_accepted',
@@ -186,7 +193,10 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(20);
 
-      unreadMessages = messages || [];
+      unreadMessages = (messages || []).filter((msg) => {
+        const sender = Array.isArray(msg.sender) ? msg.sender[0] : msg.sender;
+        return !isHiddenUser(sender?.id as string | undefined);
+      });
     }
 
     // Process unread messages into notifications (grouped by connection)
@@ -262,6 +272,7 @@ export async function GET(request: NextRequest) {
           if (announcement) {
             // Handle potential array type from Supabase relationship
             const sender = Array.isArray(announcement.sender) ? announcement.sender[0] : announcement.sender;
+            if (isHiddenUser(sender?.id)) return;
             notifications.push({
               id: `announcement-${announcement.id}`,
               type: 'announcement',
@@ -313,6 +324,7 @@ export async function GET(request: NextRequest) {
         upcomingEvents.forEach(event => {
           // Handle potential array type from Supabase relationship
           const creator = Array.isArray(event.creator) ? event.creator[0] : event.creator;
+          if (isHiddenUser(creator?.id)) return;
           notifications.push({
             id: `event-${event.id}`,
             type: 'event',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import { getHiddenUserIdsForViewer } from '@/lib/services/userBlockService';
 import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
 import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 
@@ -90,6 +91,11 @@ export async function GET(
     );
     if (!access.ok) {
       return access.response;
+    }
+
+    const hiddenUserIds = await getHiddenUserIdsForViewer(supabase, user.id);
+    if (hiddenUserIds.includes(post.author_id as string)) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
     const [userLikeResult, userBookmarkResult] = await Promise.all([

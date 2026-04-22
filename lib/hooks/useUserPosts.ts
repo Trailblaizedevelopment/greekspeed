@@ -28,6 +28,20 @@ export function useUserPosts(userId: string) {
         return;
       }
 
+      const blocksRes = await fetch('/api/user-blocks', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      let hiddenUserIds: string[] = [];
+      if (blocksRes.ok) {
+        const blocksJson = (await blocksRes.json()) as { hiddenUserIds?: string[] };
+        hiddenUserIds = Array.isArray(blocksJson.hiddenUserIds) ? blocksJson.hiddenUserIds : [];
+      }
+
+      if (user.id !== userId && hiddenUserIds.includes(userId)) {
+        setPosts([]);
+        return;
+      }
+
       // Fetch posts directly from Supabase for the specific user
       const { data: postsData, error: postsError } = await supabase
         .from('posts')

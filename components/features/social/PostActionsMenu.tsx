@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { MoreVertical, Pencil, Flag, Link2, Trash2, Share2, Bookmark } from 'lucide-react';
+import { MoreVertical, Pencil, Flag, Trash2, Share2, Bookmark, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -18,6 +18,8 @@ export interface PostActionsMenuProps {
   onEdit?: (postId: string) => void;
   onDelete?: (postId: string) => void;
   onReport?: (postId: string) => void;
+  /** Block post author (non-author posts only; parent shows confirm + calls API). */
+  onBlockAuthor?: (post: Post) => void;
   onCopyLink?: (postId: string) => void;
   onBookmark?: (postId: string) => void;
   onDeleteClick?: () => void;
@@ -38,6 +40,7 @@ export function PostActionsMenu({
   onEdit,
   onDelete,
   onReport,
+  onBlockAuthor,
   onCopyLink,
   onBookmark,
   onDeleteClick,
@@ -71,6 +74,10 @@ export function PostActionsMenu({
     onReport?.(post.id);
   }, [post.id, onReport]);
 
+  const handleBlockAuthor = useCallback(() => {
+    onBlockAuthor?.(post);
+  }, [post, onBlockAuthor]);
+
   const handleDelete = useCallback(() => {
     if (useDeleteModal && onDeleteClick) {
       onDeleteClick();
@@ -100,10 +107,21 @@ export function PostActionsMenu({
             Edit
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onClick={handleReport} className="gap-2">
-          <Flag className="h-4 w-4" />
-          Report
-        </DropdownMenuItem>
+        {!isAuthor && onReport && (
+          <DropdownMenuItem onClick={handleReport} className="gap-2">
+            <Flag className="h-4 w-4" />
+            Report
+          </DropdownMenuItem>
+        )}
+        {!isAuthor && post.author_id && onBlockAuthor && (
+          <DropdownMenuItem
+            onClick={handleBlockAuthor}
+            className="gap-2 text-gray-900 focus:bg-gray-50"
+          >
+            <UserX className="h-4 w-4" />
+            Block user
+          </DropdownMenuItem>
+        )}
         {/*
         <DropdownMenuItem onClick={handleCopyLink} className="gap-2">
           <Link2 className="h-4 w-4" />

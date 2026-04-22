@@ -6,6 +6,7 @@ import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
 import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import { getHiddenUserIdsForViewer, supabaseInList } from '@/lib/services/userBlockService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -64,18 +65,14 @@ export async function GET(request: NextRequest) {
       return access.response;
     }
 
+    const hiddenAuthorIds = await getHiddenUserIdsForViewer(supabase, user.id);
+
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
 
-    // -------------------------------------------------------------------------
-    // Parallelize all three queries instead of running them sequentially.
-    // This mirrors the pattern already used in the server RSC (page.tsx).
-    // -------------------------------------------------------------------------
-    const [postsResult, likesResult, bookmarksResult, countResult] = await Promise.all([
-      // Query 1: Posts with author only (no comments - loaded on-demand)
-      supabase
-        .from('posts')
-        .select(`
+    let postsQuery = supabase
+      .from('posts')
+      .select(`
           id,
           chapter_id,
           author_id,
@@ -98,9 +95,28 @@ export async function GET(request: NextRequest) {
             member_status
           )
         `)
-        .eq('chapter_id', chapterId)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1),
+      .eq('chapter_id', chapterId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (hiddenAuthorIds.length > 0) {
+      postsQuery = postsQuery.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
+    }
+
+    let countQuery = supabase
+      .from('posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('chapter_id', chapterId);
+
+    if (hiddenAuthorIds.length > 0) {
+      countQuery = countQuery.not('author_id', 'in', supabaseInList(hiddenAuthorIds));
+    }
+
+    // -------------------------------------------------------------------------
+    // Parallelize queries (posts, likes, bookmarks, count).
+    // -------------------------------------------------------------------------
+    const [postsResult, likesResult, bookmarksResult, countResult] = await Promise.all([
+      postsQuery,
 
       // Query 2: User likes (runs in parallel — filtered to post IDs after)
       supabase
@@ -114,11 +130,7 @@ export async function GET(request: NextRequest) {
         .select('post_id')
         .eq('user_id', user.id),
 
-      // Query 4: Total count for pagination
-      supabase
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-        .eq('chapter_id', chapterId),
+      countQuery,
     ]);
 
     const { data: posts, error: postsError } = postsResult;

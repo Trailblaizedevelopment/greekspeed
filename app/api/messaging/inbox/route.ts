@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { MessagingInboxPreview } from '@/types/messagingInbox';
+import { getHiddenUserIdsForViewer } from '@/lib/services/userBlockService';
 
 export const maxDuration = 60;
 
@@ -71,10 +72,18 @@ export async function GET(request: NextRequest) {
     const connections = rawConnections ?? [];
     const accepted = connections.filter((c) => c.status === 'accepted');
 
+    const hiddenUserIds = await getHiddenUserIdsForViewer(supabase, userId);
+    const hiddenSet = new Set(hiddenUserIds);
+    const acceptedVisible = accepted.filter((c) => {
+      const otherId =
+        c.requester_id === userId ? (c.recipient_id as string) : (c.requester_id as string);
+      return !hiddenSet.has(otherId);
+    });
+
     const previews: Record<string, MessagingInboxPreview> = {};
 
     const metaRows = await Promise.all(
-      accepted.map(async (conn) => {
+      acceptedVisible.map(async (conn) => {
         const connectionId = conn.id as string;
 
         const [lastRes, unreadCountRes] = await Promise.all([
@@ -115,7 +124,7 @@ export async function GET(request: NextRequest) {
     );
 
     const lastAtById = new Map(metaRows.map((r) => [r.connectionId, r.lastAt]));
-    const sorted = [...accepted].sort(
+    const sorted = [...acceptedVisible].sort(
       (a, b) => (lastAtById.get(b.id) ?? 0) - (lastAtById.get(a.id) ?? 0),
     );
 
