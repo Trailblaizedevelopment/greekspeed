@@ -1062,11 +1062,12 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                     label={
                       <span className="flex items-center gap-2">
                         <MapPin className="w-4 h-4" aria-hidden />
-                        Current location
+                        Current location (ZIP code)
                       </span>
                     }
                     fieldId="alumni-current-location"
                     country="us"
+                    postcodeMode
                     value={locationPickerValue}
                     onChange={(place) => {
                       setFormData((prev) => {

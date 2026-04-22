@@ -6,6 +6,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -33,6 +34,13 @@ const DEFAULT_MIN_QUERY = 2;
  */
 export const LOCATION_PICKER_DEFAULT_SUGGEST_TYPES = 'place,locality,postcode';
 
+/** US ZIP or ZIP+4: digits only, hyphen inserted after fifth digit when needed. */
+export function sanitizeUsZipInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 9);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 export interface LocationPickerProps {
   label: ReactNode;
   /** Persisted or draft canonical place; null when empty. */
@@ -58,6 +66,11 @@ export interface LocationPickerProps {
   debounceMs?: number;
   /** When true, show a clear control when there is a confirmed value. Default true. */
   allowClear?: boolean;
+  /**
+   * US ZIP-only flow: input is sanitized to 5 or 9 digits (`12345` or `12345-6789`), suggest uses
+   * Mapbox `types=postcode` only; after confirm, display is still full city/state from the canonical place.
+   */
+  postcodeMode?: boolean;
 }
 
 interface SuggestResponse {
@@ -92,10 +105,11 @@ export function LocationPicker({
   worldview,
   disabled,
   className,
-  placeholder = 'Start typing a city, ZIP, or area…',
+  placeholder,
   minQueryLength = DEFAULT_MIN_QUERY,
   debounceMs = DEFAULT_DEBOUNCE_MS,
   allowClear = true,
+  postcodeMode = false,
 }: LocationPickerProps) {
   const listboxId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -113,7 +127,15 @@ export function LocationPicker({
   const [error, setError] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<React.CSSProperties | null>(null);
 
-  const effectiveMin = Math.max(2, minQueryLength);
+  const effectiveMin = postcodeMode ? Math.max(5, minQueryLength) : Math.max(2, minQueryLength);
+  const resolvedPlaceholder =
+    placeholder ??
+    (postcodeMode ? 'Enter ZIP code (e.g. 33606)' : 'Start typing a city, ZIP, or area…');
+  const typesForSuggest = useMemo(
+    () =>
+      postcodeMode ? 'postcode' : (types?.trim() || LOCATION_PICKER_DEFAULT_SUGGEST_TYPES),
+    [postcodeMode, types]
+  );
 
   useEffect(() => {
     setInputValue(formatCanonicalPlaceDisplay(value));
@@ -162,11 +184,10 @@ export function LocationPicker({
       setError(null);
 
       try {
-        const typesForQuery = types?.trim() || LOCATION_PICKER_DEFAULT_SUGGEST_TYPES;
         const params = new URLSearchParams({
           q: trimmed,
           limit: '8',
-          types: typesForQuery,
+          types: typesForSuggest,
         });
         if (country) params.set('country', country);
         if (worldview) params.set('worldview', worldview);
@@ -194,7 +215,7 @@ export function LocationPicker({
         setSuggestLoading(false);
       }
     },
-    [country, effectiveMin, types, worldview]
+    [country, effectiveMin, typesForSuggest, worldview]
   );
 
   useEffect(() => {
@@ -270,7 +291,8 @@ export function LocationPicker({
   );
 
   const handleInputChange = (next: string) => {
-    setInputValue(next);
+    const normalized = postcodeMode ? sanitizeUsZipInput(next) : next;
+    setInputValue(normalized);
     setError(null);
     setOpen(true);
   };
@@ -326,7 +348,7 @@ export function LocationPicker({
     <ul
       id={listboxId}
       role="listbox"
-      aria-label="Location suggestions"
+      aria-label={postcodeMode ? 'ZIP code suggestions' : 'Location suggestions'}
       className="rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
       style={menuPos}
     >
@@ -347,7 +369,7 @@ export function LocationPicker({
           onMouseEnter={() => setHighlightIndex(idx)}
         >
           <span className="font-medium">{s.formatted_display}</span>
-          {s.feature_type ? (
+          {!postcodeMode && s.feature_type ? (
             <span className="ml-2 text-xs text-gray-500">{s.feature_type}</span>
           ) : null}
         </li>
@@ -388,8 +410,9 @@ export function LocationPicker({
           aria-busy={suggestLoading || confirmLoading}
           disabled={disabled || confirmLoading}
           value={inputValue}
-          placeholder={placeholder}
-          autoComplete="off"
+          placeholder={resolvedPlaceholder}
+          autoComplete={postcodeMode ? 'postal-code' : 'off'}
+          inputMode={postcodeMode ? 'numeric' : undefined}
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={handleFocus}
           onBlur={handleBlur}
@@ -404,7 +427,9 @@ export function LocationPicker({
       </div>
       {showMenu ? createPortal(listbox, document.body) : null}
       <p className="text-xs text-gray-500">
-        Pick a city, ZIP, or area from the list — free text alone is not saved as your location.
+        {postcodeMode
+          ? 'Enter your ZIP code and pick a match — we save the full city, state, and country from Mapbox.'
+          : 'Pick a city, ZIP, or area from the list — free text alone is not saved as your location.'}
       </p>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>

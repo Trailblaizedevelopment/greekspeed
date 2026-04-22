@@ -4,6 +4,7 @@ import { consumeGeocodingSuggestRateLimit } from '@/lib/api/geocodingSuggestRate
 import { fetchMapboxGeocodeV6Forward } from '@/lib/mapbox/fetchMapboxGeocodeV6Forward';
 import { mapGeocodeV6FeaturesToSuggestions } from '@/lib/mapbox/geocodeSuggestDto';
 import { logGeocodingRouteError } from '@/lib/mapbox/logGeocodingError';
+import { rankGeocodingSuggestionsByQuery } from '@/lib/mapbox/rankGeocodingSuggestionsByQuery';
 import { nextResponseForMapboxUpstreamFailure } from '@/lib/mapbox/mapboxGeocodingUpstreamResponse';
 import {
   geocodingSuggestQuerySchema,
@@ -68,7 +69,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { q, country, types, worldview, proximity, language } = parsed.data;
-    const limit = parseGeocodingSuggestLimit(searchParams.get('limit'));
+    const responseLimit = parseGeocodingSuggestLimit(searchParams.get('limit'));
+    /** Ask Mapbox for up to 10 features, then rank and slice — improves city hits for queries like "Tampa". */
+    const mapboxFetchLimit = Math.min(10, Math.max(responseLimit, 10));
     const typesParam = geocodingSuggestTypesOrDefault(types);
 
     const rate = consumeGeocodingSuggestRateLimit(userId);
@@ -82,7 +85,7 @@ export async function GET(request: NextRequest) {
     const params = new URLSearchParams({
       q,
       access_token: mapboxToken,
-      limit: String(limit),
+      limit: String(mapboxFetchLimit),
       autocomplete: 'true',
       permanent: 'false',
       types: typesParam,
@@ -90,7 +93,7 @@ export async function GET(request: NextRequest) {
     if (country) params.set('country', country);
     if (worldview) params.set('worldview', worldview);
     if (proximity) params.set('proximity', proximity);
-    if (language) params.set('language', language);
+    params.set('language', language?.trim() || 'en');
 
     const mapboxRes = await fetchMapboxGeocodeV6Forward(params);
 
@@ -109,12 +112,14 @@ export async function GET(request: NextRequest) {
     }
 
     const features = Array.isArray(geojson.features) ? geojson.features : [];
-    const suggestions = mapGeocodeV6FeaturesToSuggestions(features);
+    const mapped = mapGeocodeV6FeaturesToSuggestions(features);
+    const ranked = rankGeocodingSuggestionsByQuery(mapped, q);
+    const suggestions = ranked.slice(0, responseLimit);
 
     return NextResponse.json({
       data: {
         suggestions,
-        limit,
+        limit: responseLimit,
       },
     });
   } catch (e) {
