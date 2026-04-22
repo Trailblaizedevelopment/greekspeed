@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUserIdForGeocoding } from '@/lib/api/geocodingAuth';
-import { MAPBOX_GEOCODE_V6_FORWARD_URL } from '@/lib/mapbox/constants';
+import { fetchMapboxGeocodeV6Forward } from '@/lib/mapbox/fetchMapboxGeocodeV6Forward';
+import { logGeocodingRouteError } from '@/lib/mapbox/logGeocodingError';
+import { nextResponseForMapboxUpstreamFailure } from '@/lib/mapbox/mapboxGeocodingUpstreamResponse';
 import { mapGeocodeV6FeatureToCanonicalPlace } from '@/lib/mapbox/mapGeocodeV6FeatureToCanonicalPlace';
 import { geocodingConfirmBodySchema } from '@/lib/validation/geocoding';
 import { parseCanonicalPlaceConfirmed, type CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
@@ -72,16 +74,12 @@ export async function POST(request: NextRequest) {
       params.set('worldview', worldview);
     }
 
-    const mapboxUrl = `${MAPBOX_GEOCODE_V6_FORWARD_URL}?${params.toString()}`;
-    const mapboxRes = await fetch(mapboxUrl, { method: 'GET', next: { revalidate: 0 } });
+    const mapboxRes = await fetchMapboxGeocodeV6Forward(params);
 
-    if (mapboxRes.status === 401 || mapboxRes.status === 403) {
-      return NextResponse.json({ error: 'Geocoding provider rejected the request' }, { status: 502 });
-    }
-    if (mapboxRes.status === 429) {
-      return NextResponse.json({ error: 'Geocoding rate limit exceeded; try again shortly' }, { status: 429 });
-    }
     if (!mapboxRes.ok) {
+      console.warn('[geocoding:confirm] mapbox upstream', { status: mapboxRes.status });
+      const mapped = nextResponseForMapboxUpstreamFailure(mapboxRes.status);
+      if (mapped) return mapped;
       return NextResponse.json({ error: 'Geocoding request failed' }, { status: 502 });
     }
 
@@ -122,7 +120,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (e) {
-    console.error('geocoding confirm error:', e instanceof Error ? e.message : e);
+    logGeocodingRouteError('geocoding:confirm', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

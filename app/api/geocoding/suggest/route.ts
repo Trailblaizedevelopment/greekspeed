@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUserIdForGeocoding } from '@/lib/api/geocodingAuth';
-import { MAPBOX_GEOCODE_V6_FORWARD_URL } from '@/lib/mapbox/constants';
+import { consumeGeocodingSuggestRateLimit } from '@/lib/api/geocodingSuggestRateLimit';
+import { fetchMapboxGeocodeV6Forward } from '@/lib/mapbox/fetchMapboxGeocodeV6Forward';
 import { mapGeocodeV6FeaturesToSuggestions } from '@/lib/mapbox/geocodeSuggestDto';
+import { logGeocodingRouteError } from '@/lib/mapbox/logGeocodingError';
+import { nextResponseForMapboxUpstreamFailure } from '@/lib/mapbox/mapboxGeocodingUpstreamResponse';
 import {
   geocodingSuggestQuerySchema,
   geocodingSuggestTypesOrDefault,
@@ -68,6 +71,14 @@ export async function GET(request: NextRequest) {
     const limit = parseGeocodingSuggestLimit(searchParams.get('limit'));
     const typesParam = geocodingSuggestTypesOrDefault(types);
 
+    const rate = consumeGeocodingSuggestRateLimit(userId);
+    if (!rate.ok) {
+      return NextResponse.json(
+        { error: 'Too many suggest requests; try again shortly' },
+        { status: 429, headers: { 'Retry-After': String(rate.retryAfterSec) } }
+      );
+    }
+
     const params = new URLSearchParams({
       q,
       access_token: mapboxToken,
@@ -81,16 +92,12 @@ export async function GET(request: NextRequest) {
     if (proximity) params.set('proximity', proximity);
     if (language) params.set('language', language);
 
-    const mapboxUrl = `${MAPBOX_GEOCODE_V6_FORWARD_URL}?${params.toString()}`;
-    const mapboxRes = await fetch(mapboxUrl, { method: 'GET', next: { revalidate: 0 } });
+    const mapboxRes = await fetchMapboxGeocodeV6Forward(params);
 
-    if (mapboxRes.status === 401 || mapboxRes.status === 403) {
-      return NextResponse.json({ error: 'Geocoding provider rejected the request' }, { status: 502 });
-    }
-    if (mapboxRes.status === 429) {
-      return NextResponse.json({ error: 'Geocoding rate limit exceeded; try again shortly' }, { status: 429 });
-    }
     if (!mapboxRes.ok) {
+      console.warn('[geocoding:suggest] mapbox upstream', { status: mapboxRes.status });
+      const mapped = nextResponseForMapboxUpstreamFailure(mapboxRes.status);
+      if (mapped) return mapped;
       return NextResponse.json({ error: 'Geocoding request failed' }, { status: 502 });
     }
 
@@ -111,7 +118,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (e) {
-    console.error('geocoding suggest error:', e instanceof Error ? e.message : e);
+    logGeocodingRouteError('geocoding:suggest', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
