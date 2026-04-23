@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EditAlumniProfileModal } from '@/components/features/alumni/EditAlumniProfileModal';
+import { AlumniInviteButton } from '@/components/features/alumni/AlumniInviteButton';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { supabase } from '@/lib/supabase/client';
 import { 
@@ -418,15 +419,18 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
               </div>
             </div>
 
-            {/* Edit Button */}
-            <Button 
-              onClick={handleEditProfile}
-              variant="outline" 
-              className="w-full text-brand-primary border-brand-primary hover:bg-primary-50 h-12 text-base"
-            >
-              <Edit3 className="h-5 w-5 mr-2" />
-              Edit Profile
-            </Button>
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              <Button 
+                onClick={handleEditProfile}
+                variant="outline" 
+                className="w-full text-brand-primary border-brand-primary hover:bg-primary-50 h-12 text-base"
+              >
+                <Edit3 className="h-5 w-5 mr-2" />
+                Edit Profile
+              </Button>
+              <AlumniInviteButton variant="mobile" />
+            </div>
           </div>
         </div>
 
@@ -609,16 +613,19 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
               </div>
             </div>
 
-            {/* Edit Button */}
-            <Button 
-              onClick={handleEditProfile}
-              variant="outline" 
-              className="w-full text-brand-primary border-brand-primary hover:bg-primary-50 rounded-full"
-              size="sm"
-            >
-              <Edit3 className="h-4 w-4 mr-2" />
-              Edit Profile
-            </Button>
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <Button 
+                onClick={handleEditProfile}
+                variant="outline" 
+                className="w-full text-brand-primary border-brand-primary hover:bg-primary-50 rounded-full"
+                size="sm"
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                Edit Profile
+              </Button>
+              <AlumniInviteButton variant="desktop" />
+            </div>
           </CardContent>
         </Card>
 
