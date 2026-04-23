@@ -443,7 +443,7 @@ async function sendMemberEmails(
 ) {
   try {
     const { data: chapter } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('name')
       .eq('id', chapterId)
       .single();
@@ -524,7 +524,7 @@ async function sendAlumniEmails(
 ) {
   try {
     const { data: chapter } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('name')
       .eq('id', chapterId)
       .single();

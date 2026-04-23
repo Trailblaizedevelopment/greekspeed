@@ -208,7 +208,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         ${profileColumns},
-        chapters!left (
+        spaces!left (
           id,
           name,
           description,
@@ -229,7 +229,7 @@ export async function GET(request: NextRequest) {
 
     const members =
       memberRows?.map((row: Record<string, unknown>) => {
-        const ch = row.chapters as
+        const ch = row.spaces as
           | {
               id: string;
               name: string | null;
@@ -241,7 +241,7 @@ export async function GET(request: NextRequest) {
             }
           | null
           | undefined;
-        const { chapters: _nested, ...profile } = row;
+        const { spaces: _nested, ...profile } = row;
         const chapterIdResolved = (ch?.id as string | undefined) ?? (profile.chapter_id as string | undefined);
         return {
           ...profile,

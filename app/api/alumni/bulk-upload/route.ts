@@ -396,7 +396,7 @@ async function processAlumniRecordSimple(
 
 async function getChapterIdFromName(supabase: any, chapterName: string): Promise<string | null> {
   const { data: chapter } = await supabase
-    .from('chapters')
+    .from('spaces')
     .select('id')
     .eq('name', chapterName)
     .single();

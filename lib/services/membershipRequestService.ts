@@ -309,7 +309,7 @@ export async function approveMembershipRequest(
   }
 
   const { data: chapter, error: chapterError } = await supabase
-    .from('chapters')
+    .from('spaces')
     .select('id, name')
     .eq('id', request.chapter_id)
     .maybeSingle();

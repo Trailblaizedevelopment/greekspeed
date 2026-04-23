@@ -196,7 +196,7 @@ export class LinkedInImportService {
 
     if (chapterId) {
       const { data: chapter, error: chapterError } = await this.supabaseClient
-        .from('chapters')
+        .from('spaces')
         .select('name')
         .eq('id', chapterId)
         .single();

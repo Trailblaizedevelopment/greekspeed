@@ -72,7 +72,7 @@ export async function getTasksByChapter(chapterId: string, filters?: TaskFilters
       *,
       assignee:profiles!tasks_assignee_id_fkey(full_name),
       assigned_by:profiles!tasks_assigned_by_fkey(full_name),
-      chapter:chapters!tasks_chapter_id_fkey(name)
+      chapter:spaces!tasks_chapter_id_fkey(name)
     `)
     .eq('chapter_id', chapterId);
 

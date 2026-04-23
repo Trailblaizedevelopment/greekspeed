@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     // Get chapter name
     const { data: chapter } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('name')
       .eq('id', chapterId)
       .single();

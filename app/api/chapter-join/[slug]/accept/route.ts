@@ -62,7 +62,7 @@ export async function POST(
 
     // Look up the chapter by slug
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, name, slug, chapter_status')
       .eq('slug', slug)
       .eq('chapter_status', 'active')

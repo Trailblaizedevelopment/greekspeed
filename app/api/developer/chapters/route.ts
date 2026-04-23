@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch chapters with pagination
     const { data: chapters, error, count } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Insert the new chapter
     const { data: newChapter, error } = await supabase
-      .from('chapters')
+      .from('spaces')
       .insert([insertData])
       .select()
       .single();
@@ -98,7 +98,7 @@ export async function DELETE(request: NextRequest) {
 
     // Delete the chapter from the chapters table
     const { error: deleteError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .delete()
       .eq('id', chapterId);
 
@@ -155,7 +155,7 @@ export async function PUT(request: NextRequest) {
 
     // Update the chapter
     const { data: updatedChapter, error } = await supabase
-      .from('chapters')
+      .from('spaces')
       .update(updateData)
       .eq('id', chapterId)
       .select()

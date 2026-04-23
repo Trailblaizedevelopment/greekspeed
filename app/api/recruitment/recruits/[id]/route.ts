@@ -111,7 +111,7 @@ export async function PATCH(
 
     // Feature flag check: Query chapters table for feature_flags
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, feature_flags')
       .eq('id', profile.chapter_id)
       .single();
@@ -306,7 +306,7 @@ export async function DELETE(
 
     // Feature flag check: Query chapters table for feature_flags
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, feature_flags')
       .eq('id', profile.chapter_id)
       .single();

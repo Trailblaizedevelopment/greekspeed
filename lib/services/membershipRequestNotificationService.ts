@@ -135,7 +135,7 @@ async function loadMembershipRequestAdminNotificationPayload(
   const { requestId, chapterId, applicantUserId } = params;
 
   const [chapterResult, applicantResult, recipients] = await Promise.all([
-    supabase.from('chapters').select('name').eq('id', chapterId).maybeSingle(),
+    supabase.from('spaces').select('name').eq('id', chapterId).maybeSingle(),
     supabase
       .from('profiles')
       .select('email, first_name, last_name, full_name')
@@ -283,7 +283,7 @@ export function notifyApplicantOfMembershipDecision(
   void (async () => {
     try {
       const [chapterResult, profileResult] = await Promise.all([
-        supabase.from('chapters').select('name').eq('id', chapterId).maybeSingle(),
+        supabase.from('spaces').select('name').eq('id', chapterId).maybeSingle(),
         supabase
           .from('profiles')
           .select('email, first_name, phone, sms_consent')
