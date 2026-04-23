@@ -18,6 +18,7 @@ import { ConnectionRequestDialog } from '@/components/features/connections/Conne
 import type { ChapterMemberData } from '@/types/chapter';
 import type { Connection } from '@/lib/contexts/ConnectionsContext';
 import { cn } from '@/lib/utils';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 function seededRandom(seed: number) {
   let value = seed;
@@ -341,7 +342,7 @@ export function NetworkingSpotlightCard() {
                               : 'Member'}
                         </p>
                         <p className="text-xs text-gray-500 mb-2">
-                          {member.location || 'Location not specified'}
+                          {formatLocationLineForApp(member.location) || 'Location not specified'}
                         </p>
                         <div className="flex justify-between items-center">
                           <span className="text-xs text-gray-500">

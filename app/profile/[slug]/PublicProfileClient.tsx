@@ -25,6 +25,7 @@ import Link from 'next/link';
 import ImageWithFallback from '@/components/figma/ImageWithFallback';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 interface PublicProfileClientProps {
   slug: string;
@@ -633,7 +634,7 @@ export function PublicProfileClient({ slug, initialProfile }: PublicProfileClien
                     {profile.location && (
                       <div className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
-                        <span>{profile.location}</span>
+                        <span>{formatLocationLineForApp(profile.location)}</span>
                       </div>
                     )}
                     {profile.chapter && (

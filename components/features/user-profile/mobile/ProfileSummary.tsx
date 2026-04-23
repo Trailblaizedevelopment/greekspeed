@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { ShareProfileDrawer } from "@/components/features/messaging/ShareProfileDrawer";
 import { MobileMessagesDrawer } from "@/components/features/messaging/MobileMessagesDrawer";
 import { ConnectionRequestDialog } from "@/components/features/connections/ConnectionRequestDialog";
+import { formatLocationLineForApp } from "@/types/canonicalPlace";
 
 interface ProfileSummaryProps {
   profile: UnifiedUserProfile;
@@ -303,7 +304,7 @@ export function ProfileSummary({ profile, onClose }: ProfileSummaryProps) {
           {profile.location && profile.location !== "Not Specified" && (
             <div className="flex items-center justify-center space-x-1 text-gray-600 text-sm">
               <MapPin className="h-3 w-3" />
-              <span>{profile.location}</span>
+              <span>{formatLocationLineForApp(profile.location)}</span>
             </div>
           )}
         </div>

@@ -20,6 +20,7 @@ interface FilterState {
   graduationYear: string;
   industry: string;
   state: string;
+  hometownState: string;
   activelyHiring: boolean;
 }
 

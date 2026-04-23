@@ -36,6 +36,7 @@ import { ClickableField } from "@/components/shared/ClickableField";
 import { ActivityIndicator } from "@/components/shared/ActivityIndicator";
 import { calculateAlumniCompleteness, getCompletenessBadgeColor } from '@/lib/utils/profileCompleteness';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 interface AlumniTableViewProps {
   alumni: Alumni[];
@@ -785,7 +786,9 @@ export function AlumniTableView({ alumni, selectedAlumni, onSelectionChange }: A
                   <TableCell className="bg-white">
                     <div className="flex items-center space-x-2">
                       <MapPin className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-900 text-sm">{alumni.location || 'N/A'}</span>
+                      <span className="text-gray-900 text-sm">
+                        {alumni.location ? formatLocationLineForApp(alumni.location) : 'N/A'}
+                      </span>
                     </div>
                   </TableCell>
                   

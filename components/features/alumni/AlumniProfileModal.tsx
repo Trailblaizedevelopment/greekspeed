@@ -27,6 +27,7 @@ import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ShareProfileDrawer } from "@/components/features/messaging/ShareProfileDrawer";
 import { supabase } from "@/lib/supabase/client";
 import { ConnectionRequestDialog } from "@/components/features/connections/ConnectionRequestDialog";
+import { formatLocationLineForApp } from "@/types/canonicalPlace";
 
 interface AlumniProfileModalProps {
   alumni: Alumni | null;
@@ -477,7 +478,7 @@ export function AlumniProfileModal({ alumni, isOpen, onClose }: AlumniProfileMod
                 {alumni.location && alumni.location !== "Not Specified" && (
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-gray-500">Location</span>
-                    <span className="text-gray-900">{alumni.location}</span>
+                    <span className="text-gray-900">{formatLocationLineForApp(alumni.location)}</span>
                   </div>
                 )}
               </div>

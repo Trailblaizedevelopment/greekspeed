@@ -14,6 +14,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { buildIndustrySelectOptions, getGraduationYears, majors } from '@/lib/alumniConstants';
+import { LocationPicker } from '@/components/features/location/LocationPicker';
+import type { CanonicalPlace, CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
+import {
+  formatCanonicalPlaceDisplayForApp,
+  parseCanonicalPlace,
+  parseCanonicalPlaceConfirmed,
+} from '@/types/canonicalPlace';
 import {
   User,
   Building2,
@@ -36,6 +43,21 @@ import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 
 const profileBasicsIndustryOptions = buildIndustrySelectOptions('Select industry');
+
+/** Load picker value from DB JSON (confirmed or partial). */
+function canonicalPlaceFromProfileJson(raw: unknown): CanonicalPlace | null {
+  if (raw == null) return null;
+  const confirmed = parseCanonicalPlaceConfirmed(raw);
+  if (confirmed.success) return confirmed.data;
+  const loose = parseCanonicalPlace(raw);
+  return loose.success ? loose.data : null;
+}
+
+function toPersistedConfirmed(place: CanonicalPlace | null): CanonicalPlaceConfirmed | null {
+  if (!place) return null;
+  const r = parseCanonicalPlaceConfirmed(place);
+  return r.success ? r.data : null;
+}
 
 // ============================================================================
 // Constants
@@ -70,8 +92,6 @@ export default function ProfileBasicsPage() {
     // Active member-specific fields
     bio: '',
     phone: '',
-    location: '',
-    hometown: '',
     // Alumni-specific fields
     company: '',
     jobTitle: '',
@@ -80,6 +100,10 @@ export default function ProfileBasicsPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  /** Mapbox-confirmed current location (required when Additional Information is shown). */
+  const [currentPlace, setCurrentPlace] = useState<CanonicalPlace | null>(null);
+  /** Mapbox-confirmed hometown (optional). */
+  const [hometownPlace, setHometownPlace] = useState<CanonicalPlace | null>(null);
   const [hasInvitation, setHasInvitation] = useState(false);
   const [invitationLoading, setInvitationLoading] = useState(true);
   /** TRA-579: canonical chapter UUID when profile.chapter_id is null (pending marketing request). */
@@ -244,11 +268,11 @@ export default function ProfileBasicsPage() {
         email: profile.email || prev.email,
         graduationYear: profile.grad_year?.toString() || prev.graduationYear,
         major: profile.major || prev.major,
-        location: profile.location || prev.location,
         bio: profile.bio || prev.bio,
         phone: rawPhone ? formatPhoneNumber(rawPhone) : prev.phone,
-        hometown: profile.hometown || prev.hometown,
       }));
+      setCurrentPlace(canonicalPlaceFromProfileJson(profile.current_place));
+      setHometownPlace(canonicalPlaceFromProfileJson(profile.hometown_place));
     }
   }, [user, profile]);
 
@@ -260,7 +284,7 @@ export default function ProfileBasicsPage() {
       try {
         const { data: alumniData, error } = await supabase
           .from('alumni')
-          .select('company, job_title, industry, location, graduation_year')
+          .select('company, job_title, industry, location, graduation_year, current_place')
           .eq('user_id', user.id)
           .single();
 
@@ -275,9 +299,12 @@ export default function ProfileBasicsPage() {
             company: alumniData.company && alumniData.company !== 'Not specified' ? alumniData.company : prev.company,
             jobTitle: alumniData.job_title && alumniData.job_title !== 'Not specified' ? alumniData.job_title : prev.jobTitle,
             industry: alumniData.industry && alumniData.industry !== 'Not specified' ? alumniData.industry : prev.industry,
-            location: alumniData.location && alumniData.location !== 'Not specified' ? alumniData.location : prev.location,
             graduationYear: alumniData.graduation_year?.toString() || prev.graduationYear,
           }));
+          const fromAlumni = canonicalPlaceFromProfileJson(alumniData.current_place);
+          if (fromAlumni) {
+            setCurrentPlace((prev) => prev ?? fromAlumni);
+          }
         }
       } catch (err) {
         console.error('Error fetching alumni data:', err);
@@ -390,10 +417,10 @@ export default function ProfileBasicsPage() {
       }
     }
 
-    // Location: required whenever the contact/location section is shown (active, admin, alumni)
+    // Current location: required Mapbox-confirmed place when the contact/location section is shown
     if (effectiveRole === 'active_member' || effectiveRole === 'admin' || isAlumni) {
-      if (!formData.location?.trim()) {
-        newErrors.location = 'Location is required';
+      if (!toPersistedConfirmed(currentPlace)) {
+        newErrors.location = 'Pick a city, ZIP, or area from the list — a confirmed match is required.';
       }
     }
 
@@ -453,8 +480,27 @@ export default function ProfileBasicsPage() {
         updateData.signup_channel = 'marketing_alumni';
       }
 
-      if (formData.location?.trim()) {
-        updateData.location = formData.location.trim();
+      const savesLocationFields =
+        normalizedRole === 'active_member' ||
+        normalizedRole === 'admin' ||
+        normalizedRole === 'alumni';
+
+      if (savesLocationFields) {
+        const persistedCurrent = toPersistedConfirmed(currentPlace);
+        const persistedHometown = toPersistedConfirmed(hometownPlace);
+        const locationLine = formatCanonicalPlaceDisplayForApp(persistedCurrent);
+        const hometownLine = formatCanonicalPlaceDisplayForApp(persistedHometown);
+
+        if (persistedCurrent) {
+          updateData.current_place = persistedCurrent;
+          updateData.location = locationLine.trim() || null;
+        } else {
+          updateData.current_place = null;
+          updateData.location = null;
+        }
+
+        updateData.hometown_place = persistedHometown;
+        updateData.hometown = hometownLine.trim() || null;
       }
 
       // Save phone for all roles
@@ -462,9 +508,8 @@ export default function ProfileBasicsPage() {
         updateData.phone = formData.phone;
       }
 
-      // Add bio and hometown for all roles (if provided)
+      // Add bio for all roles (if provided)
       if (formData.bio) updateData.bio = formData.bio.trim() || null;
-      if (formData.hometown) updateData.hometown = formData.hometown;
 
       const { error: profileError } = await supabase
         .from('profiles')
@@ -475,6 +520,13 @@ export default function ProfileBasicsPage() {
 
       // Create/update alumni record if alumni role (chapter name + optional UUID; profile.chapter_id may stay null for pending marketing)
       if (normalizedRole === 'alumni') {
+        const persistedCurrentAlumni = toPersistedConfirmed(currentPlace);
+        const persistedHometownAlumni = toPersistedConfirmed(hometownPlace);
+        const locationDisplay =
+          formatCanonicalPlaceDisplayForApp(persistedCurrentAlumni).trim() || 'Not Specified';
+        const hometownDisplay =
+          formatCanonicalPlaceDisplayForApp(persistedHometownAlumni).trim() || 'Not Specified';
+
         const alumniRow: Record<string, unknown> = {
           user_id: user.id,
           first_name: formData.firstName,
@@ -487,7 +539,9 @@ export default function ProfileBasicsPage() {
           job_title: formData.jobTitle.trim(),
           email: formData.email || user.email,
           phone: formData.phone || null,
-          location: formData.location.trim(),
+          location: locationDisplay,
+          current_place: persistedCurrentAlumni,
+          hometown: hometownDisplay,
           description: `Alumni from ${chapterName}`,
           avatar_url: profile?.avatar_url || null,
           verified: false,
@@ -519,8 +573,9 @@ export default function ProfileBasicsPage() {
     } catch (error) {
       console.error('Profile update error:', error);
       toast.error('Failed to save profile. Please try again.');
+    } finally {
       setLoading(false);
-    } 
+    }
   };
 
   if (!user) {
@@ -727,17 +782,32 @@ export default function ProfileBasicsPage() {
                         <p className="text-sm text-red-500">{errors.phone}</p>
                       )}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="location" className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-gray-400" />
-                        Current Location *
-                      </Label>
-                      <Input
-                        id="location"
-                        value={formData.location}
-                        onChange={(e) => handleChange('location', e.target.value)}
-                        placeholder="e.g., Tampa, FL"
-                        className={cn(errors.location && 'border-red-500')}
+                    <div
+                      className={cn(
+                        'space-y-2 rounded-lg',
+                        errors.location && 'border border-red-500 p-2 sm:p-3'
+                      )}
+                    >
+                      <LocationPicker
+                        label={
+                          <span className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-gray-400" aria-hidden />
+                            Current location *
+                          </span>
+                        }
+                        fieldId="onboarding-current-location"
+                        country="us"
+                        value={currentPlace}
+                        onChange={(place) => {
+                          setCurrentPlace(place);
+                          if (errors.location) {
+                            setErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.location;
+                              return next;
+                            });
+                          }
+                        }}
                       />
                       {errors.location && (
                         <p className="text-sm text-red-500">{errors.location}</p>
@@ -747,15 +817,19 @@ export default function ProfileBasicsPage() {
 
                   {/* Hometown */}
                   <div className="space-y-2">
-                    <Label htmlFor="hometown" className="flex items-center gap-2">
-                      <Home className="h-4 w-4 text-gray-400" />
-                      Hometown (Optional)
-                    </Label>
-                    <Input
-                      id="hometown"
-                      value={formData.hometown}
-                      onChange={(e) => handleChange('hometown', e.target.value)}
-                      placeholder="e.g., Jackson, MS"
+                    <LocationPicker
+                      label={
+                        <span className="flex items-center gap-2">
+                          <Home className="h-4 w-4 text-gray-400" aria-hidden />
+                          Hometown (optional)
+                        </span>
+                      }
+                      fieldId="onboarding-hometown"
+                      country="us"
+                      value={hometownPlace}
+                      onChange={(place) => {
+                        setHometownPlace(place);
+                      }}
                     />
                   </div>
                 </div>

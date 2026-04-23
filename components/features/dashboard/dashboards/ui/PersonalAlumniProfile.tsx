@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import ImageWithFallback from "@/components/figma/ImageWithFallback";
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 interface AlumniData {
   id: string;
@@ -367,7 +368,7 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
               {profile.location && profile.location !== 'Not specified' && (
                 <div className="flex items-center text-sm text-gray-600">
                   <MapPin className="h-5 w-5 mr-3 text-gray-400" />
-                  <span>{profile.location}</span>
+                  <span>{formatLocationLineForApp(profile.location)}</span>
                 </div>
               )}
 
@@ -536,7 +537,7 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
               {profile.location && profile.location !== 'Not specified' && (
                 <div className="flex items-center text-sm text-gray-600">
                   <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                  <span>{profile.location}</span>
+                  <span>{formatLocationLineForApp(profile.location)}</span>
                 </div>
               )}
 
