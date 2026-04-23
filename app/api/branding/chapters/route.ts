@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        chapter:chapters!chapter_id(
+        chapter:spaces!chapter_id(
           id,
           name,
           chapter_name,
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
 
     // Also fetch chapters without branding for complete status
     const { data: allChapters } = await serviceSupabase
-      .from('chapters')
+      .from('spaces')
       .select('id, name, chapter_name, university')
       .eq('chapter_status', 'active');
 

@@ -572,7 +572,7 @@ export async function GET(request: NextRequest) {
       if (chapterSlug && !invitationToken) {
         try {
           const { data: chapter, error: chapterError } = await serverSupabase
-            .from('chapters')
+            .from('spaces')
             .select('id, name, slug, chapter_status')
             .eq('slug', chapterSlug)
             .eq('chapter_status', 'active')

@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: chapters, error: chaptersError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, name')
       .in('id', chapter_ids);
 

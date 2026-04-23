@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     let chapterFolder = 'unassigned';
     if (profile.chapter_id) {
       const { data: chapter } = await supabase
-        .from('chapters')
+        .from('spaces')
         .select('name')
         .eq('id', profile.chapter_id)
         .single();

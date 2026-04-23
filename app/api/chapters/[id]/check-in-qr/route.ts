@@ -103,7 +103,7 @@ export async function GET(
     }
 
     const { data: chapter, error: chapterError } = await serviceSupabase
-      .from('chapters')
+      .from('spaces')
       .select('id')
       .eq('id', chapterId)
       .maybeSingle();

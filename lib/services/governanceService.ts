@@ -55,7 +55,7 @@ export async function getChapterHealthRows(
   if (chapterIds.length === 0) return [];
 
   const { data: chapters, error: chaptersError } = await supabase
-    .from('chapters')
+    .from('spaces')
     .select('id, name, school')
     .in('id', chapterIds);
 

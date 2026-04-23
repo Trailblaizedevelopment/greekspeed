@@ -186,7 +186,7 @@ export async function PUT(
 
     // Verify chapter exists
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id')
       .eq('id', chapterId)
       .single();
@@ -345,7 +345,7 @@ export async function POST(
 
     // Verify chapter exists
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id')
       .eq('id', chapterId)
       .single();

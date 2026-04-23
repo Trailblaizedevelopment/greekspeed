@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
 
     // Feature flag check: Query chapters table for feature_flags
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, feature_flags')
       .eq('id', effectiveChapterId)
       .single();
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
 
     // Feature flag check: Query chapters table for feature_flags
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, feature_flags')
       .eq('id', profile.chapter_id)
       .single();

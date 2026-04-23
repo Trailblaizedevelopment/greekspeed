@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 
     // Look up chapter names for the target IDs (the alumni table uses chapter name, not UUID)
     const { data: chapters, error: chaptersError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, name')
       .in('id', targetChapterIds);
 

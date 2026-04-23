@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         member_status,
         created_at,
         last_active_at,
-        chapters!left(id, name)
+        spaces!left(id, name)
       `);
 
     // Apply metric-specific filters
@@ -101,9 +101,9 @@ export async function GET(request: NextRequest) {
       profile.full_name || '',
       profile.email || '',
       profile.phone || '',
-      Array.isArray(profile.chapters)
-        ? profile.chapters[0]?.name || ''
-        : profile.chapters?.name || '',
+      Array.isArray(profile.spaces)
+        ? profile.spaces[0]?.name || ''
+        : profile.spaces?.name || '',
       profile.role || '',
       profile.chapter_role || '',
       profile.member_status || '',

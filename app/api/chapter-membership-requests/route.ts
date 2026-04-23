@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id')
       .eq('id', chapterId)
       .eq('chapter_status', 'active')

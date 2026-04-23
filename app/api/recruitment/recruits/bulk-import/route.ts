@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
 
     // Feature flag check
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, feature_flags')
       .eq('id', profile.chapter_id)
       .single();

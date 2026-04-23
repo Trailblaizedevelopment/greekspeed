@@ -15,7 +15,7 @@ export async function GET(
     const supabase = createServerSupabaseClient();
 
     const { data: chapter, error } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, name, chapter_name, school, university, location, slug, chapter_status')
       .eq('slug', slug)
       .eq('chapter_status', 'active')

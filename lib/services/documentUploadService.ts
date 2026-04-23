@@ -151,7 +151,7 @@ export class DocumentUploadService {
     
     // Get the EXACT chapter name from database (don't sanitize it)
     const { data: chapter, error: chapterError } = await this.supabaseClient
-      .from('chapters')
+      .from('spaces')
       .select('name')
       .eq('id', chapterId)
       .single();

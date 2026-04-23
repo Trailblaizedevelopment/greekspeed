@@ -128,7 +128,7 @@ export async function dispatchChapterEventPublishedNotifications(
   }
 
   const { data: chapter, error: chapterError } = await supabase
-    .from('chapters')
+    .from('spaces')
     .select('name')
     .eq('id', chapterId)
     .single();

@@ -59,7 +59,7 @@ export async function validateInvitationToken(token: string): Promise<Invitation
       .from('invitations')
       .select(`
         *,
-        chapters!inner(name)
+        spaces!inner(name)
       `)
       .eq('token', token)
       .eq('is_active', true)
@@ -91,7 +91,7 @@ export async function validateInvitationToken(token: string): Promise<Invitation
     return {
       valid: true,
       invitation,
-      chapter_name: invitation.chapters?.name
+      chapter_name: invitation.spaces?.name
     };
   } catch (error) {
     console.error('Error validating invitation token:', error);
