@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
             last_name
           )
         ),
-        chapters!inner(name),
+        spaces!inner(name),
         creator:profiles!invitations_created_by_fkey(
           id,
           full_name,
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     const transformedInvitations = invitations?.map(invitation => ({
       ...invitation,
       invitation_url: generateInvitationUrl(invitation.token),
-      chapter_name: invitation.chapters?.name,
+      chapter_name: invitation.spaces?.name,
       created_by_name: invitation.creator?.full_name || `${invitation.creator?.first_name} ${invitation.creator?.last_name}`.trim(),
       usage: invitation.usage?.map((usage: any) => ({
         ...usage,
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
       })
       .select(`
         *,
-        chapters!inner(name),
+        spaces!inner(name),
         creator:profiles!invitations_created_by_fkey(
           id,
           full_name,
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
     const transformedInvitation = {
       ...invitation,
       invitation_url: generateInvitationUrl(invitation.token, invitation.invitation_type),
-      chapter_name: invitation.chapters?.name,
+      chapter_name: invitation.spaces?.name,
       created_by_name: invitation.creator?.full_name || `${invitation.creator?.first_name} ${invitation.creator?.last_name}`.trim(),
       usage: []
     };

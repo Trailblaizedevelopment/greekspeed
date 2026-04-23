@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const supabase = createServerSupabaseClient();
 
     const { data: chapter } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('name, chapter_name, school')
       .eq('slug', slug)
       .eq('chapter_status', 'active')
