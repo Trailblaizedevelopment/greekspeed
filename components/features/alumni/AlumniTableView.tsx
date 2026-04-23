@@ -33,7 +33,6 @@ import { AlumniProfileModal } from "./AlumniProfileModal";
 import { Alumni } from "@/lib/alumniConstants";
 import { useRouter } from 'next/navigation';
 import { ClickableField } from "@/components/shared/ClickableField";
-import { ActivityIndicator } from "@/components/shared/ActivityIndicator";
 import { calculateAlumniCompleteness, getCompletenessBadgeColor } from '@/lib/utils/profileCompleteness';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
 import { formatLocationLineForApp } from '@/types/canonicalPlace';
@@ -44,7 +43,7 @@ interface AlumniTableViewProps {
   onSelectionChange: (selectedIds: string[]) => void;
 }
 
-type SortField = 'name' | 'company' | 'industry' | 'graduationYear' | 'location' | 'jobTitle' | 'chapter' | 'lastContact' | 'isActivelyHiring' | 'activity' | 'completeness';
+type SortField = 'name' | 'company' | 'industry' | 'graduationYear' | 'location' | 'jobTitle' | 'chapter' | 'lastContact' | 'isActivelyHiring' | 'completeness';
 type SortDirection = 'asc' | 'desc';
 
 const getChapterName = (chapterId: string): string => {
@@ -299,22 +298,6 @@ export function AlumniTableView({ alumni, selectedAlumni, onSelectionChange }: A
     }
   };
 
-  // Helper function to get activity priority (lower number = higher priority)
-  const getActivityPriority = (lastActiveAt?: string | null): number => {
-    if (!lastActiveAt) return 4; // No activity - lowest priority
-    
-    const lastActive = new Date(lastActiveAt);
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
-    if (lastActive >= oneHourAgo) return 1; // Active within 1 hour - highest priority
-    if (lastActive >= oneDayAgo) return 2; // Active within 24 hours - medium priority
-    return 3; // Active but older than 24 hours - low priority
-  };
-
-  // Replace the sortedAlumni logic (around line 300) with this:
-
   const sortedAlumni = [...alumni].sort((a, b) => {
     // Default sorting: Completeness-first (ignore activity)
     // This ensures both table and card views show the same order
@@ -349,7 +332,7 @@ export function AlumniTableView({ alumni, selectedAlumni, onSelectionChange }: A
     if (!aHasConnections && bHasConnections) return 1
     
     // 3. For specific sort fields, apply field-based sorting
-    if (sortField !== 'completeness' && sortField !== 'activity') {
+    if (sortField !== 'completeness') {
       let aValue: string | number, bValue: string | number;
       
       switch (sortField) {
@@ -579,15 +562,6 @@ export function AlumniTableView({ alumni, selectedAlumni, onSelectionChange }: A
                 </TableHead>
                 <TableHead 
                   className="bg-gray-50 text-gray-900 font-medium cursor-pointer hover:bg-gray-100 transition-colors min-w-[120px]"
-                  onClick={() => handleSort('activity')}
-                >
-                  <div className="flex items-center space-x-2">
-                    <span>ACTIVITY</span>
-                    <SortIcon field="activity" />
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="bg-gray-50 text-gray-900 font-medium cursor-pointer hover:bg-gray-100 transition-colors min-w-[120px]"
                   onClick={() => handleSort('completeness')}
                 >
                   <div className="flex items-center space-x-2">
@@ -655,14 +629,6 @@ export function AlumniTableView({ alumni, selectedAlumni, onSelectionChange }: A
                           >
                             {alumni.fullName}
                           </span>
-                        </div>
-                        
-                        {/* Activity Indicator - Closer to name */}
-                        <div className="flex-shrink-0 w-4 flex justify-center">
-                          <ActivityIndicator 
-                            lastActiveAt={alumni.lastActiveAt} 
-                            size="sm"
-                          />
                         </div>
                         
                         {/* Verification Badge - Fixed position */}
@@ -810,14 +776,6 @@ export function AlumniTableView({ alumni, selectedAlumni, onSelectionChange }: A
                     </div>
                   </TableCell>
 
-                  {/* Activity Column */}
-                  <TableCell className="bg-white">
-                    <ActivityIndicator 
-                      lastActiveAt={alumni.lastActiveAt} 
-                      size="sm"
-                    />
-                  </TableCell>
-                  
                   {/* Completeness Column */}
                   <TableCell className="bg-white">
                     <div className="flex items-center space-x-2">

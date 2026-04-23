@@ -9,7 +9,6 @@ import { useAuth } from "@/lib/supabase/auth-context";
 import { useState, memo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ClickableField } from '@/components/shared/ClickableField';
-import { ActivityIndicator } from '@/components/shared/ActivityIndicator';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
 import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
@@ -257,10 +256,6 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
               <h3 className="font-semibold text-gray-900 text-xs sm:text-lg leading-tight truncate">
                 {alumni.fullName}
               </h3>
-              <ActivityIndicator
-                lastActiveAt={alumni.lastActiveAt}
-                size="sm"
-              />
             </div>
             {/* Remove hiring badge from here - move to professional info section */}
           </div>

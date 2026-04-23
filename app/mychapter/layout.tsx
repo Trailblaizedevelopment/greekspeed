@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { DashboardHeader } from '@/components/features/dashboard/DashboardHeader';
-import { useActivityTracking } from '@/lib/hooks/useActivityTracking';
 import { ModalProvider, useModal } from '@/lib/contexts/ModalContext';
 import { ProfileModalProvider, useProfileModal } from '@/lib/contexts/ProfileModalContext';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -17,9 +16,6 @@ export default function MyChapterLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Initialize activity tracking for all mychapter pages
-  useActivityTracking();
-
   return (
     <ChapterFeaturesProvider>
       <div className="min-h-screen bg-gray-50">

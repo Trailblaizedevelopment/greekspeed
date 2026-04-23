@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useMemo, useCallback, useState } 
 import type { ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 
-import { ActivityTypes, trackActivity } from '@/lib/utils/activityUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { supabase } from './client';
@@ -140,17 +139,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentSession?.user ?? null);
       setLoading(false);
 
-      if (event === 'SIGNED_IN' && currentSession?.user) {
-        try {
-          await trackActivity(currentSession.user.id, ActivityTypes.LOGIN, {
-            loginMethod: 'session_restore',
-            timestamp: new Date().toISOString(),
-          });
-        } catch (activityError) {
-          console.error('Failed to track automatic login activity:', activityError);
-        }
-      }
-
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setSession(null);
@@ -176,15 +164,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (data.user) {
           await syncExistingAlumni(data.user.id);
-
-          try {
-            await trackActivity(data.user.id, ActivityTypes.LOGIN, {
-              loginMethod: 'email',
-              timestamp: new Date().toISOString(),
-            });
-          } catch (activityError) {
-            console.error('AuthContext: Failed to track login activity:', activityError);
-          }
         }
 
         setSession(data.session ?? null);

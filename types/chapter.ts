@@ -76,7 +76,6 @@ export interface ChapterMemberData {
   chapter_university?: string;
   chapter_slug?: string;
   chapter_founded_year?: number;
-  lastActiveAt?: string | null;
 }
 
 export interface ChapterStats {

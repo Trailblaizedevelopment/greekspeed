@@ -10,17 +10,13 @@ import {
 const ALUMNI_LIST_SELECT_LEFT_NOROLE = `
         *,
         profile:profiles!user_id(
-          avatar_url,
-          last_active_at,
-          last_login_at
+          avatar_url
         )
       ` as const;
 const ALUMNI_LIST_SELECT_LEFT_WITH_ROLE = `
         *,
         profile:profiles!user_id(
           avatar_url,
-          last_active_at,
-          last_login_at,
           role
         )
       ` as const;
@@ -28,8 +24,6 @@ const ALUMNI_LIST_SELECT_INNER_NOROLE = `
         *,
         profile:profiles!user_id!inner(
           avatar_url,
-          last_active_at,
-          last_login_at,
           hometown
         )
       ` as const;
@@ -37,8 +31,6 @@ const ALUMNI_LIST_SELECT_INNER_WITH_ROLE = `
         *,
         profile:profiles!user_id!inner(
           avatar_url,
-          last_active_at,
-          last_login_at,
           role,
           hometown
         )
@@ -582,9 +574,6 @@ export async function GET(request: NextRequest) {
             lastContact: alumni.last_contact,
             tags: alumni.tags || [],
             hasProfile: !!alumni.user_id,
-            // 🔥 NEW: Activity data from profiles table
-            lastActiveAt: alumni.profile?.last_active_at,
-            lastLoginAt: alumni.profile?.last_login_at
           };
         }) || [];
 
@@ -774,9 +763,6 @@ export async function GET(request: NextRequest) {
             lastContact: alumni.last_contact,
             tags: alumni.tags || [],
             hasProfile: !!alumni.user_id,
-            // Activity data from profiles table
-            lastActiveAt: alumni.profile?.last_active_at,
-            lastLoginAt: alumni.profile?.last_login_at
           };
         }) || [];
 
@@ -940,9 +926,6 @@ export async function GET(request: NextRequest) {
         lastContact: alumni.last_contact,
         tags: alumni.tags || [],
         hasProfile: !!alumni.user_id,
-        // ✅ NEW: Activity data from profiles table
-        lastActiveAt: alumni.profile?.last_active_at,
-        lastLoginAt: alumni.profile?.last_login_at
       };
     }) || []
 
