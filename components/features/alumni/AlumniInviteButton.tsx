@@ -383,7 +383,7 @@ export function AlumniInviteButton({ variant = 'desktop' }: AlumniInviteButtonPr
                 size="sm"
                 type="button"
                 onClick={openEmailDialog}
-                className="flex-1 rounded-lg text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
+                className="flex-1 rounded-full text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
               >
                 <Mail className="h-4 w-4 mr-1.5" />
                 Email
@@ -394,7 +394,7 @@ export function AlumniInviteButton({ variant = 'desktop' }: AlumniInviteButtonPr
                   size="sm"
                   type="button"
                   onClick={handleNativeShare}
-                  className="flex-1 rounded-lg text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
+                  className="flex-1 rounded-full text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
                 >
                   <Share2 className="h-4 w-4 mr-1.5" />
                   Share
