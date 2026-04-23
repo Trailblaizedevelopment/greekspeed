@@ -23,6 +23,8 @@ interface FilterState {
   graduationYear: string;
   industry: string;
   state: string;
+  /** US state code; filters `profiles.hometown` text (e.g. "Baltimore, Maryland, United States"). */
+  hometownState: string;
   activelyHiring: boolean;
 }
 
@@ -79,6 +81,7 @@ export function AlumniPipeline() {
     graduationYear: "",
     industry: "",
     state: "",
+    hometownState: "",
     activelyHiring: false,
   });
   // Debounced filters for API calls (500ms delay)
@@ -191,6 +194,7 @@ export function AlumniPipeline() {
       graduationYear: debouncedFilters.graduationYear,
       industry: debouncedFilters.industry,
       state: debouncedFilters.state,
+      hometownState: debouncedFilters.hometownState,
       activelyHiring: debouncedFilters.activelyHiring,
     };
   }, [
@@ -198,6 +202,7 @@ export function AlumniPipeline() {
     debouncedFilters.graduationYear,
     debouncedFilters.industry,
     debouncedFilters.state,
+    debouncedFilters.hometownState,
     debouncedFilters.activelyHiring,
   ]);
 
@@ -221,6 +226,7 @@ export function AlumniPipeline() {
       if (filterParams.industry) params.append('industry', filterParams.industry);
       if (filterParams.graduationYear) params.append('graduationYear', filterParams.graduationYear);
       if (filterParams.state) params.append('state', filterParams.state);
+      if (filterParams.hometownState) params.append('hometownState', filterParams.hometownState);
       if (filterParams.activelyHiring) params.append('activelyHiring', 'true');
       
       params.append('limit', '24'); // Optimized: Reduced from 100 to 24 for better performance
@@ -313,6 +319,7 @@ export function AlumniPipeline() {
       graduationYear: "",
       industry: "",
       state: "",
+      hometownState: "",
       activelyHiring: false,
     });
     // Reset to first page when clearing filters
