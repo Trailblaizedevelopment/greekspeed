@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         member_status,
         created_at,
         last_active_at,
-        chapters!left(id, name)
+        spaces!left(id, name)
       `, { count: 'exact' });
 
     // Apply metric-specific filters
@@ -95,9 +95,9 @@ export async function GET(request: NextRequest) {
       full_name: profile.full_name,
       email: profile.email,
       chapter_id: profile.chapter_id,
-      chapter_name: Array.isArray(profile.chapters) 
-        ? profile.chapters[0]?.name || null
-        : profile.chapters?.name || null,
+      chapter_name: Array.isArray(profile.spaces)
+        ? profile.spaces[0]?.name || null
+        : profile.spaces?.name || null,
       role: profile.role,
       chapter_role: profile.chapter_role,
       member_status: profile.member_status,

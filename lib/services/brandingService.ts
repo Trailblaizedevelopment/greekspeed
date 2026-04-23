@@ -100,7 +100,7 @@ export class BrandingService {
 
       // Step 1: Get chapter information to find national_fraternity
       const { data: chapter, error: chapterError } = await supabase
-        .from('chapters')
+        .from('spaces')
         .select('id, national_fraternity')
         .eq('id', chapterId)
         .single();

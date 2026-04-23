@@ -15,7 +15,7 @@ export class ProfileService {
         .from('profiles')
         .select(`
           *,
-          chapters!left(name)
+          spaces!left(name)
         `)
         .eq('id', user.id)
         .single();
@@ -27,8 +27,8 @@ export class ProfileService {
 
       // Transform the data to include chapter name
       if (profile) {
-        profile.chapter = profile.chapters?.name || null;
-        delete profile.chapters; // Remove the nested chapters object
+        profile.chapter = profile.spaces?.name || null;
+        delete profile.spaces; // Remove nested space row from join
       }
 
       return profile;
@@ -98,7 +98,7 @@ export class ProfileService {
         .eq('id', user.id)
         .select(`
           *,
-          chapters!left(name)
+          spaces!left(name)
         `)
         .single();
 
@@ -109,8 +109,8 @@ export class ProfileService {
 
       // Transform the data to include chapter name
       if (profile) {
-        profile.chapter = profile.chapters?.name || null;
-        delete profile.chapters; // Remove the nested chapters object
+        profile.chapter = profile.spaces?.name || null;
+        delete profile.spaces; // Remove nested space row from join
       }
 
       // Invalidate cache - clear old and new slugs if username changed

@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     // Get chapter information
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, name')
       .eq('id', announcement.chapter_id)
       .single();

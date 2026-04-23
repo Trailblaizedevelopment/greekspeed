@@ -12,7 +12,7 @@ const getChapterId = async (supabase: any, chapterIdentifier: string): Promise<s
   
   // If it's a name, look it up
   const { data } = await supabase
-    .from('chapters')
+    .from('spaces')
     .select('id')
     .eq('name', chapterIdentifier)
     .single();
@@ -351,7 +351,7 @@ export async function GET(request: NextRequest) {
 
     if (!userChapter && chapterIdParam) {
       const { data: chapterData, error: chapterError } = await supabase
-        .from('chapters')
+        .from('spaces')
         .select('name')
         .eq('id', chapterIdParam.trim())
         .single();

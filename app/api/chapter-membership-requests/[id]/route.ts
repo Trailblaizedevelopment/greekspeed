@@ -47,7 +47,7 @@ export async function GET(
     }
 
     const { data: chapter } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('name')
       .eq('id', row.chapter_id)
       .maybeSingle();

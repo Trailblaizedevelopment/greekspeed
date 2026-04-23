@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: chapter, error } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('starting_budget')
       .eq('id', chapterId)
       .single();
@@ -95,7 +95,7 @@ export async function PATCH(request: NextRequest) {
     const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: updatedChapter, error: updateError } = await adminSupabase
-      .from('chapters')
+      .from('spaces')
       .update({ 
         starting_budget: budgetValue,
         updated_at: new Date().toISOString()

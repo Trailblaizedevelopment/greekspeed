@@ -63,7 +63,7 @@ export async function listPendingMembershipRequestsForFeed(
       applicant_full_name,
       user_id,
       applicant:profiles!user_id(id, full_name, first_name, last_name, avatar_url),
-      chapter:chapters!chapter_id(id, name)
+      chapter:spaces!chapter_id(id, name)
     `
     )
     .eq('status', 'pending')

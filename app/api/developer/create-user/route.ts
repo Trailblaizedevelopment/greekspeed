@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     // If chapter is a UUID, resolve it to the chapter name
     if (chapter.length === 36 && chapter.includes('-')) {
       const { data: chapterData, error: chapterError } = await supabase
-        .from('chapters')
+        .from('spaces')
         .select('id, name')
         .eq('id', chapter)
         .single();

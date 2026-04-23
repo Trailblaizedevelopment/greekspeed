@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch chapters with creation dates
     const { data: allChapters, error: chaptersError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('created_at'); // Add created_at to get creation dates
 
     if (chaptersError) {

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     
     // Fetch all active chapters - only the three you specified
     const { data: chapters, error } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, name, chapter_name, school, location, university, slug')
       .eq('chapter_status', 'active')
       .order('name', { ascending: true });

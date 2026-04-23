@@ -102,7 +102,7 @@ export async function GET(
     
     // Fetch chapter with feature_flags
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, feature_flags')
       .eq('id', id)
       .single();
@@ -166,7 +166,7 @@ export async function PATCH(
     
     // Validate chapter exists and get current flags
     const { data: chapter, error: chapterError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('id, feature_flags')
       .eq('id', id)
       .single();
@@ -203,7 +203,7 @@ export async function PATCH(
     
     // ✅ Update with merged flags
     const { data: updatedChapter, error: updateError } = await supabase
-      .from('chapters')
+      .from('spaces')
       .update({
         feature_flags: mergedFlags,
         updated_at: new Date().toISOString()

@@ -18,14 +18,14 @@ export async function GET(
     
     // Try to get by UUID first, then by name
     let { data: chapter, error } = await supabase
-      .from('chapters')
+      .from('spaces')
       .select('*')
       .eq('id', id)
       .single();
 
     if (!chapter && !error) {
       const { data: chapters, error: nameError } = await supabase
-        .from('chapters')
+        .from('spaces')
         .select('*')
         .eq('name', id)
         .single();
@@ -45,7 +45,7 @@ export async function GET(
     if (!chapter.llm_enriched) {
       await enrichChapterWithLLM(chapter, supabase);
       const { data: updatedChapter } = await supabase
-        .from('chapters')
+        .from('spaces')
         .select('*')
         .eq('id', chapter.id)
         .single();

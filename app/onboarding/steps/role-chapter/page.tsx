@@ -196,10 +196,12 @@ export default function RoleChapterPage() {
 
   /**
    * Invite / public chapter join: chapter is fixed (never show other chapters).
-   * Marketing OAuth self-serve keeps the directory dropdown.
+   * Marketing alumni: email /sign-up pre-fills chapter → read-only; OAuth leaves chapter null → directory.
    */
   const lockChapterSelection = useMemo(() => {
-    if (profile?.signup_channel === 'marketing_alumni') return false;
+    if (profile?.signup_channel === 'marketing_alumni') {
+      return !!(profile?.chapter?.trim());
+    }
     return (
       hasChapterJoinFromLink ||
       hasInvitation ||
@@ -208,6 +210,7 @@ export default function RoleChapterPage() {
     );
   }, [
     profile?.signup_channel,
+    profile?.chapter,
     hasChapterJoinFromLink,
     hasInvitation,
   ]);
