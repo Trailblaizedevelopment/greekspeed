@@ -457,6 +457,74 @@ export class EmailService {
   }
 
   /**
+   * Alumni peer referral — inviter sends join link to one recipient.
+   * Template: SENDGRID_ALUMNI_PEER_INVITE_TEMPLATE_ID (Handlebars: recipient, inviter_name, chapter_name, join_url, product_name, personal_note, unsubscribe).
+   */
+  static async sendAlumniPeerInviteEmail({
+    to,
+    recipientFirstName,
+    inviterName,
+    chapterName,
+    joinUrl,
+    personalNote,
+    productName = 'Trailblaize',
+  }: {
+    to: string;
+    recipientFirstName: string;
+    inviterName: string;
+    chapterName: string;
+    joinUrl: string;
+    personalNote?: string | null;
+    productName?: string;
+  }): Promise<boolean> {
+    const templateId = process.env.SENDGRID_ALUMNI_PEER_INVITE_TEMPLATE_ID;
+    if (!templateId) {
+      console.warn(
+        'SENDGRID_ALUMNI_PEER_INVITE_TEMPLATE_ID not set; skipping alumni peer invite email'
+      );
+      return false;
+    }
+
+    const base = getEmailBaseUrl().replace(/\/$/, '');
+    const note = personalNote?.trim() ?? '';
+
+    try {
+      const msg = {
+        to,
+        from: {
+          email: this.fromEmail,
+          name: this.fromName,
+        },
+        subject: `${inviterName} invited you to ${chapterName} alumni on ${productName}`,
+        templateId,
+        dynamicTemplateData: {
+          recipient: {
+            first_name: recipientFirstName,
+            email: to,
+          },
+          inviter_name: inviterName,
+          chapter_name: chapterName,
+          join_url: joinUrl,
+          product_name: productName,
+          personal_note: note,
+          unsubscribe: `${base}/unsubscribe?email=${encodeURIComponent(to)}`,
+          unsubscribe_preferences: `${base}/preferences?email=${encodeURIComponent(to)}`,
+        },
+      };
+
+      await sgMail.send(msg);
+      return true;
+    } catch (error) {
+      console.error('Failed to send alumni peer invite email:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const sgError = error as { response?: { body?: unknown; headers?: unknown } };
+        console.error('SendGrid response body:', JSON.stringify(sgError.response?.body, null, 2));
+      }
+      return false;
+    }
+  }
+
+  /**
    * New pending membership request — notify platform admins / governance for the chapter (TRA-590).
    * Template: SENDGRID_MEMBERSHIP_REQUEST_ADMIN_TEMPLATE_ID (`payload.new_request`, `cta` deep link).
    */
