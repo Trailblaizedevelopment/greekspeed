@@ -524,23 +524,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="p-4 border rounded-xl bg-white">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">Inactivity reminder</h4>
-                  <p className="text-sm text-gray-600">
-                    Email after 30 days of no activity
-                  </p>
-                </div>
-                <div className="flex items-center space-x-3 ml-4">
-                  <Switch
-                    checked={emailPrefs.inactivity_reminder_notifications}
-                    onCheckedChange={(checked) => togglePref('inactivity_reminder_notifications', checked)}
-                    disabled={emailPrefsLoading}
-                  />
-                </div>
-              </div>
-            </div>
+            {/* Inactivity reminder toggle hidden — activity tracking removed (TRA-532) */}
           </div>
         )}
       </div>

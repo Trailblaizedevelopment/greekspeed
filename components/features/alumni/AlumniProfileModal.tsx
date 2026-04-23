@@ -20,7 +20,6 @@ import { useConnections } from "@/lib/contexts/ConnectionsContext";
 import { useAuth } from "@/lib/supabase/auth-context";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
-import { trackActivity, ActivityTypes } from "@/lib/utils/activityUtils";
 import { createPortal } from 'react-dom';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
@@ -70,18 +69,6 @@ export function AlumniProfileModal({ alumni, isOpen, onClose }: AlumniProfileMod
     }
   }, [isOpen, isMobile, alumni, router, onClose]);
   
-  // Track profile view when modal opens (desktop only)
-  useEffect(() => {
-    if (isOpen && !isMobile && alumni && user && user.id !== alumni.id) {
-      trackActivity(user.id, ActivityTypes.PROFILE_VIEW, {
-        viewedProfileId: alumni.id,
-        viewedProfileName: alumni.fullName,
-        timestamp: new Date().toISOString()
-      }).catch(error => {
-        console.error('Failed to track profile view:', error);
-      });
-    }
-  }, [isOpen, isMobile, alumni, user]);
   const { 
     sendConnectionRequest, 
     updateConnectionStatus, 

@@ -53,12 +53,9 @@ export async function GET(request: NextRequest) {
           .eq('member_status', 'active');
         break;
       case 'active_member':
-        const activeMemberCutoff = new Date();
-        activeMemberCutoff.setDate(activeMemberCutoff.getDate() - activityWindow);
         query = query
           .eq('role', 'active_member')
-          .eq('member_status', 'active')
-          .gte('last_active_at', activeMemberCutoff.toISOString());
+          .eq('member_status', 'active');
         break;
     }
 

@@ -4,20 +4,17 @@ import { getManagedChapterIds } from '@/lib/services/governanceService';
 import type { NetworkKpis } from '@/types/governance';
 
 /**
- * Engagement formula (product default — subject to confirmation):
+ * Engagement formula (TRA-532 — redefined after activity tracking removal):
  *
- *   avgEngagementPercent = MAU / registeredMembers * 100
+ *   avgEngagementPercent = activeMembers / registeredMembers * 100
  *
  * Where:
- *   MAU  = profiles with `last_active_at` within the past 30 days
- *   registeredMembers = all profiles in each chapter (per-chapter rate, then mean across chapters)
+ *   activeMembers  = profiles with `member_status = 'active'`
+ *   registeredMembers = all profiles in each chapter
  *
  * The metric is averaged across chapters (per-chapter engagement, then mean)
  * so that small chapters are not drowned out by large ones.
- *
- * TODO: confirm numerator/denominator with product (see TRA-553 notes).
  */
-const ENGAGEMENT_WINDOW_DAYS = 30;
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     const { data: members, error: membersError } = await supabase
       .from('profiles')
-      .select('id, chapter_id, member_status, last_active_at')
+      .select('id, chapter_id, member_status')
       .in('chapter_id', chapterIds);
 
     if (membersError) {
@@ -87,16 +84,12 @@ export async function GET(request: NextRequest) {
       (m) => m.member_status === 'alumni' || m.member_status === 'graduated'
     ).length;
 
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - ENGAGEMENT_WINDOW_DAYS);
-    const cutoffISO = cutoff.toISOString();
-
     const chapterEngagements: number[] = chapterIds.map((cid) => {
       const chapterMembers = rows.filter((m) => m.chapter_id === cid);
       if (chapterMembers.length === 0) return 0;
 
       const active = chapterMembers.filter(
-        (m) => m.last_active_at && m.last_active_at >= cutoffISO
+        (m) => m.member_status === 'active'
       ).length;
 
       return (active / chapterMembers.length) * 100;

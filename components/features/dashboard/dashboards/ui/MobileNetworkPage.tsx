@@ -182,22 +182,22 @@ export function MobileNetworkPage() {
       )
       .filter(conn => {
         const partner = conn.requester_id === user.id ? conn.recipient : conn.requester;
-        const lastActive = (partner as any).last_active_at || (partner as any).updated_at || conn.updated_at;
-        if (!lastActive) return true; // Include if no activity data
+        const lastInteraction = (partner as any).updated_at || conn.updated_at;
+        if (!lastInteraction) return true;
         
-        const lastActiveDate = new Date(lastActive);
-        return lastActiveDate < ninetyDaysAgo;
+        const lastInteractionDate = new Date(lastInteraction);
+        return lastInteractionDate < ninetyDaysAgo;
       })
       .sort((a, b) => {
         const partnerA = a.requester_id === user.id ? a.recipient : a.requester;
         const partnerB = b.requester_id === user.id ? b.recipient : b.requester;
-        const lastActiveA = (partnerA as any).last_active_at || (partnerA as any).updated_at || a.updated_at;
-        const lastActiveB = (partnerB as any).last_active_at || (partnerB as any).updated_at || b.updated_at;
+        const lastInteractionA = (partnerA as any).updated_at || a.updated_at;
+        const lastInteractionB = (partnerB as any).updated_at || b.updated_at;
         
-        if (!lastActiveA) return 1;
-        if (!lastActiveB) return -1;
+        if (!lastInteractionA) return 1;
+        if (!lastInteractionB) return -1;
         
-        return new Date(lastActiveA).getTime() - new Date(lastActiveB).getTime(); // Oldest first
+        return new Date(lastInteractionA).getTime() - new Date(lastInteractionB).getTime();
       });
   }, [connections, user]);
 
@@ -208,7 +208,7 @@ export function MobileNetworkPage() {
       name: partner.full_name || 'Unknown User',
       initials: partner.full_name?.charAt(0) || 'U',
       avatar: partner.avatar_url,
-      lastActive: partner.last_active_at || partner.updated_at,
+      lastActive: partner.updated_at,
       id: partner.id || null,
       firstName: partner.first_name || null,
       lastName: partner.last_name || null

@@ -14,7 +14,6 @@ import { useProfile } from '@/lib/contexts/ProfileContext';
 import { BannerService } from '@/lib/services/bannerService';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase/client';
-import { trackActivity, ActivityTypes } from '@/lib/utils/activityUtils';
 import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection';
 import type { DetectedChange } from '@/components/features/profile/ProfileUpdatePromptModal';
 import { buildIndustrySelectOptions, getGraduationYears } from '@/lib/alumniConstants';
@@ -711,16 +710,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
 
       await onUpdate(profileUpdates);
 
-      // Track activity
-      try {
-        await trackActivity(profile.id, ActivityTypes.PROFILE_UPDATE, {
-          updatedFields: Object.keys(alumniUpdates),
-          timestamp: new Date().toISOString()
-        });
-      } catch (activityError) {
-        console.error('Failed to track profile update activity:', activityError);
-      }
-      
       // Clear saved form data on successful save
       clearFormDataFromStorage();
       

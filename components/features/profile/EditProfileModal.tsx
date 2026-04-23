@@ -13,7 +13,6 @@ import { useProfile } from '@/lib/contexts/ProfileContext';
 import { BannerService } from '@/lib/services/bannerService';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase/client';
-import { trackActivity, ActivityTypes } from '@/lib/utils/activityUtils';
 import { useFormPersistence } from '@/lib/hooks/useFormPersistence';
 import { useModal } from '@/lib/contexts/ModalContext';
 import { useProfileUpdateDetection } from '@/lib/hooks/useProfileUpdateDetection';
@@ -733,17 +732,6 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
 
       // Updating profile
       await onUpdate(profileUpdates);
-
-      // Track profile update activity
-      try {
-        await trackActivity(profile.id, ActivityTypes.PROFILE_UPDATE, {
-          updatedFields: Object.keys(profileUpdates),
-          timestamp: new Date().toISOString()
-        });
-      } catch (activityError) {
-        console.error('Failed to track profile update activity:', activityError);
-        // Don't throw - profile update was successful
-      }
 
       // If user is alumni, also update alumni table
       if (profile?.role === 'alumni') {
