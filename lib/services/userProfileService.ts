@@ -1,6 +1,14 @@
 import { supabase } from '@/lib/supabase/client';
 import { UnifiedUserProfile, UserProfileType } from '@/types/user-profile';
 import { Alumni } from '@/lib/alumniConstants';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
+
+/** US-app display: strip trailing country from unified profile `location` (still raw in DB). */
+function locationForUnifiedProfileDisplay(raw: string | null | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null;
+  const s = formatLocationLineForApp(raw);
+  return s.length > 0 ? s : null;
+}
 
 // Cache for user profiles (in-memory, cleared on page refresh)
 const profileCache = new Map<string, { data: UnifiedUserProfile; timestamp: number }>();
@@ -79,7 +87,9 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
         chapter: alumniData.profile?.chapter ?? null,
         chapter_id: alumniData.profile?.chapter_id ?? alumniData.chapter ?? null,
       bio: alumniData.description || alumniData.profile?.bio || null,
-      location: alumniData.location || alumniData.profile?.location || null,
+      location: locationForUnifiedProfileDisplay(
+        alumniData.location || alumniData.profile?.location || null
+      ),
       username: alumniData.profile?.username || null,
       profile_slug: alumniData.profile?.profile_slug || null,
       alumni: {
@@ -128,7 +138,7 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       chapter: profileData.chapter,
       chapter_id: profileData.chapter_id,
       bio: profileData.bio,
-      location: profileData.location,
+      location: locationForUnifiedProfileDisplay(profileData.location),
       username: profileData.username || null,
       profile_slug: profileData.profile_slug || null,
       user: {
@@ -168,7 +178,7 @@ export function alumniToUnifiedProfile(alumni: Alumni): UnifiedUserProfile {
     chapter: alumni.chapter || null,
     chapter_id: alumni.chapter,
     bio: alumni.description,
-    location: alumni.location,
+    location: locationForUnifiedProfileDisplay(alumni.location),
     alumni: {
       industry: alumni.industry,
       graduationYear: alumni.graduationYear,
@@ -254,7 +264,9 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
         chapter: alumniData.profile?.chapter ?? null,
         chapter_id: alumniData.profile?.chapter_id ?? alumniData.chapter ?? null,
       bio: alumniData.description || alumniData.profile?.bio || null,
-      location: alumniData.location || alumniData.profile?.location || null,
+      location: locationForUnifiedProfileDisplay(
+        alumniData.location || alumniData.profile?.location || null
+      ),
       username: alumniData.profile?.username || null,
       profile_slug: alumniData.profile?.profile_slug || null,
       alumni: {
@@ -293,7 +305,7 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
       chapter: profileData.chapter,
       chapter_id: profileData.chapter_id,
       bio: profileData.bio,
-      location: profileData.location,
+      location: locationForUnifiedProfileDisplay(profileData.location),
       username: profileData.username || null,
       profile_slug: profileData.profile_slug || null,
       created_at: profileData.created_at || null,

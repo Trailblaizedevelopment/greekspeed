@@ -1,54 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: 'Missing environment variables' }, { status: 500 })
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    
-    const { userId, activityType, metadata } = await request.json()
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
-    }
-    
-    const now = new Date().toISOString()
-    
-    // Update the profiles table
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        last_active_at: now,
-        // Update last_login_at for login activities
-        ...(activityType === 'login' && { last_login_at: now })
-      })
-      .eq('id', userId)
-    
-    if (error) {
-      console.error('❌ Failed to track activity:', error)
-      return NextResponse.json({ 
-        error: 'Failed to track activity',
-        details: error.message 
-      }, { status: 500 })
-    }
-    
-    return NextResponse.json({ 
-      success: true,
-      message: 'Activity tracked successfully',
-      timestamp: now
-    })
-    
-  } catch (error) {
-    console.error('Activity API error:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
-  }
+/**
+ * POST /api/activity — DEPRECATED (TRA-532)
+ *
+ * Activity-timestamp tracking has been removed. This endpoint is kept as a
+ * no-op so that any in-flight client calls (cached tabs, service workers)
+ * receive a 200 instead of a 404 during the rollout window.
+ */
+export async function POST(_request: NextRequest) {
+  return NextResponse.json({
+    success: true,
+    message: 'Activity tracking disabled',
+    deprecated: true,
+  })
 }

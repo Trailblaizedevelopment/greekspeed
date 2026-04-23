@@ -1,3 +1,5 @@
+import type { CanonicalPlace } from './canonicalPlace';
+
 export type SystemRole = 'admin' | 'active_member' | 'alumni' | 'developer' | 'governance';
 
 export type ChapterRole = 
@@ -51,11 +53,15 @@ export interface Profile {
   major?: string;
   minor?: string;
   gpa?: number;
-  hometown?: string;
+  hometown?: string | null;
   bio: string | null;
   phone: string | null;
   sms_consent: boolean;
   location: string | null;
+  /** CanonicalPlace JSON (TRA-652); nullable until Mapbox picker / backfill. */
+  current_place?: CanonicalPlace | null;
+  /** CanonicalPlace JSON (TRA-652); nullable until Mapbox picker / backfill. */
+  hometown_place?: CanonicalPlace | null;
   avatar_url: string | null;
   banner_url?: string | null;
   linkedin_url?: string | null; // Add this field
@@ -82,10 +88,14 @@ export interface ProfileFormData {
   bio?: string;
   phone?: string;
   location?: string;
+  /** Canonical place JSON (Mapbox); persisted on `profiles.current_place`. */
+  current_place?: CanonicalPlace | null;
   grad_year?: string;
   major?: string;
   minor?: string;
   hometown?: string;
+  /** Canonical place JSON (Mapbox); persisted on `profiles.hometown_place`. */
+  hometown_place?: CanonicalPlace | null;
   gpa?: string;
   avatar_url?: string;
   banner_url?: string;

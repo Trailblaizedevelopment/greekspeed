@@ -1,7 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getStateNameByCode } from '@/lib/usStates'
 import { normalizeIndustry } from '@/lib/industryUtils';
+import {
+  buildAlumniLocationStateOrFilter,
+  buildProfileHometownStateOrFilter,
+} from '@/lib/alumniDirectoryFilters';
+
+/** Literal select strings so Supabase client keeps `alumni` row typing. */
+const ALUMNI_LIST_SELECT_LEFT_NOROLE = `
+        *,
+        profile:profiles!user_id(
+          avatar_url
+        )
+      ` as const;
+const ALUMNI_LIST_SELECT_LEFT_WITH_ROLE = `
+        *,
+        profile:profiles!user_id(
+          avatar_url,
+          role
+        )
+      ` as const;
+const ALUMNI_LIST_SELECT_INNER_NOROLE = `
+        *,
+        profile:profiles!user_id!inner(
+          avatar_url,
+          hometown
+        )
+      ` as const;
+const ALUMNI_LIST_SELECT_INNER_WITH_ROLE = `
+        *,
+        profile:profiles!user_id!inner(
+          avatar_url,
+          role,
+          hometown
+        )
+      ` as const;
+
+type AlumniListSelectStr =
+  | typeof ALUMNI_LIST_SELECT_LEFT_NOROLE
+  | typeof ALUMNI_LIST_SELECT_LEFT_WITH_ROLE
+  | typeof ALUMNI_LIST_SELECT_INNER_NOROLE
+  | typeof ALUMNI_LIST_SELECT_INNER_WITH_ROLE;
+
+function alumniListSelect(
+  innerForHometownFilter: boolean,
+  includeRole: boolean
+): AlumniListSelectStr {
+  if (innerForHometownFilter) {
+    return includeRole ? ALUMNI_LIST_SELECT_INNER_WITH_ROLE : ALUMNI_LIST_SELECT_INNER_NOROLE;
+  }
+  return includeRole ? ALUMNI_LIST_SELECT_LEFT_WITH_ROLE : ALUMNI_LIST_SELECT_LEFT_NOROLE;
+}
 
 // Add this helper function at the top of the file
 const getChapterId = async (supabase: any, chapterIdentifier: string): Promise<string | null> => {
@@ -233,27 +282,6 @@ async function getMutualConnectionsForAlumni(
   }
 }
 
-// Helper function to check if location matches state (handles various formats)
-const locationMatchesState = (location: string | null | undefined, stateCode: string): boolean => {
-  if (!location || !stateCode) return false;
-  
-  const stateName = getStateNameByCode(stateCode);
-  if (!stateName) return false;
-  
-  const locationLower = location.toLowerCase().trim();
-  const stateCodeLower = stateCode.toLowerCase();
-  const stateNameLower = stateName.toLowerCase();
-  
-  return (
-    locationLower.endsWith(`, ${stateCodeLower}`) ||
-    locationLower.endsWith(`, ${stateNameLower}`) ||
-    locationLower.includes(`, ${stateCodeLower},`) ||
-    locationLower.includes(`, ${stateNameLower},`) ||
-    locationLower === stateCodeLower ||
-    locationLower === stateNameLower
-  );
-};
-
 export async function GET(request: NextRequest) {
   try {
     // Check environment variables
@@ -336,10 +364,11 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
     const industry = searchParams.get('industry') || ''
     const chapter = searchParams.get('chapter') || ''
-    const location = searchParams.get('location') || ''
     const graduationYear = searchParams.get('graduationYear') || ''
     const activelyHiring = searchParams.get('activelyHiring') || ''
     const state = searchParams.get('state') || ''
+    const hometownState = searchParams.get('hometownState') || ''
+    const hometownFilterActive = hometownState.trim().length > 0
 
     // Chapter filtering parameter
     const userChapterParam = searchParams.get('userChapter') || ''
@@ -368,15 +397,7 @@ export async function GET(request: NextRequest) {
     // 🔥 KEY CHANGE: Use main branch query structure (alumni → profiles) with activity fields
     let query = supabase
       .from('alumni')
-      .select(`
-        *,
-        profile:profiles!user_id(
-          avatar_url,
-          last_active_at,
-          last_login_at,
-          role
-        )
-      `, { count: 'exact' })
+      .select(alumniListSelect(hometownFilterActive, true), { count: 'exact' })
 
     // Apply filters (same logic as main branch)
     if (search) {
@@ -405,26 +426,12 @@ export async function GET(request: NextRequest) {
       if (chapterId) {
         let chapterNameQuery = supabase
           .from('alumni')
-          .select(`
-            *,
-            profile:profiles!user_id(
-              avatar_url,
-              last_active_at,
-              last_login_at
-            )
-          `, { count: 'exact' })
+          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
           .eq('chapter', userChapter);
         
         let chapterIdQuery = supabase
           .from('alumni')
-          .select(`
-            *,
-            profile:profiles!user_id(
-              avatar_url,
-              last_active_at,
-              last_login_at
-            )
-          `, { count: 'exact' })
+          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
           .eq('chapter', userChapter);
         
         // Apply all other filters to both queries
@@ -450,24 +457,18 @@ export async function GET(request: NextRequest) {
           }
         }
         
-        if (location) {
-          chapterNameQuery = chapterNameQuery.eq('location', location);
-          chapterIdQuery = chapterIdQuery.eq('location', location);
-        }
-        
         if (state) {
-          // Use a broader database filter (matches any location containing the state)
-          const stateName = getStateNameByCode(state);
-          if (stateName) {
-            // Match locations that contain the state code or name anywhere
-            chapterNameQuery = chapterNameQuery.or(`location.ilike.%${state}%,location.ilike.%${stateName}%`);
-            chapterIdQuery = chapterIdQuery.or(`location.ilike.%${state}%,location.ilike.%${stateName}%`);
-          } else {
-            chapterNameQuery = chapterNameQuery.ilike('location', `%${state}%`);
-            chapterIdQuery = chapterIdQuery.ilike('location', `%${state}%`);
-          }
+          const locOr = buildAlumniLocationStateOrFilter(state);
+          chapterNameQuery = chapterNameQuery.or(locOr);
+          chapterIdQuery = chapterIdQuery.or(locOr);
         }
-        
+
+        if (hometownFilterActive) {
+          const homeOr = buildProfileHometownStateOrFilter(hometownState);
+          chapterNameQuery = chapterNameQuery.or(homeOr);
+          chapterIdQuery = chapterIdQuery.or(homeOr);
+        }
+
         if (graduationYear && graduationYear !== 'All Years') {
           if (graduationYear === 'older') {
             chapterNameQuery = chapterNameQuery.lte('graduation_year', 2019);
@@ -573,9 +574,6 @@ export async function GET(request: NextRequest) {
             lastContact: alumni.last_contact,
             tags: alumni.tags || [],
             hasProfile: !!alumni.user_id,
-            // 🔥 NEW: Activity data from profiles table
-            lastActiveAt: alumni.profile?.last_active_at,
-            lastLoginAt: alumni.profile?.last_login_at
           };
         }) || [];
 
@@ -645,27 +643,13 @@ export async function GET(request: NextRequest) {
         // Similar logic for selected chapter filter
         let chapterNameQuery = supabase
           .from('alumni')
-          .select(`
-            *,
-            profile:profiles!user_id(
-              avatar_url,
-              last_active_at,
-              last_login_at
-            )
-          `, { count: 'exact' })
+          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
           .eq('chapter', chapter);
         
         let chapterIdQuery = supabase
           .from('alumni')
-          .select(`
-            *,
-            profile:profiles!user_id(
-              avatar_url,
-              last_active_at,
-              last_login_at
-            )
-          `, { count: 'exact' })
-          .eq('chapter', userChapter);
+          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
+          .eq('chapter', chapter);
         
         // Apply all other filters to both queries (same logic as above)
         if (search) {
@@ -690,23 +674,18 @@ export async function GET(request: NextRequest) {
           }
         }
         
-        if (location) {
-          chapterNameQuery = chapterNameQuery.eq('location', location);
-          chapterIdQuery = chapterIdQuery.eq('location', location);
-        }
-        
         if (state) {
-          // Use a broader database filter (matches any location containing the state)
-          const stateName = getStateNameByCode(state);
-          if (stateName) {
-            chapterNameQuery = chapterNameQuery.or(`location.ilike.%${state}%,location.ilike.%${stateName}%`);
-            chapterIdQuery = chapterIdQuery.or(`location.ilike.%${state}%,location.ilike.%${stateName}%`);
-          } else {
-            chapterNameQuery = chapterNameQuery.ilike('location', `%${state}%`);
-            chapterIdQuery = chapterIdQuery.ilike('location', `%${state}%`);
-          }
+          const locOr = buildAlumniLocationStateOrFilter(state);
+          chapterNameQuery = chapterNameQuery.or(locOr);
+          chapterIdQuery = chapterIdQuery.or(locOr);
         }
-        
+
+        if (hometownFilterActive) {
+          const homeOr = buildProfileHometownStateOrFilter(hometownState);
+          chapterNameQuery = chapterNameQuery.or(homeOr);
+          chapterIdQuery = chapterIdQuery.or(homeOr);
+        }
+
         if (graduationYear && graduationYear !== 'All Years') {
           if (graduationYear === 'older') {
             chapterNameQuery = chapterNameQuery.lte('graduation_year', 2019);
@@ -784,9 +763,6 @@ export async function GET(request: NextRequest) {
             lastContact: alumni.last_contact,
             tags: alumni.tags || [],
             hasProfile: !!alumni.user_id,
-            // Activity data from profiles table
-            lastActiveAt: alumni.profile?.last_active_at,
-            lastLoginAt: alumni.profile?.last_login_at
           };
         }) || [];
 
@@ -851,21 +827,15 @@ export async function GET(request: NextRequest) {
         query = query.eq('chapter', chapter);
       }
     }
-    
-    if (location) {
-      query = query.eq('location', location)
-    }
 
     if (state) {
-      // Use a broader database filter (matches any location containing the state)
-      const stateName = getStateNameByCode(state);
-      if (stateName) {
-        query = query.or(`location.ilike.%${state}%,location.ilike.%${stateName}%`);
-      } else {
-        query = query.ilike('location', `%${state}%`);
-      }
+      query = query.or(buildAlumniLocationStateOrFilter(state));
     }
-    
+
+    if (hometownFilterActive) {
+      query = query.or(buildProfileHometownStateOrFilter(hometownState));
+    }
+
     if (graduationYear && graduationYear !== 'All Years') {
       if (graduationYear === 'older') {
         query = query.lte('graduation_year', 2019)
@@ -956,9 +926,6 @@ export async function GET(request: NextRequest) {
         lastContact: alumni.last_contact,
         tags: alumni.tags || [],
         hasProfile: !!alumni.user_id,
-        // ✅ NEW: Activity data from profiles table
-        lastActiveAt: alumni.profile?.last_active_at,
-        lastLoginAt: alumni.profile?.last_login_at
       };
     }) || []
 

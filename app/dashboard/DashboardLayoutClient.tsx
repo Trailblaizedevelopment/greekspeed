@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { DashboardHeader } from '@/components/features/dashboard/DashboardHeader';
-import { useActivityTracking } from '@/lib/hooks/useActivityTracking';
 import { useOneSignalPush } from '@/lib/hooks/useOneSignalPush';
 import { ModalProvider, useModal } from '@/lib/contexts/ModalContext';
 import { ProfileModalProvider, useProfileModal } from '@/lib/contexts/ProfileModalContext';
@@ -44,9 +43,6 @@ export default function DashboardLayoutClient({
 }: {
   children: React.ReactNode;
 }) {
-  // Initialize activity tracking for all dashboard pages
-  useActivityTracking();
-
   const { profile, loading: profileLoading, refreshProfile } = useProfile();
 
   // Register push subscription so users receive chapter announcements, events, messages, etc.

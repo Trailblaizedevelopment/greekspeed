@@ -9,8 +9,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const isActivityAPI = req.nextUrl.pathname === '/api/activity';
-  
   let response = NextResponse.next({
     request: {
       headers: req.headers,

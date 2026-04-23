@@ -9,8 +9,8 @@ import { useAuth } from "@/lib/supabase/auth-context";
 import { useState, memo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ClickableField } from '@/components/shared/ClickableField';
-import { ActivityIndicator } from '@/components/shared/ActivityIndicator';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 // Add this function at the top of the file, outside the component
 const getChapterName = (chapterId: string, isMobile: boolean = false): string => {
@@ -256,10 +256,6 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
               <h3 className="font-semibold text-gray-900 text-xs sm:text-lg leading-tight truncate">
                 {alumni.fullName}
               </h3>
-              <ActivityIndicator
-                lastActiveAt={alumni.lastActiveAt}
-                size="sm"
-              />
             </div>
             {/* Remove hiring badge from here - move to professional info section */}
           </div>
@@ -291,7 +287,7 @@ function EnhancedAlumniCardComponent({ alumni, onClick }: EnhancedAlumniCardProp
             {isValidField(alumni.location) && (
               <div className="flex items-center justify-center space-x-1 sm:space-x-2 text-gray-500 text-[11px] sm:text-sm mt-0.5">
                 <MapPin className="h-3 w-3 shrink-0" />
-                <span className="text-gray-500 truncate">{alumni.location}</span>
+                <span className="text-gray-500 truncate">{formatLocationLineForApp(alumni.location)}</span>
               </div>
             )}
             {/* Show placeholder when no data to maintain consistent spacing */}

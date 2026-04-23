@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 import { getRoleDisplayName } from '@/lib/permissions';
 import type { UsersTableColumn } from './UsersTable';
 
@@ -71,7 +72,7 @@ export function buildDeveloperColumns(options: {
       render: (u: any) => (
         <div>
           {u.location ? (
-            <p className="text-sm">{u.location}</p>
+            <p className="text-sm">{formatLocationLineForApp(u.location)}</p>
           ) : (
             <p className="text-xs text-gray-500">Not Specified</p>
           )}

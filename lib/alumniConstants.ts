@@ -24,10 +24,7 @@ export interface Alumni {
   isActivelyHiring?: boolean;
   lastContact?: string;
   tags: string[];
-  hasProfile?: boolean; // Indicates if this alumni has a linked profile
-  // Simplified activity data - from profiles table
-  lastActiveAt?: string;
-  lastLoginAt?: string;
+  hasProfile?: boolean;
 }
 
 export interface MutualConnection {

@@ -19,6 +19,7 @@ interface FilterState {
   graduationYear: string;
   industry: string;
   state: string;
+  hometownState: string;
   activelyHiring: boolean;
 }
 
@@ -138,10 +139,10 @@ export function AlumniFilterBar({
           />
         </div>
 
-        {/* State Filter — native <select> below md (iOS); custom Select md+ */}
+        {/* State (current location on alumni row) — native <select> below md (iOS); custom Select md+ */}
         <div className="space-y-2">
           <label htmlFor="alumni-filter-state" className="text-sm font-medium text-gray-700">
-            State
+            Location state
           </label>
           <select
             id="alumni-filter-state"
@@ -176,6 +177,44 @@ export function AlumniFilterBar({
           </div>
         </div>
 
+        {/* Hometown state (profiles.hometown) */}
+        <div className="space-y-2">
+          <label htmlFor="alumni-filter-hometown-state" className="text-sm font-medium text-gray-700">
+            Hometown state
+          </label>
+          <select
+            id="alumni-filter-hometown-state"
+            className={cn(
+              "md:hidden flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm",
+              "focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            )}
+            value={filters.hometownState}
+            onChange={(e) => handleFilterChange("hometownState", e.target.value)}
+          >
+            <option value="">All States</option>
+            {US_STATES.map((state) => (
+              <option key={`h-${state.code}`} value={state.code}>
+                {state.name}
+              </option>
+            ))}
+          </select>
+          <div className="hidden md:block w-full">
+            <Select
+              value={filters.hometownState}
+              onValueChange={(value) => handleFilterChange("hometownState", value)}
+              placeholder="All States"
+              className="w-full"
+            >
+              <SelectItem value="">All States</SelectItem>
+              {US_STATES.map((state) => (
+                <SelectItem key={`h-desktop-${state.code}`} value={state.code}>
+                  {state.name}
+                </SelectItem>
+              ))}
+            </Select>
+          </div>
+        </div>
+
         {/* Clear Filters Button */}
         {hasActiveFilters && (
           <Button
@@ -201,10 +240,19 @@ export function AlumniFilterBar({
             <div className="flex flex-wrap gap-2">
               {filters.state && (
                 <Badge variant="outline" className="text-xs bg-primary-50 border-primary-200 text-brand-primary-hover">
-                  State: {getStateNameByCode(filters.state) || filters.state}
+                  Location: {getStateNameByCode(filters.state) || filters.state}
                   <X 
                     className="h-3 w-3 ml-1 cursor-pointer hover:text-primary-900" 
                     onClick={() => handleFilterChange('state', '')}
+                  />
+                </Badge>
+              )}
+              {filters.hometownState && (
+                <Badge variant="outline" className="text-xs bg-primary-50 border-primary-200 text-brand-primary-hover">
+                  Hometown: {getStateNameByCode(filters.hometownState) || filters.hometownState}
+                  <X 
+                    className="h-3 w-3 ml-1 cursor-pointer hover:text-primary-900" 
+                    onClick={() => handleFilterChange('hometownState', '')}
                   />
                 </Badge>
               )}
@@ -273,17 +321,34 @@ export function AlumniFilterBar({
             </Button>
 
 
-            {/* State Filter */}
+            {/* Location state (alumni.location) */}
             <div className="relative">
               <Select 
                 value={filters.state} 
                 onValueChange={(value) => handleFilterChange('state', value)}
-                placeholder="All States"
+                placeholder="Loc. state"
                 className="w-32"
               >
                 <SelectItem value="">All States</SelectItem>
                 {US_STATES.map((state) => (
                   <SelectItem key={state.code} value={state.code}>
+                    {state.name}
+                  </SelectItem>
+                ))}
+              </Select>
+            </div>
+
+            {/* Hometown state (profiles.hometown) */}
+            <div className="relative">
+              <Select 
+                value={filters.hometownState} 
+                onValueChange={(value) => handleFilterChange('hometownState', value)}
+                placeholder="Home state"
+                className="w-32"
+              >
+                <SelectItem value="">All States</SelectItem>
+                {US_STATES.map((state) => (
+                  <SelectItem key={`h-bar-${state.code}`} value={state.code}>
                     {state.name}
                   </SelectItem>
                 ))}
@@ -346,10 +411,19 @@ export function AlumniFilterBar({
             </span>
             {filters.state && (
               <Badge variant="outline" className="text-xs bg-primary-50 border-primary-200 text-brand-primary-hover">
-                State: {getStateNameByCode(filters.state) || filters.state}
+                Location: {getStateNameByCode(filters.state) || filters.state}
                 <X 
                   className="h-3 w-3 ml-1 cursor-pointer hover:text-primary-900" 
                   onClick={() => handleFilterChange('state', '')}
+                />
+              </Badge>
+            )}
+            {filters.hometownState && (
+              <Badge variant="outline" className="text-xs bg-primary-50 border-primary-200 text-brand-primary-hover">
+                Hometown: {getStateNameByCode(filters.hometownState) || filters.hometownState}
+                <X 
+                  className="h-3 w-3 ml-1 cursor-pointer hover:text-primary-900" 
+                  onClick={() => handleFilterChange('hometownState', '')}
                 />
               </Badge>
             )}

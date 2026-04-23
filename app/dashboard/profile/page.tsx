@@ -29,10 +29,12 @@ import ImageWithFallback from '@/components/figma/ImageWithFallback';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MobileBottomNavigation } from '@/components/features/dashboard/dashboards/ui/MobileBottomNavigation';
 import { ProfileHeaderSection } from '@/components/features/profile/mobile/ProfileHeaderSection';
+import { AlumniInviteButton } from '@/components/features/alumni/AlumniInviteButton';
 import { ContentNavigationTabs } from '@/components/features/profile/mobile/ContentNavigationTabs';
 import { ContentFeedSection } from '@/components/features/profile/mobile/ContentFeedSection';
 import { PostCard } from '@/components/features/social/PostCard';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 // Add a helper function to format system roles for display (add this near the top of the component, after other helper functions)
 const formatSystemRole = (role: string | null | undefined): string => {
@@ -290,7 +292,7 @@ export default function ProfilePage() {
     { label: 'Role', value: formatSystemRole(profile.role), icon: Shield, required: true }, // Apply formatting here
     { label: 'Bio', value: profile.bio, icon: FileText, required: false },
     { label: 'Phone', value: profile.phone, icon: Phone, required: false },
-    { label: 'Location', value: profile.location, icon: MapPin, required: false },
+    { label: 'Location', value: formatLocationLineForApp(profile.location), icon: MapPin, required: false },
   ];
 
   // Mobile Layout - Threads-style
@@ -388,6 +390,9 @@ export default function ProfilePage() {
           onEditClick={openEditProfileModal}
           completion={completion}
           recentConnections={recentConnectionsForAvatars}
+          secondaryAction={
+            profile.role === 'alumni' ? <AlumniInviteButton variant="mobile" /> : undefined
+          }
         />
 
         {/* Content Navigation Tabs */}
@@ -501,15 +506,20 @@ export default function ProfilePage() {
 
                 {/* Profile Info Section */}
                 <div className="pt-4 px-4">
-                  {/* Edit Profile Button - Right aligned */}
-                  <div className="flex justify-end mb-8">
+                  {/* Edit Profile (+ alumni invite) */}
+                  <div className="flex flex-col items-stretch gap-2 mb-8 sm:flex-row sm:justify-end sm:items-center">
                     <Button
                       variant="outline"
                       onClick={openEditProfileModal}
-                      className="rounded-full px-4 py-2 font-semibold border-gray-300 hover:bg-gray-100"
+                      className="rounded-full px-4 py-2 font-semibold border-gray-300 hover:bg-gray-100 sm:w-auto"
                     >
                       Edit profile
                     </Button>
+                    {profile.role === 'alumni' ? (
+                      <div className="w-full max-w-xs sm:w-56 sm:max-w-none sm:shrink-0">
+                        <AlumniInviteButton variant="desktop" />
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* Name and Username */}
@@ -534,7 +544,7 @@ export default function ProfilePage() {
                     {profile.location && (
                       <div className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
-                        <span>{profile.location}</span>
+                        <span>{formatLocationLineForApp(profile.location)}</span>
                       </div>
                     )}
                     {profile.chapter && (

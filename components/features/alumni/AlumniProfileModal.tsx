@@ -20,13 +20,13 @@ import { useConnections } from "@/lib/contexts/ConnectionsContext";
 import { useAuth } from "@/lib/supabase/auth-context";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
-import { trackActivity, ActivityTypes } from "@/lib/utils/activityUtils";
 import { createPortal } from 'react-dom';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { DEFAULT_BANNER_IMAGE } from '@/lib/constants';
 import { ShareProfileDrawer } from "@/components/features/messaging/ShareProfileDrawer";
 import { supabase } from "@/lib/supabase/client";
 import { ConnectionRequestDialog } from "@/components/features/connections/ConnectionRequestDialog";
+import { formatLocationLineForApp } from "@/types/canonicalPlace";
 
 interface AlumniProfileModalProps {
   alumni: Alumni | null;
@@ -69,18 +69,6 @@ export function AlumniProfileModal({ alumni, isOpen, onClose }: AlumniProfileMod
     }
   }, [isOpen, isMobile, alumni, router, onClose]);
   
-  // Track profile view when modal opens (desktop only)
-  useEffect(() => {
-    if (isOpen && !isMobile && alumni && user && user.id !== alumni.id) {
-      trackActivity(user.id, ActivityTypes.PROFILE_VIEW, {
-        viewedProfileId: alumni.id,
-        viewedProfileName: alumni.fullName,
-        timestamp: new Date().toISOString()
-      }).catch(error => {
-        console.error('Failed to track profile view:', error);
-      });
-    }
-  }, [isOpen, isMobile, alumni, user]);
   const { 
     sendConnectionRequest, 
     updateConnectionStatus, 
@@ -477,7 +465,7 @@ export function AlumniProfileModal({ alumni, isOpen, onClose }: AlumniProfileMod
                 {alumni.location && alumni.location !== "Not Specified" && (
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-gray-500">Location</span>
-                    <span className="text-gray-900">{alumni.location}</span>
+                    <span className="text-gray-900">{formatLocationLineForApp(alumni.location)}</span>
                   </div>
                 )}
               </div>

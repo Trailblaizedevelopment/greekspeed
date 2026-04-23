@@ -21,6 +21,7 @@ import {
   Plus
 } from 'lucide-react';
 import { BulkAlumniUpload } from './BulkAlumniUpload';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 interface Alumni {
   id: string;
@@ -204,7 +205,7 @@ export function AlumniTab() {
                             {alumni.location && (
                               <div className="flex items-center space-x-2">
                                 <MapPin className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm">{alumni.location}</span>
+                                <span className="text-sm">{formatLocationLineForApp(alumni.location)}</span>
                               </div>
                             )}
                           </div>
