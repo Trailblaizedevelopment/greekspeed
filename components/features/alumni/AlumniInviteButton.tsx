@@ -124,6 +124,15 @@ export function AlumniInviteButton({ variant = 'desktop' }: AlumniInviteButtonPr
     }
   }, [profile?.chapter_id, getAuthHeadersAsync]);
 
+  /** Reopen share UI if we already have an invite; otherwise create one. */
+  const handleInvitePrimaryClick = useCallback(() => {
+    if (invitation) {
+      setShowSharePanel(true);
+      return;
+    }
+    void generateInvite();
+  }, [invitation, generateInvite]);
+
   const handleCopy = useCallback(async () => {
     if (!invitation) return;
     try {
@@ -327,15 +336,101 @@ export function AlumniInviteButton({ variant = 'desktop' }: AlumniInviteButtonPr
 
   const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
 
-  if (showSharePanel && invitation) {
-    return (
-      <>
-        <div
+  const shareLinkActions = invitation ? (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          readOnly
+          value={invitation.invitation_url}
+          className="flex-1 min-w-0 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 sm:py-2"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={handleCopy}
           className={cn(
-            'w-full rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden',
-            variant === 'mobile' ? 'mx-0' : ''
+            'flex-shrink-0 rounded-lg h-9 px-3 transition-colors',
+            copied
+              ? 'text-green-600 border-green-300 bg-green-50'
+              : 'text-brand-primary border-brand-primary/30 hover:bg-primary-50'
           )}
         >
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={openEmailDialog}
+          className="flex-1 rounded-full text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
+        >
+          <Mail className="h-4 w-4 mr-1.5" />
+          Email
+        </Button>
+        {canNativeShare && (
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={handleNativeShare}
+            className="flex-1 rounded-full text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
+          >
+            <Share2 className="h-4 w-4 mr-1.5" />
+            Share
+          </Button>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleMailtoFallback}
+        className="w-full text-center text-xs text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline"
+      >
+        Use my email app instead
+      </button>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <div className="w-full">
+        <Button
+          onClick={handleInvitePrimaryClick}
+          disabled={loading || !profile?.chapter_id}
+          variant="outline"
+          size={variant === 'mobile' ? 'default' : 'sm'}
+          className={cn(
+            'w-full rounded-full transition-colors',
+            variant === 'mobile'
+              ? 'h-12 text-base text-brand-primary border-brand-primary hover:bg-primary-50'
+              : 'text-brand-primary border-brand-primary hover:bg-primary-50'
+          )}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Generating…
+            </>
+          ) : (
+            <>
+              <UserPlus className={cn('mr-2', variant === 'mobile' ? 'h-5 w-5' : 'h-4 w-4')} />
+              Invite Alumni
+            </>
+          )}
+        </Button>
+        {error && (
+          <p className="text-xs text-red-500 mt-1.5 text-center">{error}</p>
+        )}
+      </div>
+
+      {/* Desktop: inline share card below the button (unchanged UX) */}
+      {variant === 'desktop' && showSharePanel && invitation && (
+        <div className="mt-3 w-full rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
             <div className="flex items-center gap-2 min-w-0">
               <UserPlus className="h-4 w-4 text-brand-primary flex-shrink-0" />
@@ -352,221 +447,159 @@ export function AlumniInviteButton({ variant = 'desktop' }: AlumniInviteButtonPr
               <X className="h-4 w-4 text-gray-500" />
             </button>
           </div>
-
-          <div className="px-4 py-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={invitation.invitation_url}
-                className="flex-1 min-w-0 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 truncate"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={handleCopy}
-                className={cn(
-                  'flex-shrink-0 rounded-lg h-9 px-3 transition-colors',
-                  copied
-                    ? 'text-green-600 border-green-300 bg-green-50'
-                    : 'text-brand-primary border-brand-primary/30 hover:bg-primary-50'
-                )}
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              </Button>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={openEmailDialog}
-                className="flex-1 rounded-full text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
-              >
-                <Mail className="h-4 w-4 mr-1.5" />
-                Email
-              </Button>
-              {canNativeShare && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={handleNativeShare}
-                  className="flex-1 rounded-full text-sm text-gray-700 border-gray-200 hover:bg-gray-50"
-                >
-                  <Share2 className="h-4 w-4 mr-1.5" />
-                  Share
-                </Button>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleMailtoFallback}
-              className="w-full text-center text-xs text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline"
-            >
-              Use my email app instead
-            </button>
-          </div>
+          <div className="px-4 py-3">{shareLinkActions}</div>
         </div>
+      )}
 
+      {/* Mobile: share + link UI in a modal so it is usable beside Edit Profile */}
+      {variant === 'mobile' && invitation && (
         <Dialog
-          open={emailDialogOpen}
+          open={showSharePanel}
           onOpenChange={(open) => {
-            setEmailDialogOpen(open);
-            if (!open) {
-              setEmailChips([]);
-              setEmailDraft('');
-            }
+            if (!open) handleClose();
           }}
         >
           <DialogContent
             className={cn(
-              // Mobile: gutters + slightly smaller card; desktop unchanged
-              'w-[calc(100vw-2.5rem)] max-w-[calc(100vw-2.5rem)] gap-3 rounded-2xl p-4 sm:w-full sm:max-w-md sm:gap-4 sm:rounded-lg sm:p-6'
+              'flex max-h-[min(90vh,640px)] w-[calc(100vw-2rem)] max-w-lg flex-col gap-0 overflow-hidden p-0 sm:max-w-md',
+              'rounded-2xl sm:rounded-lg'
             )}
           >
-            <DialogHeader className="space-y-2 sm:space-y-1.5">
-              <DialogTitle className="text-base sm:text-lg">Send invitation by email</DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm">
-                We&apos;ll email your join link from Trailblaize. Type an address and press{' '}
-                <strong>Enter</strong> or <strong>Space</strong> to add it. You can also paste several
-                at once.
+            <DialogHeader className="shrink-0 space-y-1 border-b border-gray-100 px-4 pb-3 pt-4 text-left">
+              <DialogTitle className="flex items-start gap-2 pr-6 text-base leading-snug">
+                <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-brand-primary" />
+                <span>Invite alumni to {invitation.chapter_name}</span>
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Copy your link or send invitations by email or share sheet.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label htmlFor="alumni-invite-email-input">Email addresses</Label>
-                <div
-                  role="group"
-                  aria-label="Recipient email addresses"
-                  className={cn(
-                    'flex min-h-[48px] w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 text-sm ring-offset-background',
-                    'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
-                    sendEmailLoading && 'pointer-events-none opacity-60'
-                  )}
-                  onMouseDown={(e) => {
-                    if (e.target === e.currentTarget) emailInputRef.current?.focus();
-                  }}
-                >
-                  {emailChips.map((email, index) => (
-                    <Badge
-                      key={`${email}-${index}`}
-                      variant="secondary"
-                      className="max-w-full shrink-0 gap-1 pl-2.5 pr-1 font-normal"
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{shareLinkActions}</div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog
+        open={emailDialogOpen}
+        onOpenChange={(open) => {
+          setEmailDialogOpen(open);
+          if (!open) {
+            setEmailChips([]);
+            setEmailDraft('');
+          }
+        }}
+      >
+        <DialogContent
+          className={cn(
+            'w-[calc(100vw-2.5rem)] max-w-[calc(100vw-2.5rem)] gap-3 rounded-2xl p-4 sm:w-full sm:max-w-md sm:gap-4 sm:rounded-lg sm:p-6'
+          )}
+        >
+          <DialogHeader className="space-y-2 sm:space-y-1.5">
+            <DialogTitle className="text-base sm:text-lg">Send invitation by email</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              We&apos;ll email your join link from Trailblaize. Type an address and press{' '}
+              <strong>Enter</strong> or <strong>Space</strong> to add it. You can also paste several at
+              once.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1 sm:space-y-4 sm:py-2">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="alumni-invite-email-input">Email addresses</Label>
+              <div
+                role="group"
+                aria-label="Recipient email addresses"
+                className={cn(
+                  'flex min-h-[48px] w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 text-sm ring-offset-background',
+                  'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+                  sendEmailLoading && 'pointer-events-none opacity-60'
+                )}
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) emailInputRef.current?.focus();
+                }}
+              >
+                {emailChips.map((email, index) => (
+                  <Badge
+                    key={`${email}-${index}`}
+                    variant="secondary"
+                    className="max-w-full shrink-0 gap-1 pl-2.5 pr-1 font-normal"
+                  >
+                    <span
+                      className="max-w-[min(220px,calc(100vw-5.5rem))] truncate sm:max-w-[220px]"
+                      title={email}
                     >
-                      <span
-                        className="max-w-[min(220px,calc(100vw-5.5rem))] truncate sm:max-w-[220px]"
-                        title={email}
-                      >
-                        {email}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeChip(index)}
-                        className="rounded-full p-0.5 hover:bg-muted-foreground/20 focus:outline-none focus:ring-2 focus:ring-ring"
-                        aria-label={`Remove ${email}`}
-                        disabled={sendEmailLoading}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                  <input
-                    ref={emailInputRef}
-                    id="alumni-invite-email-input"
-                    type="text"
-                    inputMode="email"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    enterKeyHint="done"
-                    autoComplete="email"
-                    placeholder={emailChips.length === 0 ? 'name@example.com' : 'Add another…'}
-                    value={emailDraft}
-                    onChange={(e) => setEmailDraft(e.target.value)}
-                    onKeyDown={handleEmailChipKeyDown}
-                    onPaste={handleEmailPaste}
-                    disabled={sendEmailLoading}
-                    className="min-w-[100px] flex-1 border-0 bg-transparent py-1 text-[16px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed sm:min-w-[140px] sm:text-sm"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label htmlFor="alumni-invite-note">Personal note (optional)</Label>
-                <Textarea
-                  id="alumni-invite-note"
-                  placeholder="Add a short message…"
-                  value={personalNoteInput}
-                  onChange={(e) => setPersonalNoteInput(e.target.value)}
-                  rows={3}
-                  maxLength={2000}
+                      {email}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeChip(index)}
+                      className="rounded-full p-0.5 hover:bg-muted-foreground/20 focus:outline-none focus:ring-2 focus:ring-ring"
+                      aria-label={`Remove ${email}`}
+                      disabled={sendEmailLoading}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <input
+                  ref={emailInputRef}
+                  id="alumni-invite-email-input"
+                  type="text"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="done"
+                  autoComplete="email"
+                  placeholder={emailChips.length === 0 ? 'name@example.com' : 'Add another…'}
+                  value={emailDraft}
+                  onChange={(e) => setEmailDraft(e.target.value)}
+                  onKeyDown={handleEmailChipKeyDown}
+                  onPaste={handleEmailPaste}
                   disabled={sendEmailLoading}
-                  className="min-h-[64px] resize-y text-[16px] sm:min-h-[72px] sm:text-sm"
+                  className="min-w-[100px] flex-1 border-0 bg-transparent py-1 text-[16px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed sm:min-w-[140px] sm:text-sm"
                 />
               </div>
             </div>
-            <DialogFooter className="mt-1 gap-2 sm:mt-0 sm:gap-0">
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-full"
-                onClick={() => setEmailDialogOpen(false)}
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="alumni-invite-note">Personal note (optional)</Label>
+              <Textarea
+                id="alumni-invite-note"
+                placeholder="Add a short message…"
+                value={personalNoteInput}
+                onChange={(e) => setPersonalNoteInput(e.target.value)}
+                rows={3}
+                maxLength={2000}
                 disabled={sendEmailLoading}
-              >
-                Cancel
-              </Button>
-              <Button type="button" className="rounded-full" onClick={handleSendInviteEmails} disabled={sendEmailLoading}>
-                {sendEmailLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending…
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
-
-  return (
-    <div className="w-full">
-      <Button
-        onClick={generateInvite}
-        disabled={loading || !profile?.chapter_id}
-        variant="outline"
-        size={variant === 'mobile' ? 'default' : 'sm'}
-        className={cn(
-          'w-full rounded-full transition-colors',
-          variant === 'mobile'
-            ? 'h-12 text-base text-brand-primary border-brand-primary hover:bg-primary-50'
-            : 'text-brand-primary border-brand-primary hover:bg-primary-50'
-        )}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Generating…
-          </>
-        ) : (
-          <>
-            <UserPlus className={cn('mr-2', variant === 'mobile' ? 'h-5 w-5' : 'h-4 w-4')} />
-            Invite Alumni
-          </>
-        )}
-      </Button>
-      {error && (
-        <p className="text-xs text-red-500 mt-1.5 text-center">{error}</p>
-      )}
-    </div>
+                className="min-h-[64px] resize-y text-[16px] sm:min-h-[72px] sm:text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-1 gap-2 sm:mt-0 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setEmailDialogOpen(false)}
+              disabled={sendEmailLoading}
+            >
+              Cancel
+            </Button>
+            <Button type="button" className="rounded-full" onClick={handleSendInviteEmails} disabled={sendEmailLoading}>
+              {sendEmailLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
