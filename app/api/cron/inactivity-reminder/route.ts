@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * cron would incorrectly flag every user as inactive. Kept as a no-op until
  * a replacement engagement signal is defined.
  */
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   return NextResponse.json({
     success: true,
     disabled: true,

@@ -18,8 +18,6 @@ export async function GET(request: NextRequest) {
     const chapterId = searchParams.get('chapter_id') || undefined;
     const startDate = searchParams.get('start_date') || undefined;
     const endDate = searchParams.get('end_date') || undefined;
-    const activityWindow = parseInt(searchParams.get('activity_window') || '30');
-
     if (!metricType) {
       return NextResponse.json({ error: 'metric_type is required' }, { status: 400 });
     }

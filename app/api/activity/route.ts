@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
  * no-op so that any in-flight client calls (cached tabs, service workers)
  * receive a 200 instead of a 404 during the rollout window.
  */
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   return NextResponse.json({
     success: true,
     message: 'Activity tracking disabled',
