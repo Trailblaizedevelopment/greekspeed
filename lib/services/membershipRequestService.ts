@@ -185,13 +185,24 @@ export async function createPendingMembershipRequest(
     };
   }
 
-  if (profile.chapter_id && profile.chapter_id !== input.chapterId) {
+  // TRA-661: Check space_memberships for existing membership in target chapter
+  const { data: existingMembership } = await supabase
+    .from('space_memberships')
+    .select('id, status')
+    .eq('user_id', input.userId)
+    .eq('space_id', input.chapterId)
+    .neq('status', 'inactive')
+    .maybeSingle();
+
+  if (existingMembership) {
     return {
       ok: false,
-      code: 'WRONG_CHAPTER',
-      message: 'User already belongs to a different chapter',
+      code: 'ALREADY_MEMBER',
+      message: 'User already has an active membership in this chapter',
     };
   }
+
+  // TRA-661: Users with an existing chapter_id may create a pending request for a different space
 
   const row = {
     user_id: input.userId,
@@ -285,6 +296,19 @@ export async function approveMembershipRequest(
   }
 
   if (request.status === 'approved') {
+    // TRA-661: Check space_memberships or profile.chapter_id for idempotency
+    const { data: membership } = await supabase
+      .from('space_memberships')
+      .select('id')
+      .eq('user_id', request.user_id)
+      .eq('space_id', request.chapter_id)
+      .neq('status', 'inactive')
+      .maybeSingle();
+
+    if (membership) {
+      return { ok: true, data: request };
+    }
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('chapter_id')
@@ -293,10 +317,11 @@ export async function approveMembershipRequest(
     if (profile?.chapter_id === request.chapter_id) {
       return { ok: true, data: request };
     }
+
     return {
       ok: false,
       code: 'INVALID_STATE',
-      message: 'Request was approved but profile chapter is inconsistent',
+      message: 'Request was approved but membership is inconsistent',
     };
   }
 
@@ -388,13 +413,8 @@ export async function approveMembershipRequest(
     };
   }
 
-  if (profile.chapter_id && profile.chapter_id !== request.chapter_id) {
-    return {
-      ok: false,
-      code: 'WRONG_CHAPTER',
-      message: 'User already belongs to a different chapter',
-    };
-  }
+  // TRA-661: Allow approval even if user already has a different primary chapter (multi-membership)
+  const isFirstChapter = !profile.chapter_id;
 
   const nowIso = new Date().toISOString();
   const currentYear = new Date().getFullYear();
@@ -432,7 +452,8 @@ export async function approveMembershipRequest(
     }
   }
 
-  if (profile.chapter_id !== request.chapter_id) {
+  // TRA-661: Only set profiles.chapter_id if this is the user's first chapter (primary)
+  if (isFirstChapter) {
     const profileUpdate: Record<string, unknown> = {
       chapter_id: chapter.id,
       chapter: chapter.name,
@@ -457,6 +478,26 @@ export async function approveMembershipRequest(
         message: profileUpdateError.message,
       };
     }
+  }
+
+  // TRA-661: Always upsert a space_memberships row on approval
+  const membershipStatus = targetRole === 'alumni' ? 'alumni' : 'active';
+  const { error: membershipError } = await supabase
+    .from('space_memberships')
+    .upsert(
+      {
+        user_id: request.user_id,
+        space_id: chapter.id,
+        role: targetRole,
+        status: membershipStatus,
+        is_primary: isFirstChapter,
+        updated_at: nowIso,
+      },
+      { onConflict: 'user_id,space_id' }
+    );
+
+  if (membershipError) {
+    console.error('TRA-661: Failed to upsert space_membership on approval:', membershipError);
   }
 
   if (targetRole === 'alumni') {
