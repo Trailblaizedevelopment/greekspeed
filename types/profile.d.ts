@@ -53,7 +53,7 @@ export interface Profile {
   major?: string;
   minor?: string;
   gpa?: number;
-  hometown?: string;
+  hometown?: string | null;
   bio: string | null;
   phone: string | null;
   sms_consent: boolean;
@@ -88,10 +88,14 @@ export interface ProfileFormData {
   bio?: string;
   phone?: string;
   location?: string;
+  /** Canonical place JSON (Mapbox); persisted on `profiles.current_place`. */
+  current_place?: CanonicalPlace | null;
   grad_year?: string;
   major?: string;
   minor?: string;
   hometown?: string;
+  /** Canonical place JSON (Mapbox); persisted on `profiles.hometown_place`. */
+  hometown_place?: CanonicalPlace | null;
   gpa?: string;
   avatar_url?: string;
   banner_url?: string;

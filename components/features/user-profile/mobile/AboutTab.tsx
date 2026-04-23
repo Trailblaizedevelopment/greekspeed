@@ -17,6 +17,7 @@ import {
 import { UnifiedUserProfile } from "@/types/user-profile";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatLocationLineForApp } from "@/types/canonicalPlace";
 
 interface AboutTabProps {
   profile: UnifiedUserProfile;
@@ -88,7 +89,7 @@ export function AboutTab({ profile, isLoggedIn = false, canSeeFullProfile = fals
                 {profile.location && (
                   <InfoRow
                     label="Location"
-                    value={profile.location}
+                    value={formatLocationLineForApp(profile.location)}
                   />
                 )}
                 {profile.bio && (

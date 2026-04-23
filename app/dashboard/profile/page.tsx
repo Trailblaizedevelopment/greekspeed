@@ -33,6 +33,7 @@ import { ContentNavigationTabs } from '@/components/features/profile/mobile/Cont
 import { ContentFeedSection } from '@/components/features/profile/mobile/ContentFeedSection';
 import { PostCard } from '@/components/features/social/PostCard';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
+import { formatLocationLineForApp } from '@/types/canonicalPlace';
 
 // Add a helper function to format system roles for display (add this near the top of the component, after other helper functions)
 const formatSystemRole = (role: string | null | undefined): string => {
@@ -290,7 +291,7 @@ export default function ProfilePage() {
     { label: 'Role', value: formatSystemRole(profile.role), icon: Shield, required: true }, // Apply formatting here
     { label: 'Bio', value: profile.bio, icon: FileText, required: false },
     { label: 'Phone', value: profile.phone, icon: Phone, required: false },
-    { label: 'Location', value: profile.location, icon: MapPin, required: false },
+    { label: 'Location', value: formatLocationLineForApp(profile.location), icon: MapPin, required: false },
   ];
 
   // Mobile Layout - Threads-style
@@ -534,7 +535,7 @@ export default function ProfilePage() {
                     {profile.location && (
                       <div className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
-                        <span>{profile.location}</span>
+                        <span>{formatLocationLineForApp(profile.location)}</span>
                       </div>
                     )}
                     {profile.chapter && (

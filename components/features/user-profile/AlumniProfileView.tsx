@@ -25,6 +25,7 @@ import { useState } from "react";
 import { useRouter } from 'next/navigation';
 import { ShareProfileDrawer } from "@/components/features/messaging/ShareProfileDrawer";
 import { ConnectionRequestDialog } from "@/components/features/connections/ConnectionRequestDialog";
+import { formatLocationLineForApp } from "@/types/canonicalPlace";
 
 interface AlumniProfileViewProps {
   profile: UnifiedUserProfile;
@@ -384,7 +385,7 @@ export function AlumniProfileView({ profile, onClose, hideCloseButton = false }:
               {profile.location && profile.location !== "Not Specified" && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-gray-500">Location</span>
-                  <span className="text-gray-900">{profile.location}</span>
+                  <span className="text-gray-900">{formatLocationLineForApp(profile.location)}</span>
                 </div>
               )}
             </div>

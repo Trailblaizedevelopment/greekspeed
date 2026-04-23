@@ -17,7 +17,7 @@ import { buildIndustrySelectOptions, getGraduationYears, majors } from '@/lib/al
 import { LocationPicker } from '@/components/features/location/LocationPicker';
 import type { CanonicalPlace, CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 import {
-  formatCanonicalPlaceDisplay,
+  formatCanonicalPlaceDisplayForApp,
   parseCanonicalPlace,
   parseCanonicalPlaceConfirmed,
 } from '@/types/canonicalPlace';
@@ -488,8 +488,8 @@ export default function ProfileBasicsPage() {
       if (savesLocationFields) {
         const persistedCurrent = toPersistedConfirmed(currentPlace);
         const persistedHometown = toPersistedConfirmed(hometownPlace);
-        const locationLine = formatCanonicalPlaceDisplay(persistedCurrent);
-        const hometownLine = formatCanonicalPlaceDisplay(persistedHometown);
+        const locationLine = formatCanonicalPlaceDisplayForApp(persistedCurrent);
+        const hometownLine = formatCanonicalPlaceDisplayForApp(persistedHometown);
 
         if (persistedCurrent) {
           updateData.current_place = persistedCurrent;
@@ -523,9 +523,9 @@ export default function ProfileBasicsPage() {
         const persistedCurrentAlumni = toPersistedConfirmed(currentPlace);
         const persistedHometownAlumni = toPersistedConfirmed(hometownPlace);
         const locationDisplay =
-          formatCanonicalPlaceDisplay(persistedCurrentAlumni).trim() || 'Not Specified';
+          formatCanonicalPlaceDisplayForApp(persistedCurrentAlumni).trim() || 'Not Specified';
         const hometownDisplay =
-          formatCanonicalPlaceDisplay(persistedHometownAlumni).trim() || 'Not Specified';
+          formatCanonicalPlaceDisplayForApp(persistedHometownAlumni).trim() || 'Not Specified';
 
         const alumniRow: Record<string, unknown> = {
           user_id: user.id,

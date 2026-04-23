@@ -96,3 +96,34 @@ export function formatCanonicalPlaceDisplay(place: CanonicalPlace | null | undef
   );
   return parts.join(', ');
 }
+
+/**
+ * Removes trailing US country segments from a single-line place label (Mapbox-style).
+ * Safe suffix-only: repeated passes for odd double-suffix strings.
+ */
+export function stripTrailingUsCountryFromDisplay(line: string): string {
+  let s = line.trim();
+  if (!s) return '';
+  const suffix =
+    /, (United States of America|United States|USA|U\.S\.A\.|U\.S\.|US)$/i;
+  let prev = '';
+  while (s !== prev) {
+    prev = s;
+    s = s.replace(suffix, '').trimEnd();
+  }
+  return s;
+}
+
+/**
+ * User-visible place line for the US-only app: full Mapbox-style label minus trailing country.
+ * @see formatCanonicalPlaceDisplay — use that when you need the exact Mapbox string (rare).
+ */
+export function formatCanonicalPlaceDisplayForApp(place: CanonicalPlace | null | undefined): string {
+  return stripTrailingUsCountryFromDisplay(formatCanonicalPlaceDisplay(place));
+}
+
+/** Plain stored `profiles.location` / `profiles.hometown` / legacy rows — strip trailing US for UI only. */
+export function formatLocationLineForApp(line: string | null | undefined): string {
+  if (line == null) return '';
+  return stripTrailingUsCountryFromDisplay(String(line));
+}

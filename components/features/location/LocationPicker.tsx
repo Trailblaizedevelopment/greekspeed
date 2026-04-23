@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import type { CanonicalPlace, CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 import {
-  formatCanonicalPlaceDisplay,
+  formatCanonicalPlaceDisplayForApp,
   parseCanonicalPlaceConfirmed,
 } from '@/types/canonicalPlace';
 import type { GeocodingSuggestion } from '@/lib/mapbox/geocodeSuggestDto';
@@ -142,7 +142,7 @@ export function LocationPicker({
   const blurTimerRef = useRef<number | null>(null);
   const suggestAbortRef = useRef<AbortController | null>(null);
 
-  const [inputValue, setInputValue] = useState(() => formatCanonicalPlaceDisplay(value));
+  const [inputValue, setInputValue] = useState(() => formatCanonicalPlaceDisplayForApp(value));
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<GeocodingSuggestion[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -162,7 +162,7 @@ export function LocationPicker({
   );
 
   useEffect(() => {
-    setInputValue(formatCanonicalPlaceDisplay(value));
+    setInputValue(formatCanonicalPlaceDisplayForApp(value));
   }, [value]);
 
   const updateMenuPosition = useCallback(() => {
@@ -312,7 +312,7 @@ export function LocationPicker({
         }
 
         onChange(parsed.data);
-        setInputValue(formatCanonicalPlaceDisplay(parsed.data));
+        setInputValue(formatCanonicalPlaceDisplayForApp(parsed.data));
         setSuggestions([]);
         closeList();
         inputRef.current?.blur();
@@ -340,7 +340,7 @@ export function LocationPicker({
   const handleBlur = () => {
     blurTimerRef.current = window.setTimeout(() => {
       closeList();
-      setInputValue(formatCanonicalPlaceDisplay(value));
+      setInputValue(formatCanonicalPlaceDisplayForApp(value));
       blurTimerRef.current = null;
     }, 180);
   };
@@ -373,7 +373,7 @@ export function LocationPicker({
     } else if (e.key === 'Escape') {
       e.preventDefault();
       closeList();
-      setInputValue(formatCanonicalPlaceDisplay(value));
+      setInputValue(formatCanonicalPlaceDisplayForApp(value));
     }
   };
 
@@ -469,8 +469,8 @@ export function LocationPicker({
         : null}
       <p className="text-xs text-gray-500">
         {postcodeMode
-          ? 'Enter your ZIP code and pick a match — we save the full city, state, and country from Mapbox.'
-          : 'Pick a city, ZIP, or area from the list — free text alone is not saved as your location.'}
+          ? "Type your location and we'll find a match."
+          : 'Type your location and we will find a match.'}
       </p>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>

@@ -4,6 +4,7 @@ import { consumeGeocodingSuggestRateLimit } from '@/lib/api/geocodingSuggestRate
 import { fetchMapboxGeocodeV6Forward } from '@/lib/mapbox/fetchMapboxGeocodeV6Forward';
 import { mapGeocodeV6FeaturesToSuggestions } from '@/lib/mapbox/geocodeSuggestDto';
 import { logGeocodingRouteError } from '@/lib/mapbox/logGeocodingError';
+import { dedupeGeocodingSuggestionsByFormattedDisplay } from '@/lib/mapbox/dedupeGeocodingSuggestionsByFormattedDisplay';
 import { rankGeocodingSuggestionsByQuery } from '@/lib/mapbox/rankGeocodingSuggestionsByQuery';
 import { nextResponseForMapboxUpstreamFailure } from '@/lib/mapbox/mapboxGeocodingUpstreamResponse';
 import {
@@ -116,7 +117,8 @@ export async function GET(request: NextRequest) {
     const features = Array.isArray(geojson.features) ? geojson.features : [];
     const mapped = mapGeocodeV6FeaturesToSuggestions(features);
     const ranked = rankGeocodingSuggestionsByQuery(mapped, q);
-    const suggestions = ranked.slice(0, responseLimit);
+    const deduped = dedupeGeocodingSuggestionsByFormattedDisplay(ranked, q);
+    const suggestions = deduped.slice(0, responseLimit);
 
     return NextResponse.json({
       data: {
