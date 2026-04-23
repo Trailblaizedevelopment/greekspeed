@@ -149,7 +149,9 @@ export async function POST(request: NextRequest) {
 
     if (!membershipResult.ok) {
       return NextResponse.json(
-        { error: 'Failed to create membership' },
+        {
+          error: membershipResult.error || 'Failed to create membership',
+        },
         { status: 500 }
       );
     }

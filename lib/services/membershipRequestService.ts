@@ -5,6 +5,7 @@ import type {
 } from '@/types/chapterMembershipRequests';
 import type { InvitationType } from '@/types/invitations';
 import { recordInvitationUsage } from '@/lib/utils/invitationUtils';
+import { upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
 
 /**
  * Chapter membership approval queue (TRA-571).
@@ -482,22 +483,16 @@ export async function approveMembershipRequest(
 
   // TRA-661: Always upsert a space_memberships row on approval
   const membershipStatus = targetRole === 'alumni' ? 'alumni' : 'active';
-  const { error: membershipError } = await supabase
-    .from('space_memberships')
-    .upsert(
-      {
-        user_id: request.user_id,
-        space_id: chapter.id,
-        role: targetRole,
-        status: membershipStatus,
-        is_primary: isFirstChapter,
-        updated_at: nowIso,
-      },
-      { onConflict: 'user_id,space_id' }
-    );
+  const membershipUpsert = await upsertSpaceMembership(supabase, {
+    userId: request.user_id,
+    spaceId: chapter.id,
+    role: targetRole,
+    status: membershipStatus,
+    isPrimary: isFirstChapter,
+  });
 
-  if (membershipError) {
-    console.error('TRA-661: Failed to upsert space_membership on approval:', membershipError);
+  if (!membershipUpsert.ok) {
+    console.error('TRA-661: Failed to upsert space_membership on approval:', membershipUpsert.error);
   }
 
   if (targetRole === 'alumni') {

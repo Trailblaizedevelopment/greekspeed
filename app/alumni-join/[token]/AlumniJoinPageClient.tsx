@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle, Clock, Loader2, Linkedin, Mail, Users } from 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlumniJoinForm } from '@/components/features/join/AlumniJoinForm';
+import { InviteExistingUserPanel } from '@/components/features/join/InviteExistingUserPanel';
 import { Invitation } from '@/types/invitations';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'react-toastify';
@@ -359,10 +360,39 @@ export default function AlumniJoinPageClient() {
           <CardContent className="space-y-2 pt-0">
             <div>
               <p className="text-gray-600 mb-4">
-                You've been invited to join {invitation.chapter_name} as an alumni member. 
-                Create your account to get started.
+                You&apos;ve been invited to join {invitation.chapter_name} as an alumni member. Sign in to accept
+                with your existing account, or create a new account below.
               </p>
             </div>
+
+            <InviteExistingUserPanel
+              token={invitation.token}
+              chapterName={invitation.chapter_name ?? 'this chapter'}
+              returnPath={`/alumni-join/${token}`}
+              onAccepted={async ({ needsApproval }) => {
+                if (!needsApproval) {
+                  try {
+                    const {
+                      data: { session },
+                    } = await supabase.auth.getSession();
+                    if (session?.user) {
+                      const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('onboarding_completed')
+                        .eq('id', session.user.id)
+                        .maybeSingle();
+                      if (profile?.onboarding_completed) {
+                        router.push('/dashboard');
+                        return;
+                      }
+                    }
+                  } catch {
+                    // fall through
+                  }
+                }
+                handleJoinSuccess({ needs_approval: needsApproval });
+              }}
+            />
 
             {invitation.approval_mode === 'pending' && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
@@ -394,7 +424,7 @@ export default function AlumniJoinPageClient() {
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">Or</span>
+                <span className="bg-white px-2 text-gray-500">New here?</span>
               </div>
             </div>
 

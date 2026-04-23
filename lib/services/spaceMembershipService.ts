@@ -59,6 +59,10 @@ export async function getUserMemberSpaceIds(
 
 /**
  * TRA-661: Upsert a space membership row (e.g. on join/approval).
+ *
+ * Cannot use PostgREST `.upsert({ onConflict: 'user_id,space_id' })` because the DB only defines a
+ * **partial** unique index on (user_id, space_id) WHERE status != 'inactive', which does not satisfy
+ * Postgres `ON CONFLICT` inference (42P10).
  */
 export async function upsertSpaceMembership(
   supabase: SupabaseClient,
@@ -70,23 +74,52 @@ export async function upsertSpaceMembership(
     isPrimary: boolean;
   }
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase
+  const updatedAt = new Date().toISOString();
+
+  const { data: existing, error: selectError } = await supabase
     .from('space_memberships')
-    .upsert(
-      {
-        user_id: params.userId,
-        space_id: params.spaceId,
+    .select('id')
+    .eq('user_id', params.userId)
+    .eq('space_id', params.spaceId)
+    .neq('status', 'inactive')
+    .maybeSingle();
+
+  if (selectError) {
+    console.error('upsertSpaceMembership select error:', selectError);
+    return { ok: false, error: selectError.message };
+  }
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('space_memberships')
+      .update({
         role: params.role,
         status: params.status,
         is_primary: params.isPrimary,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,space_id' }
-    );
+        updated_at: updatedAt,
+      })
+      .eq('id', existing.id);
 
-  if (error) {
-    console.error('upsertSpaceMembership error:', error);
-    return { ok: false, error: error.message };
+    if (error) {
+      console.error('upsertSpaceMembership update error:', error);
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  }
+
+  const { error: insertError } = await supabase.from('space_memberships').insert({
+    user_id: params.userId,
+    space_id: params.spaceId,
+    role: params.role,
+    status: params.status,
+    is_primary: params.isPrimary,
+    created_at: updatedAt,
+    updated_at: updatedAt,
+  });
+
+  if (insertError) {
+    console.error('upsertSpaceMembership insert error:', insertError);
+    return { ok: false, error: insertError.message };
   }
   return { ok: true };
 }

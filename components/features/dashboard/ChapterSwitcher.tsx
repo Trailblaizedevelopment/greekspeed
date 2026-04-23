@@ -19,7 +19,13 @@ interface Chapter {
 export function ChapterSwitcher() {
   const { profile, isDeveloper } = useProfile();
   const { session } = useAuth();
-  const { activeChapterId, setActiveChapterId, hasMultipleMemberships, setHasMultipleMemberships } = useActiveChapter();
+  const {
+    activeChapterId,
+    setActiveChapterId,
+    hasMultipleMemberships,
+    setHasMultipleMemberships,
+    setMemberSpaces,
+  } = useActiveChapter();
 
   const [isOpen, setIsOpen] = useState(false);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -51,14 +57,18 @@ export function ChapterSwitcher() {
         const data = await response.json();
         if (data.has_multiple) {
           setHasMultipleMemberships(true);
+          const raw = data.spaces || [];
           setChapters(
-            (data.spaces || []).map((s: { id: string; name: string; school?: string; is_primary?: boolean }) => ({
+            raw.map((s: { id: string; name: string; school?: string; is_primary?: boolean }) => ({
               id: s.id,
               name: s.name,
               school: s.school,
               is_primary: s.is_primary,
             }))
           );
+          setMemberSpaces(raw.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })));
+        } else {
+          setMemberSpaces([]);
         }
       } catch (error) {
         console.error('ChapterSwitcher: Error fetching member spaces:', error);
@@ -66,7 +76,7 @@ export function ChapterSwitcher() {
     };
 
     fetchMemberSpaces();
-  }, [isDeveloper, isGovernance, session?.access_token, setHasMultipleMemberships]);
+  }, [isDeveloper, isGovernance, session?.access_token, setHasMultipleMemberships, setMemberSpaces]);
 
   // Fetch chapters for developer/governance (unchanged existing behavior)
   useEffect(() => {
@@ -82,7 +92,14 @@ export function ChapterSwitcher() {
           });
           if (!response.ok) throw new Error('Failed to fetch governance chapters');
           const data = await response.json();
-          setChapters(data.chapters || []);
+          const list = data.chapters || [];
+          setChapters(list);
+          setMemberSpaces(
+            list.map((c: { id: string; name: string }) => ({
+              id: c.id,
+              name: c.name,
+            }))
+          );
         } else if (isDeveloper) {
           const response = await fetch('/api/developer/chapters?page=1&limit=100', {
             headers: {
@@ -92,7 +109,14 @@ export function ChapterSwitcher() {
           });
           if (!response.ok) throw new Error('Failed to fetch chapters');
           const data = await response.json();
-          setChapters(data.chapters || []);
+          const list = data.chapters || [];
+          setChapters(list);
+          setMemberSpaces(
+            list.map((c: { id: string; name: string }) => ({
+              id: c.id,
+              name: c.name,
+            }))
+          );
         }
       } catch (error) {
         console.error('ChapterSwitcher: Error fetching chapters:', error);
@@ -102,7 +126,7 @@ export function ChapterSwitcher() {
     };
 
     fetchChapters();
-  }, [showSwitcher, isGovernance, isDeveloper, hasMultipleMemberships, session?.access_token]);
+  }, [showSwitcher, isGovernance, isDeveloper, hasMultipleMemberships, session?.access_token, setMemberSpaces]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -209,7 +233,15 @@ export function ChapterSwitcher() {
   };
 
   return (
-    <>
+    <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+      {hasMultipleMemberships && !isDeveloper && !isGovernance && (
+        <span
+          className="hidden lg:inline text-xs text-gray-500 whitespace-nowrap shrink-0"
+          title="Feed, directory, and chapter tools use this chapter until you switch."
+        >
+          Viewing
+        </span>
+      )}
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
@@ -328,6 +360,6 @@ export function ChapterSwitcher() {
           </div>,
           document.body
         )}
-    </>
+    </div>
   );
 }
