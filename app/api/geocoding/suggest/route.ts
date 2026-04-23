@@ -18,7 +18,7 @@ import {
  * Ephemeral autocomplete: Mapbox forward geocode with `permanent=false` (default).
  * Client should debounce and use `q` length ≥ 2 before calling.
  *
- * Query: `q` (required), optional `country`, `types`, `limit` (1–10), `worldview`, `proximity`, `language`.
+ * Query: `q` (required), optional `country` (defaults to **us**), `types`, `limit` (1–10), `worldview`, `proximity`, `language`.
  *
  * @see https://docs.mapbox.com/api/search/geocoding/#forward-geocoding-with-search-text-input
  * @see https://docs.mapbox.com/api/search/geocoding/#autocomplete-and-pricing
@@ -68,7 +68,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { q, country, types, worldview, proximity, language } = parsed.data;
+    const { q, types, worldview, proximity, language } = parsed.data;
+    /** US-only product: always scope suggest to United States (Mapbox `country=us`). */
+    const countryCode = 'us';
     const responseLimit = parseGeocodingSuggestLimit(searchParams.get('limit'));
     /** Ask Mapbox for up to 10 features, then rank and slice — improves city hits for queries like "Tampa". */
     const mapboxFetchLimit = Math.min(10, Math.max(responseLimit, 10));
@@ -89,8 +91,8 @@ export async function GET(request: NextRequest) {
       autocomplete: 'true',
       permanent: 'false',
       types: typesParam,
+      country: countryCode,
     });
-    if (country) params.set('country', country);
     if (worldview) params.set('worldview', worldview);
     if (proximity) params.set('proximity', proximity);
     params.set('language', language?.trim() || 'en');

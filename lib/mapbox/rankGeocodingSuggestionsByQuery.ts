@@ -112,28 +112,47 @@ function rankOnly(suggestions: GeocodingSuggestion[], q: string): GeocodingSugge
   return scored.map((x) => x.s);
 }
 
+/**
+ * Adds to match score (lower is better): for alphabetic queries, prefer `place` / `locality`
+ * over streets and addresses so lists feel like the Mapbox city demo while still returning
+ * broader `types` from Mapbox.
+ */
+function featureTypeSortBias(featureType: string | undefined, q: string): number {
+  const t = (featureType ?? '').toLowerCase();
+  if (/^\d/.test(q)) {
+    if (t === 'postcode' || t === 'place' || t === 'locality' || t === 'address' || t === 'street') return 0;
+    if (t === 'neighborhood' || t === 'district') return 2;
+    return 4;
+  }
+  if (t === 'place' || t === 'locality') return 0;
+  if (t === 'neighborhood' || t === 'district') return 5;
+  if (t === 'postcode' || t === 'region') return 8;
+  if (t === 'address' || t === 'street' || t === 'block' || t === 'secondary_address') return 20;
+  return 6;
+}
 
 function matchScore(s: GeocodingSuggestion, q: string): number {
   const name = s.name.trim().toLowerCase();
   const fd = s.formatted_display.trim().toLowerCase();
   const firstSeg = (fd.split(',')[0] ?? '').trim();
+  const bias = featureTypeSortBias(s.feature_type, q);
 
   if (/^\d/.test(q)) {
-    if (name.startsWith(q) || fd.startsWith(q)) return 0;
-    if (name.includes(q) || fd.includes(q)) return 4;
-    return 12;
+    if (name.startsWith(q) || fd.startsWith(q)) return 0 + bias;
+    if (name.includes(q) || fd.includes(q)) return 4 + bias;
+    return 12 + bias;
   }
 
-  if (name === q) return 0;
-  if (firstSeg === q) return 1;
-  if (name.startsWith(q)) return 2;
-  if (firstSeg.startsWith(q)) return 3;
-  if (name.includes(q)) return 6;
-  if (fd.includes(q)) return 8;
+  if (name === q) return 0 + bias;
+  if (firstSeg === q) return 1 + bias;
+  if (name.startsWith(q)) return 2 + bias;
+  if (firstSeg.startsWith(q)) return 3 + bias;
+  if (name.includes(q)) return 6 + bias;
+  if (fd.includes(q)) return 8 + bias;
 
-  if (isStateCountryOnlyRow(fd, q)) return 85;
+  if (isStateCountryOnlyRow(fd, q)) return 85 + bias;
 
-  return 40;
+  return 40 + bias;
 }
 
 /**

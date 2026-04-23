@@ -21,18 +21,19 @@ import {
   parseCanonicalPlaceConfirmed,
 } from '@/types/canonicalPlace';
 import type { GeocodingSuggestion } from '@/lib/mapbox/geocodeSuggestDto';
+import { GEOCODING_SUGGEST_TYPES_DEFAULT_US } from '@/lib/mapbox/constants';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_DEBOUNCE_MS = 300;
 const DEFAULT_MIN_QUERY = 2;
 
 /**
- * Default Mapbox Geocoding `types` for “where do you live” style fields: cities, towns,
- * neighborhoods, postcodes — **not** top-level `region` (US states), so autocomplete
- * favors municipal results (e.g. “Tampa”) over “Florida”.
+ * Default Mapbox Geocoding `types` (US-only via `country`): broad suggest list similar to
+ * Mapbox forward demos; the suggest API ranks results so `place` / `locality` surface ahead
+ * of streets for city-like queries.
  * @see https://docs.mapbox.com/api/search/geocoding/#forward-geocoding-with-search-text-input
  */
-export const LOCATION_PICKER_DEFAULT_SUGGEST_TYPES = 'place,locality,postcode';
+export const LOCATION_PICKER_DEFAULT_SUGGEST_TYPES = GEOCODING_SUGGEST_TYPES_DEFAULT_US;
 
 /** US ZIP or ZIP+4: digits only, hyphen inserted after fifth digit when needed. */
 export function sanitizeUsZipInput(raw: string): string {
@@ -222,8 +223,8 @@ export function LocationPicker({
           q: trimmed,
           limit: '8',
           types: typesForSuggest,
+          country: country?.trim() || 'us',
         });
-        if (country) params.set('country', country);
         if (worldview) params.set('worldview', worldview);
 
         const res = await fetch(`/api/geocoding/suggest?${params.toString()}`, {
@@ -293,7 +294,7 @@ export function LocationPicker({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mapbox_id: suggestion.mapbox_id,
-            ...(country ? { country } : {}),
+            country: country?.trim() || 'us',
             ...(worldview ? { worldview } : {}),
           }),
         });

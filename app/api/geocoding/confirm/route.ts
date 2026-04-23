@@ -60,19 +60,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { mapbox_id, country, worldview } = parsedBody.data;
+    const { mapbox_id, worldview } = parsedBody.data;
     const usePermanent = process.env.MAPBOX_GEOCODING_PERMANENT !== 'false';
 
+    /** US-only: ignore client `country` for Mapbox confirm scoping. */
+    const countryCode = 'us';
     const params = new URLSearchParams({
       q: mapbox_id,
       access_token: mapboxToken,
       limit: '1',
       autocomplete: 'false',
       permanent: usePermanent ? 'true' : 'false',
+      country: countryCode,
     });
-    if (country) {
-      params.set('country', country);
-    }
     if (worldview) {
       params.set('worldview', worldview);
     }

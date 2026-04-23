@@ -420,7 +420,7 @@ export default function ProfileBasicsPage() {
     // Current location: required Mapbox-confirmed place when the contact/location section is shown
     if (effectiveRole === 'active_member' || effectiveRole === 'admin' || isAlumni) {
       if (!toPersistedConfirmed(currentPlace)) {
-        newErrors.location = 'Enter your ZIP code and choose a match from the list.';
+        newErrors.location = 'Pick a city, ZIP, or area from the list — a confirmed match is required.';
       }
     }
 
@@ -792,12 +792,11 @@ export default function ProfileBasicsPage() {
                         label={
                           <span className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-gray-400" aria-hidden />
-                            Current location (ZIP code) *
+                            Current location *
                           </span>
                         }
                         fieldId="onboarding-current-location"
                         country="us"
-                        postcodeMode
                         value={currentPlace}
                         onChange={(place) => {
                           setCurrentPlace(place);
@@ -827,7 +826,6 @@ export default function ProfileBasicsPage() {
                       }
                       fieldId="onboarding-hometown"
                       country="us"
-                      types="place,locality,postcode"
                       value={hometownPlace}
                       onChange={(place) => {
                         setHometownPlace(place);
