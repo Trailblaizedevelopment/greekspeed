@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EditAlumniProfileModal } from '@/components/features/alumni/EditAlumniProfileModal';
-import { AlumniInviteButton } from '@/components/features/alumni/AlumniInviteButton';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { supabase } from '@/lib/supabase/client';
 import { 
@@ -429,7 +428,6 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
                 <Edit3 className="h-5 w-5 mr-2" />
                 Edit Profile
               </Button>
-              <AlumniInviteButton variant="mobile" />
             </div>
           </div>
         </div>
@@ -624,7 +622,6 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
                 <Edit3 className="h-4 w-4 mr-2" />
                 Edit Profile
               </Button>
-              <AlumniInviteButton variant="desktop" />
             </div>
           </CardContent>
         </Card>

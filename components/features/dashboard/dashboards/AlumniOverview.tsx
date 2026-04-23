@@ -10,7 +10,6 @@ import { CalendarEventsWeekCard } from './ui/CalendarEventsWeekCard';
 import { SocialFeedEventsRail } from './ui/SocialFeedEventsRail';
 import type { Event } from '@/types/events';
 import { MobileNetworkPage } from './ui/MobileNetworkPage';
-import { MobileProfilePage } from './ui/MobileProfilePage';
 import { AlumniPipeline } from '@/components/features/alumni/AlumniPipeline';
 import { MyChapterPage } from '@/components/mychapter/MyChapterPage';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -109,8 +108,6 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
         );
       case 'network':
         return <MobileNetworkPage />;
-      case 'profile':
-        return <MobileProfilePage />;
       default:
         return (
           <div className="space-y-4">
@@ -157,10 +154,7 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
       id: 'profile',
       label: 'Profile',
       icon: User,
-      onClick: () => {
-        setActiveMobileTab('profile');
-        router.push('/dashboard/profile');
-      },
+      onClick: () => router.push('/dashboard/profile'),
     },
   ];
 

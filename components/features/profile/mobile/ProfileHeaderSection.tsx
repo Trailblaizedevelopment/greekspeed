@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/features/profile/UserAvatar';
@@ -11,6 +12,8 @@ interface ProfileHeaderSectionProps {
   profile: any;
   connectionsCount: number;
   onEditClick: () => void;
+  /** Shown to the right of Edit Profile (e.g. alumni chapter invite). */
+  secondaryAction?: ReactNode;
   completion?: { percentage: number } | null;
   recentConnections?: Array<{
     id: string;
@@ -25,6 +28,7 @@ export function ProfileHeaderSection({
   profile,
   connectionsCount,
   onEditClick,
+  secondaryAction,
   completion,
   recentConnections = [],
 }: ProfileHeaderSectionProps) {
@@ -146,16 +150,31 @@ export function ProfileHeaderSection({
           </div>
         </div>
 
-        {/* Edit Profile Button */}
-        <div className="flex justify-center">
-            <Button
+        {/* Edit Profile (+ optional alumni invite) */}
+        <div
+          className={
+            secondaryAction
+              ? 'flex flex-row items-stretch justify-center gap-2 max-w-md mx-auto'
+              : 'flex justify-center'
+          }
+        >
+          <Button
             onClick={onEditClick}
             variant="outline"
-            className="mx-auto rounded-full text-brand-primary border-brand-primary hover:bg-primary-50 h-10 text-base px-6"
-            >
-            <Edit className="w-5 h-5 mr-2" />
+            className={
+              secondaryAction
+                ? 'min-w-0 flex-1 rounded-full text-brand-primary border-brand-primary hover:bg-primary-50 h-10 text-sm sm:text-base px-3 sm:px-6'
+                : 'mx-auto rounded-full text-brand-primary border-brand-primary hover:bg-primary-50 h-10 text-base px-6'
+            }
+          >
+            <Edit className="w-5 h-5 mr-2 shrink-0" />
             Edit Profile
-            </Button>
+          </Button>
+          {secondaryAction ? (
+            <div className="min-w-0 flex-1 [&_button]:w-full [&_button]:h-10 [&_button]:text-sm sm:[&_button]:text-base">
+              {secondaryAction}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
