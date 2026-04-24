@@ -1,6 +1,6 @@
 /**
  * Branch / mobile-app fallback routing: resolve safe "Continue on web" targets from query params.
- * Used by `app/(marketing)/open` — keep in sync with Branch dashboard custom data keys.
+ * Used by `app/open` — keep in sync with Branch dashboard custom data keys.
  *
  * Supported query shape (all optional except where noted):
  * - `intent=invite` + `token` → `/join/{token}`
