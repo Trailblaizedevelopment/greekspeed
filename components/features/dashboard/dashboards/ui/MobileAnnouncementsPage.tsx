@@ -71,7 +71,8 @@ export function MobileAnnouncementsPage() {
 
   // Load tasks for the current user
   const loadMyTasks = async () => {
-    if (!profile?.chapter_id || !profile?.id) {
+    const effectiveChapterId = chapterId ?? profile?.chapter_id;
+    if (!effectiveChapterId || !profile?.id) {
       setTasksLoading(false);
       return;
     }
@@ -87,7 +88,7 @@ export function MobileAnnouncementsPage() {
           assigned_by:profiles!tasks_assigned_by_fkey(full_name),
           chapter:spaces!tasks_chapter_id_fkey(name)
         `)
-        .eq('chapter_id', profile.chapter_id)
+        .eq('chapter_id', effectiveChapterId)
         .eq('assignee_id', profile.id)
         .order('created_at', { ascending: false });
 
@@ -116,7 +117,7 @@ export function MobileAnnouncementsPage() {
     if (activeTab === 'tasks') {
       loadMyTasks();
     }
-  }, [profile?.chapter_id, profile?.id, activeTab]);
+  }, [chapterId, profile?.chapter_id, profile?.id, activeTab]);
 
   const handleMarkAsRead = async (announcementId: string): Promise<void> => {
     try {

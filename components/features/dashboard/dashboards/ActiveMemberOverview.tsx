@@ -20,6 +20,7 @@ import { MobileDocsCompliancePage } from './ui/MobileDocsCompliancePage';
 import { MobileOperationsFeedPage } from './ui/MobileOperationsFeedPage';
 import { AddRecruitForm } from '@/components/features/recruitment/AddRecruitForm';
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { FeatureGuard } from '@/components/shared/FeatureGuard';
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
 import { toast } from 'react-toastify';
@@ -33,10 +34,9 @@ interface ActiveMemberOverviewProps {
 
 // Inner component that uses useSearchParams
 function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveMemberOverviewProps) {
-  const { profile, isDeveloper } = useProfile();
-  // Developers can "view as" another chapter via ActiveChapterContext, which is passed in as fallbackChapterId.
-  // In that case we intentionally prefer the fallbackChapterId over the profile's chapter_id.
-  const chapterId = (isDeveloper ? (fallbackChapterId ?? profile?.chapter_id) : (profile?.chapter_id ?? fallbackChapterId)) ?? null;
+  const { profile } = useProfile();
+  const scopedChapterId = useScopedChapterId();
+  const chapterId = scopedChapterId ?? fallbackChapterId ?? profile?.chapter_id ?? null;
   const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>('home');
   const searchParams = useSearchParams();
   const router = useRouter();
