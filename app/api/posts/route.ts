@@ -6,6 +6,7 @@ import { postHasDisplayableImage } from '@/lib/utils/postComposer';
 import { parseMentions, resolveMentions } from '@/lib/utils/mentionUtils';
 import { sendMentionNotifications } from '@/lib/services/mentionNotificationService';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
+import { hasSpaceMembership } from '@/lib/services/spaceMembershipService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = await request.json();
-    const { content, post_type, image_url, metadata } = body;
+    const { content, post_type, image_url, metadata, chapter_id: requestedChapterId } = body;
 
     // Get authenticated user
     const authHeader = request.headers.get('authorization');
@@ -218,12 +219,30 @@ export async function POST(request: NextRequest) {
     // Get user profile to verify chapter
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id, role')
+      .select('chapter_id, role, is_developer')
       .eq('id', user.id)
       .single();
 
     if (profileError || !profile?.chapter_id) {
       return NextResponse.json({ error: 'User not associated with a chapter' }, { status: 400 });
+    }
+
+    // TRA-661: Determine effective chapter for this post
+    // If client sends a chapter_id (scoped context), verify membership
+    let effectiveChapterId = profile.chapter_id;
+    if (requestedChapterId && requestedChapterId !== profile.chapter_id) {
+      if (profile.is_developer) {
+        effectiveChapterId = requestedChapterId;
+      } else {
+        const isMember = await hasSpaceMembership(supabase, user.id, requestedChapterId);
+        if (!isMember) {
+          return NextResponse.json(
+            { error: 'You do not have membership in the requested chapter' },
+            { status: 403 }
+          );
+        }
+        effectiveChapterId = requestedChapterId;
+      }
     }
 
     // Check if user has permission to create posts
@@ -255,10 +274,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Resolve @mentions server-side
+    // Resolve @mentions server-side (scoped to effective chapter)
     const mentionUsernames = parseMentions(content || '');
     const resolvedMentions = mentionUsernames.length > 0
-      ? await resolveMentions(supabase, mentionUsernames, profile.chapter_id)
+      ? await resolveMentions(supabase, mentionUsernames, effectiveChapterId)
       : [];
 
     // Update metadata to include link previews and mentions
@@ -268,11 +287,11 @@ export async function POST(request: NextRequest) {
       ...(resolvedMentions.length > 0 ? { mentions: resolvedMentions } : {}),
     };
 
-    // Create post
+    // Create post (TRA-661: use effectiveChapterId for multi-membership support)
     const { data: post, error: createError } = await supabase
       .from('posts')
       .insert({
-        chapter_id: profile.chapter_id,
+        chapter_id: effectiveChapterId,
         author_id: user.id,
         content: content?.trim() || '',
         post_type,

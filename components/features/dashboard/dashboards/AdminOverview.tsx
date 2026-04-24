@@ -12,6 +12,7 @@ import { AlertsStrip } from './ui/AlertsStrip';
 import { CalendarEventsWeekCard } from './ui/CalendarEventsWeekCard';
 import { Event } from '@/types/events';
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
 import { DuesStatusCard } from './ui/DuesStatusCard';
 import { FeatureGuard } from '@/components/shared/FeatureGuard';
@@ -41,11 +42,9 @@ interface AdminOverviewProps {
 }
 
 export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewProps) {
-  const { profile, isDeveloper } = useProfile();
-  const isGovernance = profile?.role === 'governance';
-  // Developers and governance can "view as" another chapter via ChapterSwitcher (fallbackChapterId = effective chapter).
-  // Prefer fallbackChapterId so feed and sidebars reflect the selected chapter.
-  const chapterId = (isDeveloper || isGovernance ? (fallbackChapterId ?? profile?.chapter_id) : (profile?.chapter_id ?? fallbackChapterId)) ?? null;
+  const { profile } = useProfile();
+  const scopedChapterId = useScopedChapterId();
+  const chapterId = scopedChapterId ?? fallbackChapterId ?? profile?.chapter_id ?? null;
   const [activeMobileTab, setActiveMobileTab] = useState('home');
   const [showQuickActionsModal, setShowQuickActionsModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);

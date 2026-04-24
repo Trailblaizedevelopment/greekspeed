@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ListTodo, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { supabase } from '@/lib/supabase/client';
 import { Task, TaskStatus } from '@/types/operations';
 import { toast } from 'react-toastify';
 
 export function MyTasksCard() {
   const { profile } = useProfile();
+  const chapterId = useScopedChapterId();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,8 @@ export function MyTasksCard() {
 
   // Load tasks for the current user
   const loadMyTasks = async () => {
-    if (!profile?.chapter_id || !profile?.id) {
+    const effectiveChapterId = chapterId ?? profile?.chapter_id;
+    if (!effectiveChapterId || !profile?.id) {
       setLoading(false);
       return;
     }
@@ -38,7 +41,7 @@ export function MyTasksCard() {
           assigned_by:profiles!tasks_assigned_by_fkey(full_name),
           chapter:spaces!tasks_chapter_id_fkey(name)
         `)
-        .eq('chapter_id', profile.chapter_id)
+        .eq('chapter_id', effectiveChapterId)
         .eq('assignee_id', profile.id) // Only get tasks assigned to current user
         .order('created_at', { ascending: false });
 
@@ -67,7 +70,7 @@ export function MyTasksCard() {
 
   useEffect(() => {
     loadMyTasks();
-  }, [profile?.chapter_id, profile?.id]);
+  }, [chapterId, profile?.chapter_id, profile?.id]);
 
   const handleTaskToggle = async (taskId: string, currentStatus: TaskStatus) => {
     try {

@@ -186,19 +186,12 @@ export function DashboardHeader() {
             ))}
           </div>
 
-          {/* Chapter Switcher - Developer or Governance (desktop: next to tabs) */}
-          {(profile?.is_developer || isGovernance) && (
-            <div className="hidden md:block">
-              <ChapterSwitcher />
-            </div>
-          )}
         </div>
 
-        {/* Right side - Messages icon, Chapter Switcher (mobile), and User dropdown */}
-        <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-          {/* Chapter Switcher - Developer or Governance (mobile: next to avatar) */}
-          {(profile?.is_developer || isGovernance) && (
-            <div className="md:hidden">
+        {/* Right side — single ChapterSwitcher (all breakpoints) avoids duplicate member-spaces fetches */}
+        <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0 min-w-0">
+          {user && (
+            <div className="min-w-0 max-w-[min(40vw,200px)] sm:max-w-[220px] md:max-w-none">
               <ChapterSwitcher />
             </div>
           )}

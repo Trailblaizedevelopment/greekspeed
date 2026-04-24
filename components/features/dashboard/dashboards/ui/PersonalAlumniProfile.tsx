@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EditAlumniProfileModal } from '@/components/features/alumni/EditAlumniProfileModal';
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useActiveChapter } from '@/lib/contexts/ActiveChapterContext';
+import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { supabase } from '@/lib/supabase/client';
 import { 
   User, 
@@ -56,6 +58,16 @@ interface PersonalAlumniProfileProps {
 
 export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniProfileProps) {
   const { profile, loading: profileLoading, updateProfile } = useProfile();
+  const scopedChapterId = useScopedChapterId();
+  const { hasMultipleMemberships, memberSpaces } = useActiveChapter();
+
+  const dashboardChapterLabel = useMemo(() => {
+    if (!hasMultipleMemberships || memberSpaces.length < 2 || !scopedChapterId) return null;
+    const fromSpaces = memberSpaces.find((s) => s.id === scopedChapterId)?.name;
+    if (fromSpaces) return fromSpaces;
+    if (profile?.chapter_id === scopedChapterId && profile?.chapter) return profile.chapter;
+    return null;
+  }, [hasMultipleMemberships, memberSpaces, scopedChapterId, profile?.chapter_id, profile?.chapter]);
   const [alumniData, setAlumniData] = useState<AlumniData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -338,9 +350,22 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
                 </Badge>
               </div>
 
-              <p className="text-base text-brand-accent font-medium mb-4">
+              <p
+                className={`text-base text-brand-accent font-medium ${
+                  dashboardChapterLabel ? 'mb-1' : 'mb-4'
+                }`}
+              >
                 {alumniData.chapter}
               </p>
+              {dashboardChapterLabel && (
+                <p className="text-xs text-gray-500 mb-4 px-1">
+                  Dashboard:{' '}
+                  <span className="font-medium text-gray-700">{dashboardChapterLabel}</span>
+                  {profile?.chapter_id && scopedChapterId && scopedChapterId !== profile.chapter_id ? (
+                    <span className="text-gray-400"> — switched</span>
+                  ) : null}
+                </p>
+              )}
 
               {alumniData.is_actively_hiring && (
                 <Badge className="bg-gradient-to-r from-gray-100 via-white to-gray-100 text-green-800 text-sm px-3 py-1 mb-4">
@@ -483,7 +508,11 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
                 {alumniData.full_name}
               </h3>
               
-              <div className="flex items-center justify-center gap-2 mb-2">
+              <div
+                className={`flex items-center justify-center gap-2 ${
+                  dashboardChapterLabel ? 'mb-1' : 'mb-2'
+                }`}
+              >
                 <p className="text-sm text-gray-900 font-medium">
                   {alumniData.chapter}
                 </p>
@@ -491,6 +520,15 @@ export function PersonalAlumniProfile({ variant = 'desktop' }: PersonalAlumniPro
                   {alumniData.graduation_year}
                 </Badge>
               </div>
+              {dashboardChapterLabel && (
+                <p className="text-xs text-gray-500 mb-2 text-center px-1">
+                  Dashboard:{' '}
+                  <span className="font-medium text-gray-700">{dashboardChapterLabel}</span>
+                  {profile?.chapter_id && scopedChapterId && scopedChapterId !== profile.chapter_id ? (
+                    <span className="text-gray-400"> — switched</span>
+                  ) : null}
+                </p>
+              )}
 
               {alumniData.is_actively_hiring && (
                 <Badge className="bg-gradient-to-r from-gray-100 via-white to-gray-100 text-green-800 text-sm px-3 py-1 mb-4">
