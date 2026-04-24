@@ -10,6 +10,7 @@ import {
   ensureProfileChapterIdNullForPendingInvite,
   findProfileByEmailForInviteAccept,
 } from '@/lib/services/invitationAcceptPendingProfile';
+import { upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
 
 export async function POST(
   request: NextRequest,
@@ -90,10 +91,16 @@ export async function POST(
     const normalizedEmail = email.toLowerCase().trim();
     const existingProfile = await findProfileByEmailForInviteAccept(supabase, normalizedEmail);
     if (existingProfile) {
+      // TRA-661: Return structured response so client can direct user to sign-in + attach flow
       return NextResponse.json(
         {
           error:
-            'This email already has an account. Sign in to continue, or use a different email to accept this invitation.',
+            'This email already has an account. Sign in to continue, then accept the invitation from your dashboard.',
+          code: 'EXISTING_ACCOUNT',
+          existing_user_id: existingProfile.id,
+          chapter_id: invitation.chapter_id,
+          chapter_name: validation.chapter_name,
+          invitation_token: token,
         },
         { status: 409 }
       );
@@ -401,6 +408,15 @@ export async function POST(
         }, { status: 500 });
       }
     }
+
+    // TRA-661: Create space_memberships row for the new user
+    await upsertSpaceMembership(supabase, {
+      userId: authData.user.id,
+      spaceId: invitation.chapter_id,
+      role: 'active_member',
+      status: 'active',
+      isPrimary: true,
+    });
 
     // Record invitation usage
     const usageResult = await recordInvitationUsage(invitation.id, email, authData.user.id);

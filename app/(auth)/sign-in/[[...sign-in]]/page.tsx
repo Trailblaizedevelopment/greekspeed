@@ -53,22 +53,24 @@ export default function SignInPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!authLoading && user) {
-      // Check onboarding status before redirecting
       const checkOnboarding = async () => {
+        if (safeRedirect) {
+          router.push(safeRedirect);
+          return;
+        }
         try {
           const { data: profile } = await supabase
             .from('profiles')
             .select('onboarding_completed')
             .eq('id', user.id)
             .single();
-  
+
           if (profile?.onboarding_completed) {
-            router.push(safeRedirect ?? '/dashboard');
+            router.push('/dashboard');
           } else {
             router.push('/onboarding');
           }
         } catch {
-          // Fallback to onboarding if check fails
           router.push('/onboarding');
         }
       };
@@ -90,15 +92,19 @@ export default function SignInPage() {
       // Add a small delay to ensure auth state is updated
       setTimeout(async () => {
         try {
+          if (safeRedirect) {
+            router.push(safeRedirect);
+            return;
+          }
           const { data: { user: currentUser } } = await supabase.auth.getUser();
           const { data: profile } = await supabase
             .from('profiles')
             .select('onboarding_completed')
             .eq('id', currentUser?.id ?? '')
             .single();
-      
+
           if (profile?.onboarding_completed) {
-            router.push(safeRedirect ?? '/dashboard');
+            router.push('/dashboard');
           } else {
             router.push('/onboarding');
           }

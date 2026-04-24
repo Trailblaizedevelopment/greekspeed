@@ -13,12 +13,19 @@ interface Chapter {
   name: string;
   school?: string;
   location?: string;
+  is_primary?: boolean;
 }
 
 export function ChapterSwitcher() {
   const { profile, isDeveloper } = useProfile();
   const { session } = useAuth();
-  const { activeChapterId, setActiveChapterId } = useActiveChapter();
+  const {
+    activeChapterId,
+    setActiveChapterId,
+    hasMultipleMemberships,
+    setHasMultipleMemberships,
+    setMemberSpaces,
+  } = useActiveChapter();
 
   const [isOpen, setIsOpen] = useState(false);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -31,17 +38,50 @@ export function ChapterSwitcher() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isGovernance = profile?.role === 'governance';
-  const showSwitcher = isDeveloper || isGovernance;
-
-  if (!showSwitcher) return null;
+  const showSwitcher = isDeveloper || isGovernance || hasMultipleMemberships;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fetch chapters: developer = all chapters from developer API; governance = managed only from /api/me/governance-chapters
+  // TRA-661: Fetch member spaces for regular users to detect multi-membership
+  useEffect(() => {
+    if (isDeveloper || isGovernance || !session?.access_token) return;
+
+    const fetchMemberSpaces = async () => {
+      try {
+        const response = await fetch('/api/me/member-spaces', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.has_multiple) {
+          setHasMultipleMemberships(true);
+          const raw = data.spaces || [];
+          setChapters(
+            raw.map((s: { id: string; name: string; school?: string; is_primary?: boolean }) => ({
+              id: s.id,
+              name: s.name,
+              school: s.school,
+              is_primary: s.is_primary,
+            }))
+          );
+          setMemberSpaces(raw.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })));
+        } else {
+          setMemberSpaces([]);
+        }
+      } catch (error) {
+        console.error('ChapterSwitcher: Error fetching member spaces:', error);
+      }
+    };
+
+    fetchMemberSpaces();
+  }, [isDeveloper, isGovernance, session?.access_token, setHasMultipleMemberships, setMemberSpaces]);
+
+  // Fetch chapters for developer/governance (unchanged existing behavior)
   useEffect(() => {
     if (!showSwitcher || !session?.access_token) return;
+    if (hasMultipleMemberships && !isDeveloper && !isGovernance) return;
 
     const fetchChapters = async () => {
       try {
@@ -52,8 +92,15 @@ export function ChapterSwitcher() {
           });
           if (!response.ok) throw new Error('Failed to fetch governance chapters');
           const data = await response.json();
-          setChapters(data.chapters || []);
-        } else {
+          const list = data.chapters || [];
+          setChapters(list);
+          setMemberSpaces(
+            list.map((c: { id: string; name: string }) => ({
+              id: c.id,
+              name: c.name,
+            }))
+          );
+        } else if (isDeveloper) {
           const response = await fetch('/api/developer/chapters?page=1&limit=100', {
             headers: {
               'Content-Type': 'application/json',
@@ -62,7 +109,14 @@ export function ChapterSwitcher() {
           });
           if (!response.ok) throw new Error('Failed to fetch chapters');
           const data = await response.json();
-          setChapters(data.chapters || []);
+          const list = data.chapters || [];
+          setChapters(list);
+          setMemberSpaces(
+            list.map((c: { id: string; name: string }) => ({
+              id: c.id,
+              name: c.name,
+            }))
+          );
         }
       } catch (error) {
         console.error('ChapterSwitcher: Error fetching chapters:', error);
@@ -72,7 +126,7 @@ export function ChapterSwitcher() {
     };
 
     fetchChapters();
-  }, [showSwitcher, isGovernance, session?.access_token]);
+  }, [showSwitcher, isGovernance, isDeveloper, hasMultipleMemberships, session?.access_token, setMemberSpaces]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -101,9 +155,27 @@ export function ChapterSwitcher() {
     }
   }, [isOpen]);
 
-  // For governance: show user's active (home) chapter first, then others
+  const handleSelect = useCallback((chapterId: string | null) => {
+    setActiveChapterId(chapterId);
+    setIsOpen(false);
+    setSearchQuery('');
+
+    // TRA-661: Persist last-selected space in localStorage
+    if (profile?.id && chapterId) {
+      try {
+        localStorage.setItem(`tb:last-active-space:${profile.id}`, chapterId);
+      } catch {
+        // localStorage unavailable
+      }
+    }
+  }, [setActiveChapterId, profile?.id]);
+
+  // Early return AFTER all hooks
+  if (!showSwitcher) return null;
+
+  // For governance / multi-member: show user's active (home) chapter first, then others
   const orderedChapters =
-    isGovernance && profile?.chapter_id
+    (isGovernance || hasMultipleMemberships) && profile?.chapter_id
       ? [
           ...chapters.filter((c) => c.id === profile.chapter_id),
           ...chapters.filter((c) => c.id !== profile.chapter_id),
@@ -124,20 +196,15 @@ export function ChapterSwitcher() {
   const selectedChapter = orderedChapters.find((c) => c.id === activeChapterId);
   const displayLabel = selectedChapter
     ? selectedChapter.name
-    : isGovernance
+    : hasMultipleMemberships && !isDeveloper && !isGovernance
       ? 'Select chapter'
-      : 'Developer View';
-
-  const handleSelect = (chapterId: string | null) => {
-    setActiveChapterId(chapterId);
-    setIsOpen(false);
-    setSearchQuery('');
-  };
+      : isGovernance
+        ? 'Select chapter'
+        : 'Developer View';
 
   const DROPDOWN_WIDTH = 280;
   const VIEWPORT_PADDING = 16;
 
-  // Position the dropdown below the trigger; keep in viewport and avoid right overflow
   const getDropdownPosition = () => {
     if (!triggerRef.current || typeof window === 'undefined') return {};
     const rect = triggerRef.current.getBoundingClientRect();
@@ -150,7 +217,6 @@ export function ChapterSwitcher() {
     let width: number;
 
     if (wouldOverflowRight) {
-      // Right-align: dropdown extends to the left from trigger's right edge
       left = Math.max(VIEWPORT_PADDING, rect.right - DROPDOWN_WIDTH);
       width = Math.min(DROPDOWN_WIDTH, rect.right - left);
     } else {
@@ -167,7 +233,15 @@ export function ChapterSwitcher() {
   };
 
   return (
-    <>
+    <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+      {hasMultipleMemberships && !isDeveloper && !isGovernance && (
+        <span
+          className="hidden lg:inline text-xs text-gray-500 whitespace-nowrap shrink-0"
+          title="Feed, directory, and chapter tools use this chapter until you switch."
+        >
+          Viewing
+        </span>
+      )}
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
@@ -201,31 +275,33 @@ export function ChapterSwitcher() {
             className="fixed z-[99999] rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden"
             style={getDropdownPosition()}
           >
-            {/* Search input */}
-            <div className="p-2 border-b border-gray-100">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search chapters..."
-                  className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2"
-                  >
-                    <X className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
-                  </button>
-                )}
+            {/* Search input — only show when there are many chapters */}
+            {chapters.length > 5 && (
+              <div className="p-2 border-b border-gray-100">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search chapters..."
+                    className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2"
+                    >
+                      <X className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* "Developer Overview" option (deselect chapter) - developers only */}
-            {!isGovernance && (
+            {isDeveloper && !isGovernance && !hasMultipleMemberships && (
               <div className="py-1 border-b border-gray-100">
                 <button
                   onClick={() => handleSelect(null)}
@@ -265,7 +341,12 @@ export function ChapterSwitcher() {
                     )}
                   >
                     <div className="flex flex-col items-start min-w-0">
-                      <span className="truncate w-full font-medium">{chapter.name}</span>
+                      <span className="truncate w-full font-medium">
+                        {chapter.name}
+                        {chapter.is_primary && hasMultipleMemberships && (
+                          <span className="ml-1.5 text-xs text-gray-400 font-normal">(primary)</span>
+                        )}
+                      </span>
                       {chapter.school && (
                         <span className="text-xs text-gray-500 truncate w-full">
                           {chapter.school}
@@ -279,6 +360,6 @@ export function ChapterSwitcher() {
           </div>,
           document.body
         )}
-    </>
+    </div>
   );
 }

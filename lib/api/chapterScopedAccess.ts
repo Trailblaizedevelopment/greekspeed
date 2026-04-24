@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
+import { hasSpaceMembership } from '@/lib/services/spaceMembershipService';
 
 export type ProfileChapterReadGate = {
   chapter_id: string | null;
@@ -26,8 +27,9 @@ export function isPendingHomeChapterAssignment(
 }
 
 /**
- * TRA-584: Authenticated reads of another chapter’s data (feed, events, etc.).
+ * TRA-584 + TRA-661: Authenticated reads of another chapter's data (feed, events, etc.).
  * Developers may traverse any chapter; marketing alumni without an assigned chapter may not.
+ * TRA-661: Multi-member users can access any chapter they have a space_membership in.
  */
 export async function assertAuthenticatedChapterReadAccess(
   supabase: SupabaseClient,
@@ -50,6 +52,12 @@ export async function assertAuthenticatedChapterReadAccess(
   }
 
   if (profile.chapter_id === chapterId) {
+    return { ok: true };
+  }
+
+  // TRA-661: Check space_memberships for multi-chapter users
+  const isMember = await hasSpaceMembership(supabase, userId, chapterId);
+  if (isMember) {
     return { ok: true };
   }
 

@@ -150,6 +150,7 @@ export default function DashboardLayoutClient({
   return (
     <ActiveChapterProvider>
       <GovernanceActiveChapterDefault />
+      <MultiMemberActiveChapterDefault />
       <ChapterFeaturesProvider>
         <OneSignalDashboardLoader userId={profile?.id} />
         <PwaPromptProvider userId={profile?.id}>
@@ -201,6 +202,37 @@ function GovernanceActiveChapterDefault() {
       setActiveChapterId(profile.chapter_id);
     }
   }, [profile?.role, profile?.chapter_id, activeChapterId, setActiveChapterId]);
+
+  return null;
+}
+
+/**
+ * TRA-661: Default active chapter for multi-member users.
+ * Restores last-selected space from localStorage, or falls back to profiles.chapter_id.
+ */
+function MultiMemberActiveChapterDefault() {
+  const { profile } = useProfile();
+  const { activeChapterId, setActiveChapterId, hasMultipleMemberships } = useActiveChapter();
+
+  useEffect(() => {
+    if (!hasMultipleMemberships || !profile?.id || activeChapterId !== null) return;
+
+    // Try to restore from localStorage
+    try {
+      const stored = localStorage.getItem(`tb:last-active-space:${profile.id}`);
+      if (stored) {
+        setActiveChapterId(stored);
+        return;
+      }
+    } catch {
+      // localStorage unavailable
+    }
+
+    // Fall back to primary chapter
+    if (profile.chapter_id) {
+      setActiveChapterId(profile.chapter_id);
+    }
+  }, [hasMultipleMemberships, profile?.id, profile?.chapter_id, activeChapterId, setActiveChapterId]);
 
   return null;
 }

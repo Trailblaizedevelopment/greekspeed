@@ -13,6 +13,7 @@ import { MobileNetworkPage } from './ui/MobileNetworkPage';
 import { AlumniPipeline } from '@/components/features/alumni/AlumniPipeline';
 import { MyChapterPage } from '@/components/mychapter/MyChapterPage';
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { useRouter } from 'next/navigation';
 import { MobileBottomNavigation } from './ui/MobileBottomNavigation';
 import { cn } from '@/lib/utils';
@@ -36,10 +37,11 @@ interface AlumniOverviewProps {
 }
 
 export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOverviewProps) {
-  const { profile, isDeveloper } = useProfile();
-  // Developers can "view as" another chapter via ActiveChapterContext, which is passed in as fallbackChapterId.
-  // In that case we intentionally prefer the fallbackChapterId over the profile's chapter_id.
-  const chapterId = (isDeveloper ? (fallbackChapterId ?? profile?.chapter_id) : (profile?.chapter_id ?? fallbackChapterId)) ?? null;
+  const { profile } = useProfile();
+  const scopedChapterId = useScopedChapterId();
+  // Feed + events follow the chapter switcher (multi-member, dev, governance) via useScopedChapterId;
+  // SSR fallback covers the first paint before context is ready.
+  const chapterId = scopedChapterId ?? fallbackChapterId ?? profile?.chapter_id ?? null;
   const router = useRouter();
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const selectedProfileState = useState<Profile | null>(null);

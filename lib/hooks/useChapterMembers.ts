@@ -10,14 +10,20 @@ export function useChapterMembers(chapterId?: string | null, excludeAlumni: bool
 
   useEffect(() => {
     if (!chapterId) {
+      setMembers([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
+    // Drop previous chapter's members immediately so consumers (e.g. Networking Spotlight)
+    // do not freeze a rail from stale data before the new fetch completes.
+    setMembers([]);
+    setError(null);
+    setLoading(true);
+
     const fetchMembers = async () => {
       try {
-        setLoading(true);
-        
         const params = new URLSearchParams({
           chapter_id: chapterId,
           exclude_alumni: excludeAlumni.toString()

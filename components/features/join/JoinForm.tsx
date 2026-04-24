@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Eye, EyeOff, AlertCircle, Users, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { Invitation, JoinFormData } from '@/types/invitations';
 import { toast } from 'react-toastify';
 import { supabase } from '@/lib/supabase/client';
 import { Checkbox } from '@/components/ui/checkbox';
+import { getSafeRedirect } from '@/lib/utils/safeRedirect';
 
 interface JoinFormProps {
   invitation: Invitation;
@@ -34,6 +36,8 @@ export function JoinForm({ invitation, onSuccess, onCancel }: JoinFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /** When set, show Sign in CTA for EXISTING_ACCOUNT (TRA-661). */
+  const [existingAccountSignInHref, setExistingAccountSignInHref] = useState<string | null>(null);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -107,12 +111,23 @@ export function JoinForm({ invitation, onSuccess, onCancel }: JoinFormProps) {
         body: JSON.stringify(submitData)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create account');
-      }
+      const data = await response.json().catch(() => ({} as { error?: string; code?: string }));
 
-      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 409 && data.code === 'EXISTING_ACCOUNT') {
+          const returnPath = `/join/${invitation.token}`;
+          const safe = getSafeRedirect(returnPath);
+          setExistingAccountSignInHref(
+            safe ? `/sign-in?redirect=${encodeURIComponent(safe)}` : '/sign-in'
+          );
+          setErrors({
+            email:
+              'This email already has an account. Sign in, then use “Accept invitation” on the invite page.',
+          });
+          return;
+        }
+        throw new Error(typeof data.error === 'string' ? data.error : 'Failed to create account');
+      }
 
       // CRITICAL: Ensure client-side session is established
       try {
@@ -134,6 +149,7 @@ export function JoinForm({ invitation, onSuccess, onCancel }: JoinFormProps) {
       console.error('Error creating account:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create account';
       toast.error(errorMessage);
+      setExistingAccountSignInHref(null);
 
       if (errorMessage.includes('already been used')) {
         setErrors({ email: 'This email has already been used with this invitation' });
@@ -146,6 +162,10 @@ export function JoinForm({ invitation, onSuccess, onCancel }: JoinFormProps) {
   const handleInputChange = (field: keyof JoinFormData, value: string | boolean | number) => {
     const nextValue = field === 'phone' ? formatPhoneNumber(String(value)) : value;
     setFormData(prev => ({ ...prev, [field]: nextValue }));
+
+    if (field === 'email') {
+      setExistingAccountSignInHref(null);
+    }
 
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
@@ -231,6 +251,16 @@ export function JoinForm({ invitation, onSuccess, onCancel }: JoinFormProps) {
                   <p className="text-xs text-red-600 flex items-center space-x-1">
                     <AlertCircle className="h-3 w-3" />
                     <span>{errors.email}</span>
+                  </p>
+                )}
+                {existingAccountSignInHref && (
+                  <p className="text-xs mt-2">
+                    <Link
+                      href={existingAccountSignInHref}
+                      className="font-medium text-brand-primary hover:underline"
+                    >
+                      Sign in to continue
+                    </Link>
                   </p>
                 )}
               </div>
