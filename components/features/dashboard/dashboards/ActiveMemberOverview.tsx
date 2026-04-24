@@ -10,6 +10,7 @@ import { MyTasksCard } from './ui/MyTasksCard';
 import { AnnouncementsCard } from './ui/AnnouncementsCard';
 import { AnnouncementsProvider } from '@/lib/contexts/AnnouncementsContext';
 import { DocsCompliancePanel } from './ui/DocsCompliancePanel';
+import { HiringAlumniCard } from './ui/HiringAlumniCard';
 import { CalendarEventsWeekCard } from './ui/CalendarEventsWeekCard';
 import { MobileBottomNavigation, MobileTab } from './ui/MobileBottomNavigation';
 import { MobileTasksPage } from './ui/MobileTasksPage';
@@ -119,9 +120,13 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
       case 'home':
         return (
           <div className="space-y-4">
-            {/* Primary Feature: Social Feed */}
+            {/* Primary Feature: Social Feed (hiring CTA is inside feed on mobile, above All/Connections) */}
             <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+              <SocialFeed
+                chapterId={chapterId || ''}
+                initialData={initialFeed}
+                showAlumniHiringMobileCta
+              />
             </div>
           </div>
         );
@@ -138,7 +143,11 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           <div className="space-y-4">
             {/* Primary Feature: Social Feed */}
             <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+              <SocialFeed
+                chapterId={chapterId || ''}
+                initialData={initialFeed}
+                showAlumniHiringMobileCta
+              />
             </div>
           </div>
         );
@@ -188,6 +197,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           {/* Right Sidebar - Events & Key Info (~30%) */}
           <div className="col-span-4">
             <div className="space-y-4">
+              <HiringAlumniCard />
               <CalendarEventsWeekCard
                 userId={profile?.id}
                 events={allEvents}
@@ -225,6 +235,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           {/* Right Sidebar - Events & Networking */}
           <div className="col-span-3 col-start-10 row-start-1">
             <div className="space-y-6">
+              <HiringAlumniCard />
               <CalendarEventsWeekCard
                 userId={profile?.id}
                 events={allEvents}
