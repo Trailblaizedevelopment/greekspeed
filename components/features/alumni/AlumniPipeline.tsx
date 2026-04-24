@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Download, Filter, UserCircle } from "lucide-react";
 import { AlumniPipelineLayout } from "./AlumniPipelineLayout";
 import { AlumniSubHeader } from "./AlumniSubHeader";
@@ -60,9 +61,10 @@ function calculateProfileCompletion(profile: Record<string, unknown>, alumniData
   return { percentage: Math.round((completedFields / allFields.length) * 100) };
 }
 
-export function AlumniPipeline() {
+function AlumniPipelineContent() {
   const { profile, loading: profileLoading, isDeveloper } = useProfile();
-  const { session } = useAuth(); // ✅ Add this
+  const { session } = useAuth();
+  const searchParams = useSearchParams();
   const [alumni, setAlumni] = useState<Alumni[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,19 +72,21 @@ export function AlumniPipeline() {
   const [selectedAlumni, setSelectedAlumni] = useState<string[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     page: 1,
-    limit: 24, // Optimized: Reduced from 100 to 24 for faster initial load (60-70% improvement)
+    limit: 24,
     total: 0,
     totalPages: 0,
     hasNextPage: false,
     hasPrevPage: false
   });
+
+  const initialActivelyHiring = searchParams.get('activelyHiring') === 'true';
   const [filters, setFilters] = useState<FilterState>({
     searchTerm: "",
     graduationYear: "",
     industry: "",
     state: "",
     hometownState: "",
-    activelyHiring: false,
+    activelyHiring: initialActivelyHiring,
   });
   // Debounced filters for API calls (500ms delay)
   const [debouncedFilters, setDebouncedFilters] = useState<FilterState>(filters);
@@ -491,4 +495,21 @@ export function AlumniPipeline() {
       )}
     </div>
   );
-} 
+}
+
+export function AlumniPipeline() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto" />
+            <p className="mt-4 text-gray-600">Loading alumni...</p>
+          </div>
+        </div>
+      }
+    >
+      <AlumniPipelineContent />
+    </Suspense>
+  );
+}
