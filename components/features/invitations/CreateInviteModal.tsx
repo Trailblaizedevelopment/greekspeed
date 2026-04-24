@@ -288,7 +288,10 @@ export function CreateInviteModal({ invitation, onClose, onSubmit }: CreateInvit
             <Label>Invitation Link</Label>
             <div className="flex space-x-2">
               <Input
-                value={generateInvitationUrl(invitation.token)}
+                value={generateInvitationUrl(
+                  invitation.token,
+                  invitation.invitation_type
+                )}
                 readOnly
                 className="bg-gray-50"
               />
