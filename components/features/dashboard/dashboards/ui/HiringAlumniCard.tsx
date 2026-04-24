@@ -1,59 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Briefcase, ArrowRight } from 'lucide-react';
-import { useProfile } from '@/lib/contexts/ProfileContext';
-import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
+import { useHiringAlumniCount } from '@/lib/hooks/useHiringAlumniCount';
 
 export function HiringAlumniCard() {
-  const { profile } = useProfile();
-  const chapterId = useScopedChapterId();
   const router = useRouter();
-  const [count, setCount] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!chapterId) return;
-
-    let cancelled = false;
-
-    const fetchCount = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/alumni/hiring-count?chapter_id=${chapterId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) setCount(data.count ?? 0);
-      } catch {
-        // Silently fail — card will just not render
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchCount();
-    return () => { cancelled = true; };
-  }, [chapterId]);
+  const { count, loading } = useHiringAlumniCount();
 
   const handleClick = () => {
     router.push('/dashboard/alumni?activelyHiring=true');
   };
 
+  const cardShell =
+    'bg-white rounded-2xl border shadow-sm lg:rounded-3xl lg:shadow transition-shadow';
+
   if (loading) {
     return (
-      <Card className="bg-white">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center space-x-2">
-            <Briefcase className="h-5 w-5 text-brand-primary" />
+      <Card className={cardShell}>
+        <CardHeader className="space-y-0 px-5 pt-5 pb-0 text-left sm:px-6 sm:pt-6 sm:pb-0">
+          <CardTitle className="text-lg flex items-center gap-2 text-left font-semibold leading-tight">
+            <Briefcase
+              className="h-5 w-5 shrink-0 text-brand-primary lg:hidden"
+              aria-hidden
+            />
             <span>Alumni Hiring</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="animate-pulse space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-3/4" />
-            <div className="h-3 bg-gray-100 rounded w-1/2" />
+        <CardContent className="px-5 pb-5 pt-0 sm:px-6 sm:pb-6 sm:pt-0">
+          <div className="animate-pulse space-y-1.5 text-left">
+            <div className="h-4 max-w-[85%] rounded-md bg-gray-200 lg:max-w-[75%]" />
+            <div className="h-3 max-w-[55%] rounded-md bg-gray-100 lg:max-w-[45%]" />
           </div>
         </CardContent>
       </Card>
@@ -71,22 +49,30 @@ export function HiringAlumniCard() {
 
   return (
     <Card
-      className="bg-white cursor-pointer transition-shadow hover:shadow-md group"
+      className={`${cardShell} cursor-pointer hover:shadow-md group`}
       onClick={handleClick}
       role="link"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') handleClick();
+      }}
     >
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center space-x-2">
-          <Briefcase className="h-5 w-5 text-brand-primary" />
+      <CardHeader className="space-y-0 px-5 pt-5 pb-0 text-left sm:px-6 sm:pt-6 sm:pb-0">
+        <CardTitle className="text-lg flex w-full items-center gap-2 text-left font-semibold leading-tight">
+          <Briefcase
+            className="h-5 w-5 shrink-0 text-brand-primary lg:hidden"
+            aria-hidden
+          />
           <span>Alumni Hiring</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-700">{label}</p>
-          <ArrowRight className="h-4 w-4 text-brand-primary shrink-0 ml-2 transition-transform group-hover:translate-x-0.5" />
+      <CardContent className="px-5 pb-5 pt-0 sm:px-6 sm:pb-6 sm:pt-0">
+        <div className="flex items-center justify-between gap-3 text-left">
+          <p className="min-w-0 flex-1 text-sm leading-snug text-gray-700">{label}</p>
+          <ArrowRight
+            className="h-4 w-4 shrink-0 text-brand-primary transition-transform group-hover:translate-x-0.5"
+            aria-hidden
+          />
         </div>
       </CardContent>
     </Card>

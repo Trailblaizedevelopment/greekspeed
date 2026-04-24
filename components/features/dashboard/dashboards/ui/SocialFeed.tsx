@@ -18,6 +18,7 @@ import { PostCard } from '@/components/features/social/PostCard';
 import type { Post, CreatePostRequest, PostsResponse } from '@/types/posts';
 import ImageWithFallback from '@/components/figma/ImageWithFallback';
 import { toast } from 'react-toastify';
+import { HiringAlumniMobileFeedButton } from './HiringAlumniMobileFeedButton';
 
 export interface SocialFeedInitialData {
   posts: Post[];
@@ -35,6 +36,8 @@ interface SocialFeedProps {
   inlineFeedSlot?: ReactNode;
   /** 0-based index: slot is inserted immediately after that post. Default 3 (after the 4th post). */
   inlineSlotAfterPostIndex?: number;
+  /** Active member home: show hiring alumni pill above feed tabs (mobile only; button is sm:hidden). */
+  showAlumniHiringMobileCta?: boolean;
 }
 
 export function SocialFeed({
@@ -42,6 +45,7 @@ export function SocialFeed({
   initialData,
   inlineFeedSlot,
   inlineSlotAfterPostIndex = 3,
+  showAlumniHiringMobileCta = false,
 }: SocialFeedProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -462,6 +466,13 @@ export function SocialFeed({
             </div>
           </CardContent>
         </Card>
+
+        {showAlumniHiringMobileCta ? (
+          /* Match page gutter (px-4) like SendAnnouncementButton outside the feed bleed */
+          <div className="px-4 sm:hidden">
+            <HiringAlumniMobileFeedButton />
+          </div>
+        ) : null}
 
         {/* Filter tabs: minimal text + pipe on mobile; boxed segmented control on desktop. No counts. */}
         <div

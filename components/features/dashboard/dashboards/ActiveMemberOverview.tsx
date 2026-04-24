@@ -120,10 +120,13 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
       case 'home':
         return (
           <div className="space-y-4">
-            <HiringAlumniCard />
-            {/* Primary Feature: Social Feed */}
+            {/* Primary Feature: Social Feed (hiring CTA is inside feed on mobile, above All/Connections) */}
             <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+              <SocialFeed
+                chapterId={chapterId || ''}
+                initialData={initialFeed}
+                showAlumniHiringMobileCta
+              />
             </div>
           </div>
         );
@@ -140,7 +143,11 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
           <div className="space-y-4">
             {/* Primary Feature: Social Feed */}
             <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+              <SocialFeed
+                chapterId={chapterId || ''}
+                initialData={initialFeed}
+                showAlumniHiringMobileCta
+              />
             </div>
           </div>
         );
