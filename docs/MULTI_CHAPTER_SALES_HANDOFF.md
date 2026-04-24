@@ -6,11 +6,15 @@
 
 ## Where things stand today
 
-**Yes — the main experience is in place.** Someone who is already in Trailblaize can accept an invite to **another** chapter and, once they belong to **more than one** chapter, they get a **chapter picker** at the top of the dashboard. What they see (home feed, people, events, and similar) follows the chapter they picked.
+**Yes — the main experience is in place.** Someone who is already in Trailblaize can accept an invite to **another** chapter and, once they belong to **more than one** chapter, they get a **chapter picker** at the top of the dashboard. 
 
-**New people** still join the way you expect: they use an invite link, create an account, and land in **one** chapter first. They get a **second** chapter the same way anyone else does — when a **second** chapter invites them and they accept.
+-> What they see (home feed, people, events, and similar) follows the chapter they picked.
 
-**Important in conversations:** The picker only appears when someone actually belongs to **two or more** chapters. If they only have one, the app stays simple — no extra control to explain.
+**New people** still join the way you expect: they use an invite link, create an account, and land in **one** chapter first. 
+
+They get a **second** chapter the same way anyone else does (invite) — when a **second** chapter invites them and they accept.
+
+**Important in conversations:** The picker only appears when someone actually belongs to **two or more** chapters. If they only have one, the app stays simple.
 
 ---
 
@@ -58,7 +62,9 @@ flowchart TB
   M2 --> A1
 ```
 
-**Reading the diagram:** Everyone starts with **one** chapter (left). **Adding** a second chapter is always “another invite + accept” (middle). After that, the **picker and scoped experience** apply (right).
+
+
+**Reading the diagram:** Everyone starts with **one** chapter (top). **Adding** a second chapter is always “another invite + accept” (middle). After that, the **picker and scoped experience** apply (bottom).
 
 ---
 
@@ -69,6 +75,11 @@ flowchart TB
 
 ---
 
-## If a prospect asks “is everything done?”
+## Invite links (important caveat)
 
-You can honestly say the **core member journey** — invite, accept a second chapter, see the picker, and have the dashboard follow the selected chapter — is what the team built for this phase. Deeper edge cases or future polish are better confirmed with product/engineering before you promise dates or fine details.
+This flow is started with **private join links** that a chapter creates and shares with chosen people — **not** open public “anyone can join” links. Chapters **invite** someone with that link to start or continue this path (first chapter or an additional chapter).
+
+---
+
+
+
