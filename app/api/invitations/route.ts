@@ -78,7 +78,10 @@ export async function GET(request: NextRequest) {
     // Transform the data to include URLs and formatted usage
     const transformedInvitations = invitations?.map(invitation => ({
       ...invitation,
-      invitation_url: generateInvitationUrl(invitation.token),
+      invitation_url: generateInvitationUrl(
+        invitation.token,
+        invitation.invitation_type
+      ),
       chapter_name: invitation.spaces?.name,
       created_by_name: invitation.creator?.full_name || `${invitation.creator?.first_name} ${invitation.creator?.last_name}`.trim(),
       usage: invitation.usage?.map((usage: any) => ({

@@ -7,6 +7,9 @@
  * - `intent=chapter_join` + `slug` → `/join/chapter/{slug}`
  * - `intent=alumni_invite` + `token` → `/alumni-join/{token}`
  * - `intent=web` + `path` → allowlisted pathname; optional `search` (validated keys only)
+ *
+ * Use `buildOpenBridgeWebIntentQueryParams()` from this file (with `openBridgeUrls.ts`) to build
+ * validated `/open?intent=web&…` links for emails and shareable URLs.
  */
 
 const INVITE_TOKEN_RE = /^[A-Za-z0-9]{16,64}$/;
@@ -64,6 +67,8 @@ export function isAllowlistedWebIntentPath(pathname: string): boolean {
   if (!pathname.startsWith('/') || pathname.length > 512) return false;
   if (pathname.includes('//') || pathname.includes('\\')) return false;
   if (pathname.includes(':')) return false;
+  /** Prevent `intent=web` → `/open` loops. */
+  if (pathname === '/open' || pathname.startsWith('/open/')) return false;
 
   if (pathname.startsWith('/join/chapter/')) return true;
   if (pathname.startsWith('/join/')) return true;
@@ -178,4 +183,25 @@ export function getOpenBridgeStoreUrls(): OpenBridgeStoreUrls {
   const ios = process.env.NEXT_PUBLIC_APP_STORE_URL?.trim() || null;
   const android = process.env.NEXT_PUBLIC_GOOGLE_PLAY_URL?.trim() || null;
   return { ios, android };
+}
+
+/**
+ * Builds validated query params for `/open?intent=web&path=…&search=…`.
+ * Returns null if pathname is not allowlisted or search fails validation.
+ */
+export function buildOpenBridgeWebIntentQueryParams(
+  pathname: string,
+  search?: string
+): URLSearchParams | null {
+  if (!isAllowlistedWebIntentPath(pathname)) return null;
+  const params = new URLSearchParams();
+  params.set('intent', 'web');
+  params.set('path', pathname);
+  if (search && search.length > 0) {
+    const searchNorm = search.startsWith('?') ? search : `?${search}`;
+    const withSearch = validateAndAppendSearch(pathname, searchNorm);
+    if (!withSearch) return null;
+    params.set('search', searchNorm);
+  }
+  return params;
 }
