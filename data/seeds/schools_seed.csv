@@ -1,0 +1,359 @@
+name,short_name,location,domain,logo_url,source_subsection,source_conference,source_division,source_institution_type
+University of Alabama,,"Tuscaloosa, AL",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Arkansas,,"Fayetteville, AR",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+Auburn University,,"Auburn, AL",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Florida,,"Gainesville, FL",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Georgia,,"Athens, GA",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Kentucky,,"Lexington, KY",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+Louisiana State University,,"Baton Rouge, LA",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+Mississippi State University,,"Starkville, MS",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Missouri,,"Columbia, MO",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Mississippi (Ole Miss),,"Oxford, MS",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Oklahoma,,"Norman, OK",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of South Carolina,,"Columbia, SC",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Tennessee,,"Knoxville, TN",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+University of Texas at Austin,,"Austin, TX",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+Texas A&M University,,"College Station, TX",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Public
+Vanderbilt University,,"Nashville, TN",,,Power 4 â SEC (16 schools),SEC,D1-FBS,Private
+University of Illinois Urbana-Champaign,,"Champaign, IL",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+Indiana University,,"Bloomington, IN",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Iowa,,"Iowa City, IA",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Maryland,,"College Park, MD",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Michigan,,"Ann Arbor, MI",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+Michigan State University,,"East Lansing, MI",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Minnesota,,"Minneapolis, MN",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Nebraska-Lincoln,,"Lincoln, NE",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+Northwestern University,,"Evanston, IL",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Private
+Ohio State University,,"Columbus, OH",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+Penn State University,,"University Park, PA",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+Purdue University,,"West Lafayette, IN",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+Rutgers University,,"New Brunswick, NJ",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Wisconsin,,"Madison, WI",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+UCLA,,"Los Angeles, CA",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+USC (University of Southern California),,"Los Angeles, CA",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Private
+University of Oregon,,"Eugene, OR",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Washington,,"Seattle, WA",,,Power 4 â Big Ten (18 schools),Big Ten,D1-FBS,Public
+University of Arizona,,"Tucson, AZ",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+Arizona State University,,"Tempe, AZ",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+Brigham Young University (BYU),,"Provo, UT",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Private
+Baylor University,,"Waco, TX",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Private
+University of Central Florida (UCF),,"Orlando, FL",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+University of Cincinnati,,"Cincinnati, OH",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+University of Colorado,,"Boulder, CO",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+University of Houston,,"Houston, TX",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+Iowa State University,,"Ames, IA",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+University of Kansas,,"Lawrence, KS",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+Kansas State University,,"Manhattan, KS",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+Oklahoma State University,,"Stillwater, OK",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+TCU (Texas Christian University),,"Fort Worth, TX",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Private
+Texas Tech University,,"Lubbock, TX",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+University of Utah,,"Salt Lake City, UT",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+West Virginia University,,"Morgantown, WV",,,Power 4 â Big 12 (16 schools),Big 12,D1-FBS,Public
+Boston College,,"Chestnut Hill, MA",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Private
+Clemson University,,"Clemson, SC",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+Duke University,,"Durham, NC",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Private
+Florida State University,,"Tallahassee, FL",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+Georgia Tech,,"Atlanta, GA",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+University of Louisville,,"Louisville, KY",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+University of Miami,,"Coral Gables, FL",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Private
+NC State University,,"Raleigh, NC",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+University of North Carolina,,"Chapel Hill, NC",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+Notre Dame,,"Notre Dame, IN",,,Power 4 â ACC (17 schools),ACC,D1-FBS (Ind. Football),Private
+University of Pittsburgh,,"Pittsburgh, PA",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+Syracuse University,,"Syracuse, NY",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Private
+University of Virginia,,"Charlottesville, VA",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+Virginia Tech,,"Blacksburg, VA",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+Wake Forest University,,"Winston-Salem, NC",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Private
+"University of California, Berkeley",,"Berkeley, CA",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Public
+Stanford University,,"Stanford, CA",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Private
+SMU (Southern Methodist University),,"Dallas, TX",,,Power 4 â ACC (17 schools),ACC,D1-FBS,Private
+Army (United States Military Academy),,"West Point, NY",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+University of Charlotte,,"Charlotte, NC",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+East Carolina University,,"Greenville, NC",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+Florida Atlantic University (FAU),,"Boca Raton, FL",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+University of Memphis,,"Memphis, TN",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+Navy (United States Naval Academy),,"Annapolis, MD",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+University of North Texas,,"Denton, TX",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+Rice University,,"Houston, TX",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Private
+University of South Florida,,"Tampa, FL",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+Temple University,,"Philadelphia, PA",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+Tulane University,,"New Orleans, LA",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Private
+University of Tulsa,,"Tulsa, OK",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Private
+UAB (University of Alabama at Birmingham),,"Birmingham, AL",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+UTSA (University of Texas at San Antonio),,"San Antonio, TX",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1-FBS,Public
+Wichita State University,,"Wichita, KS",,,"Group of 5 â American Athletic Conference (AAC, 15 schools)",AAC,D1 (basketball),Public
+Florida International University (FIU),,"Miami, FL",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+Jacksonville State University,,"Jacksonville, AL",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+Kennesaw State University,,"Kennesaw, GA",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+Liberty University,,"Lynchburg, VA",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Private
+Louisiana Tech University,,"Ruston, LA",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+Middle Tennessee State University,,"Murfreesboro, TN",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+New Mexico State University,,"Las Cruces, NM",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+Sam Houston State University,,"Huntsville, TX",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+UTEP (University of Texas at El Paso),,"El Paso, TX",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+Western Kentucky University,,"Bowling Green, KY",,,"Group of 5 â Conference USA (CUSA, 10 schools)",CUSA,D1-FBS,Public
+University of Akron,,"Akron, OH",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Ball State University,,"Muncie, IN",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Bowling Green State University,,"Bowling Green, OH",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+University at Buffalo,,"Buffalo, NY",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Central Michigan University,,"Mount Pleasant, MI",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Eastern Michigan University,,"Ypsilanti, MI",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Kent State University,,"Kent, OH",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Miami University (Ohio),,"Oxford, OH",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Northern Illinois University (NIU),,"DeKalb, IL",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Ohio University,,"Athens, OH",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+University of Toledo,,"Toledo, OH",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Western Michigan University,,"Kalamazoo, MI",,,"Group of 5 â MAC (Mid-American Conference, 12 schools)",MAC,D1-FBS,Public
+Air Force Academy,,"Colorado Springs, CO",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+Boise State University,,"Boise, ID",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+Colorado State University,,"Fort Collins, CO",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+Fresno State University,,"Fresno, CA",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+University of Hawaii,,"Honolulu, HI",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+"University of Nevada, Reno",,"Reno, NV",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+University of New Mexico,,"Albuquerque, NM",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+San Diego State University (SDSU),,"San Diego, CA",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+San Jose State University,,"San Jose, CA",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+"UNLV (University of Nevada, Las Vegas)",,"Las Vegas, NV",,,Group of 5 â Mountain West Conference (12 schools),Mountain,West,D1-FBS
+Public,,"Utah State University, Logan",,,Group of 5 â Mountain West Conference (12 schools),UT,Mountain West,D1-FBS
+Appalachian State University,,"Boone, NC",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Arkansas State University,,"Jonesboro, AR",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Coastal Carolina University,,"Conway, SC",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Georgia Southern University,,"Statesboro, GA",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Georgia State University,,"Atlanta, GA",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+James Madison University,,"Harrisonburg, VA",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+University of Louisiana at Lafayette,,"Lafayette, LA",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+University of Louisiana Monroe,,"Monroe, LA",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Marshall University,,"Huntington, WV",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Old Dominion University,,"Norfolk, VA",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+University of South Alabama,,"Mobile, AL",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+University of Southern Mississippi,,"Hattiesburg, MS",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Texas State University,,"San Marcos, TX",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Troy University,,"Troy, AL",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
+Oregon State University,,"Corvallis, OR",,,Pac-12 Remnants (2 schools),Pac-12,D1-FBS,Public
+Washington State University,,"Pullman, WA",,,Pac-12 Remnants (2 schools),Pac-12,D1-FBS,Public
+Connecticut (UConn),,"Storrs, CT",,,FBS Independents,Independent,D1-FBS,Public
+Massachusetts (UMass),,"Amherst, MA",,,FBS Independents,Independent,D1-FBS,Public
+Brown University,,"Providence, RI",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+Columbia University,,"New York, NY",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+Cornell University,,"Ithaca, NY",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+Dartmouth College,,"Hanover, NH",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+Harvard University,,"Cambridge, MA",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+University of Pennsylvania,,"Philadelphia, PA",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+Princeton University,,"Princeton, NJ",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+Yale University,,"New Haven, CT",,,Ivy League (8 schools â D1 non-scholarship),Ivy League,D1-FCS,Private
+Massachusetts Institute of Technology (MIT),,"Cambridge, MA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",NEWMAC,D3,Private
+California Institute of Technology (Caltech),,"Pasadena, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",SCIAC,D3,Private
+Johns Hopkins University,,"Baltimore, MD",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Centennial,D3,Private
+University of Chicago,,"Chicago, IL",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
+Carnegie Mellon University,,"Pittsburgh, PA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
+Emory University,,"Atlanta, GA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
+Washington University in St. Louis,,"St. Louis, MO",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
+Tufts University,,"Medford, MA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",NESCAC,D3,Private
+Case Western Reserve University,,"Cleveland, OH",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
+Brandeis University,,"Waltham, MA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
+Villanova University,,"Villanova, PA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1-FCS,Private
+Georgetown University,,"Washington, DC",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1 (no,football)
+Private,,"Marquette University, Milwaukee",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WI,Big East,D1 (no football)
+University of Denver,,"Denver, CO",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Summit League,D1,Private
+Gonzaga University,,"Spokane, WA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
+Santa Clara University,,"Santa Clara, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
+St. Mary's College of California,,"Moraga, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
+University of San Diego,,"San Diego, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
+University of San Francisco,,"San Francisco, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
+Pepperdine University,,"Malibu, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
+Loyola Marymount University (LMU),,"Los Angeles, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
+Creighton University,,"Omaha, NE",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1,Private
+Butler University,,"Indianapolis, IN",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1,Private
+Xavier University,,"Cincinnati, OH",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1,Private
+Providence College,,"Providence, RI",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1,Private
+St. John's University,,"Jamaica, NY",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1,Private
+Seton Hall University,,"South Orange, NJ",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1,Private
+DePaul University,,"Chicago, IL",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1,Private
+TCU,,"Fort Worth, TX",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big 12,D1-FBS,Private
+SMU,,"Dallas, TX",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",ACC,D1-FBS,Private
+USC,,"Los Angeles, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big Ten,D1-FBS,Private
+Miami University,,"Coral Gables, FL",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",ACC,D1-FBS,Private
+Williams College,,"Williamstown, MA",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Amherst College,,"Amherst, MA",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Swarthmore College,,"Swarthmore, PA",,,Top 50 Liberal Arts Colleges,Centennial,D3,Private
+Pomona College,,"Claremont, CA",,,Top 50 Liberal Arts Colleges,SCIAC,D3,Private
+Wellesley College,,"Wellesley, MA",,,Top 50 Liberal Arts Colleges,NEWMAC,D3,Private
+Bowdoin College,,"Brunswick, ME",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Carleton College,,"Northfield, MN",,,Top 50 Liberal Arts Colleges,MIAC,D3,Private
+Middlebury College,,"Middlebury, VT",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Davidson College,,"Davidson, NC",,,Top 50 Liberal Arts Colleges,Atlantic 10,D1,Private
+Grinnell College,,"Grinnell, IA",,,Top 50 Liberal Arts Colleges,Midwest,D3,Private
+Claremont McKenna College,,"Claremont, CA",,,Top 50 Liberal Arts Colleges,SCIAC,D3,Private
+Smith College,,"Northampton, MA",,,Top 50 Liberal Arts Colleges,NEWMAC,D3,Private
+Haverford College,,"Haverford, PA",,,Top 50 Liberal Arts Colleges,Centennial,D3,Private
+Vassar College,,"Poughkeepsie, NY",,,Top 50 Liberal Arts Colleges,Liberty League,D3,Private
+Colby College,,"Waterville, ME",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Wesleyan University,,"Middletown, CT",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Hamilton College,,"Clinton, NY",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Oberlin College,,"Oberlin, OH",,,Top 50 Liberal Arts Colleges,NCAC,D3,Private
+Bryn Mawr College,,"Bryn Mawr, PA",,,Top 50 Liberal Arts Colleges,Centennial,D3,Private
+Trinity College,,"Hartford, CT",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Macalester College,,"St. Paul, MN",,,Top 50 Liberal Arts Colleges,MIAC,D3,Private
+Bates College,,"Lewiston, ME",,,Top 50 Liberal Arts Colleges,NESCAC,D3,Private
+Washington and Lee University,,"Lexington, VA",,,Top 50 Liberal Arts Colleges,Old Dominion,D3,Private
+Kenyon College,,"Gambier, OH",,,Top 50 Liberal Arts Colleges,NCAC,D3,Private
+Barnard College,,"New York, NY",,,Top 50 Liberal Arts Colleges,UAA,D3,Private
+Franklin & Marshall College,,"Lancaster, PA",,,Top 50 Liberal Arts Colleges,Centennial,D3,Private
+Colgate University,,"Hamilton, NY",,,Top 50 Liberal Arts Colleges,Patriot League,D1-FCS,Private
+Holy Cross,,"Worcester, MA",,,Top 50 Liberal Arts Colleges,Patriot League,D1-FCS,Private
+Bucknell University,,"Lewisburg, PA",,,Top 50 Liberal Arts Colleges,Patriot League,D1-FCS,Private
+Lafayette College,,"Easton, PA",,,Top 50 Liberal Arts Colleges,Patriot League,D1-FCS,Private
+Skidmore College,,"Saratoga Springs, NY",,,Top 50 Liberal Arts Colleges,Liberty League,D3,Private
+Colorado College,,"Colorado Springs, CO",,,Top 50 Liberal Arts Colleges,SCAC,D3,Private
+Furman University,,"Greenville, SC",,,Top 50 Liberal Arts Colleges,SoCon,D1-FCS,Private
+Rhodes College,,"Memphis, TN",,,Top 50 Liberal Arts Colleges,SCAC,D3,Private
+Reed College,,"Portland, OR",,,Top 50 Liberal Arts Colleges,None,D3,Private
+Whitman College,,"Walla Walla, WA",,,Top 50 Liberal Arts Colleges,NWC,D3,Private
+St. Olaf College,,"Northfield, MN",,,Top 50 Liberal Arts Colleges,MIAC,D3,Private
+Gettysburg College,,"Gettysburg, PA",,,Top 50 Liberal Arts Colleges,Centennial,D3,Private
+Muhlenberg College,,"Allentown, PA",,,Top 50 Liberal Arts Colleges,Centennial,D3,Private
+Denison University,,"Granville, OH",,,Top 50 Liberal Arts Colleges,NCAC,D3,Private
+DePauw University,,"Greencastle, IN",,,Top 50 Liberal Arts Colleges,NCAC,D3,Private
+Wabash College,,"Crawfordsville, IN",,,Top 50 Liberal Arts Colleges,NCAC,D3,Private
+St. Lawrence University,,"Canton, NY",,,Top 50 Liberal Arts Colleges,Liberty League,D3,Private
+Union College,,"Schenectady, NY",,,Top 50 Liberal Arts Colleges,Liberty League,D3,Private
+Hobart and William Smith Colleges,,"Geneva, NY",,,Top 50 Liberal Arts Colleges,Liberty League,D3,Private
+Ithaca College,,"Ithaca, NY",,,Top 50 Liberal Arts Colleges,Liberty League,D3,Private
+Allegheny College,,"Meadville, PA",,,Top 50 Liberal Arts Colleges,NCAC,D3,Private
+Kalamazoo College,,"Kalamazoo, MI",,,Top 50 Liberal Arts Colleges,MIAA,D3,Private
+Dickinson College,,"Carlisle, PA",,,Top 50 Liberal Arts Colleges,Centennial,D3,Private
+Agnes Scott College,,"Decatur, GA",,,Top 50 Liberal Arts Colleges,USA South,D3,Private
+University of Connecticut (UConn),,"Storrs, CT",,,Notable D1 Schools (Mid-Major / Other Conferences),Big East,D1-FBS,Public
+Murray State University,,"Murray, KY",,,Notable D1 Schools (Mid-Major / Other Conferences),OVC,D1-FCS,Public
+Belmont University,,"Nashville, TN",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1,Private
+Drake University,,"Des Moines, IA",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1-FCS,Private
+Valparaiso University,,"Valparaiso, IN",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1,Private
+Northern Iowa,,"Cedar Falls, IA",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1-FCS,Public
+Southern Illinois University,,"Carbondale, IL",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1-FCS,Public
+Indiana State University,,"Terre Haute, IN",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1-FCS,Public
+Illinois State University,,"Normal, IL",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1-FCS,Public
+Bradley University,,"Peoria, IL",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1,Private
+Missouri State University,,"Springfield, MO",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1-FCS,Public
+Loyola University Chicago,,"Chicago, IL",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1,Private
+Evansville,,"Evansville, IN",,,Notable D1 Schools (Mid-Major / Other Conferences),MVC,D1,Private
+UC Davis,,"Davis, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1-FCS,Public
+Cal Poly,,"San Luis Obispo, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1-FCS,Public
+UC Santa Barbara,,"Santa Barbara, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1,Public
+Long Beach State,,"Long Beach, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1,Public
+UC Irvine,,"Irvine, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1,Public
+UC Riverside,,"Riverside, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1,Public
+Cal State Fullerton,,"Fullerton, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1,Public
+UC San Diego,,"San Diego, CA",,,Notable D1 Schools (Mid-Major / Other Conferences),Big West,D1,Public
+Weber State,,"Ogden, UT",,,Notable D1 Schools (Mid-Major / Other Conferences),Big Sky,D1-FCS,Public
+Montana,,"Missoula, MT",,,Notable D1 Schools (Mid-Major / Other Conferences),Big Sky,D1-FCS,Public
+North Dakota State (NDSU),,"Fargo, ND",,,Notable D1 Schools (Mid-Major / Other Conferences),MVFC,D1-FCS,Public
+South Dakota State,,"Brookings, SD",,,Notable D1 Schools (Mid-Major / Other Conferences),MVFC,D1-FCS,Public
+James Madison,,"Harrisonburg, VA",,,Notable D1 Schools (Mid-Major / Other Conferences),Sun Belt,D1-FBS,Public
+Jacksonville State,,"Jacksonville, AL",,,Notable D1 Schools (Mid-Major / Other Conferences),CUSA,D1-FBS,Public
+Kennesaw State,,"Kennesaw, GA",,,Notable D1 Schools (Mid-Major / Other Conferences),CUSA,D1-FBS,Public
+Stony Brook,,"Stony Brook, NY",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+Villanova,,"Villanova, PA",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Private
+William & Mary,,"Williamsburg, VA",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+Towson University,,"Towson, MD",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+Delaware,,"Newark, DE",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+Albany (SUNY),,"Albany, NY",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+New Hampshire,,"Durham, NH",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+Maine,,"Orono, ME",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+Rhode Island,,"Kingston, RI",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Public
+Northeastern University,,"Boston, MA",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1,Private
+George Mason University,,"Fairfax, VA",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Public
+George Washington University,,"Washington, DC",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Private
+Saint Louis University,,"St. Louis, MO",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Private
+University of Dayton,,"Dayton, OH",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Private
+VCU (Virginia Commonwealth),,"Richmond, VA",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Public
+La Salle University,,"Philadelphia, PA",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Private
+St. Joseph's University,,"Philadelphia, PA",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Private
+Fordham University,,"Bronx, NY",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1-FCS,Private
+Duquesne University,,"Pittsburgh, PA",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1-FCS,Private
+University of Massachusetts,,"Amherst, MA",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Public
+University of Richmond,,"Richmond, VA",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1-FCS,Private
+Saint Bonaventure,,"St. Bonaventure, NY",,,Notable D1 Schools (Mid-Major / Other Conferences),Atlantic 10,D1,Private
+Siena College,,"Loudonville, NY",,,Notable D1 Schools (Mid-Major / Other Conferences),MAAC,D1,Private
+Iona University,,"New Rochelle, NY",,,Notable D1 Schools (Mid-Major / Other Conferences),MAAC,D1,Private
+Manhattan College,,"Riverdale, NY",,,Notable D1 Schools (Mid-Major / Other Conferences),MAAC,D1,Private
+Rider University,,"Lawrenceville, NJ",,,Notable D1 Schools (Mid-Major / Other Conferences),MAAC,D1,Private
+Fairfield University,,"Fairfield, CT",,,Notable D1 Schools (Mid-Major / Other Conferences),MAAC,D1,Private
+Monmouth University,,"West Long Branch, NJ",,,Notable D1 Schools (Mid-Major / Other Conferences),Big South,D1-FCS,Private
+Campbell University,,"Buies Creek, NC",,,Notable D1 Schools (Mid-Major / Other Conferences),Big South,D1-FCS,Private
+Gardner-Webb University,,"Boiling Springs, NC",,,Notable D1 Schools (Mid-Major / Other Conferences),Big South,D1-FCS,Private
+ETSU (East Tennessee State),,"Johnson City, TN",,,Notable D1 Schools (Mid-Major / Other Conferences),SoCon,D1-FCS,Public
+Wofford College,,"Spartanburg, SC",,,Notable D1 Schools (Mid-Major / Other Conferences),SoCon,D1-FCS,Private
+Samford University,,"Birmingham, AL",,,Notable D1 Schools (Mid-Major / Other Conferences),SoCon,D1-FCS,Private
+The Citadel,,"Charleston, SC",,,Notable D1 Schools (Mid-Major / Other Conferences),SoCon,D1-FCS,Public
+Mercer University,,"Macon, GA",,,Notable D1 Schools (Mid-Major / Other Conferences),SoCon,D1-FCS,Private
+Western Carolina,,"Cullowhee, NC",,,Notable D1 Schools (Mid-Major / Other Conferences),SoCon,D1-FCS,Public
+Chattanooga,,"Chattanooga, TN",,,Notable D1 Schools (Mid-Major / Other Conferences),SoCon,D1-FCS,Public
+Bellarmine University,,"Louisville, KY",,,Notable D1 Schools (Mid-Major / Other Conferences),ASUN,D1,Private
+Lipscomb University,,"Nashville, TN",,,Notable D1 Schools (Mid-Major / Other Conferences),ASUN,D1,Private
+Jacksonville University,,"Jacksonville, FL",,,Notable D1 Schools (Mid-Major / Other Conferences),ASUN,D1,Private
+Florida Gulf Coast University,,"Fort Myers, FL",,,Notable D1 Schools (Mid-Major / Other Conferences),ASUN,D1,Public
+Eastern Kentucky University,,"Richmond, KY",,,Notable D1 Schools (Mid-Major / Other Conferences),ASUN,D1-FCS,Public
+Northern Kentucky University,,"Highland Heights, KY",,,Notable D1 Schools (Mid-Major / Other Conferences),Horizon,D1,Public
+Wright State University,,"Dayton, OH",,,Notable D1 Schools (Mid-Major / Other Conferences),Horizon,D1,Public
+Milwaukee (UWM),,"Milwaukee, WI",,,Notable D1 Schools (Mid-Major / Other Conferences),Horizon,D1,Public
+Oakland University,,"Rochester Hills, MI",,,Notable D1 Schools (Mid-Major / Other Conferences),Horizon,D1,Public
+IUPUI / Indiana Univ. Indianapolis,,"Indianapolis, IN",,,Notable D1 Schools (Mid-Major / Other Conferences),Horizon,D1,Public
+Green Bay (UW-Green Bay),,"Green Bay, WI",,,Notable D1 Schools (Mid-Major / Other Conferences),Horizon,D1,Public
+Youngstown State,,"Youngstown, OH",,,Notable D1 Schools (Mid-Major / Other Conferences),MVFC,D1-FCS,Public
+South Dakota,,"Vermillion, SD",,,Notable D1 Schools (Mid-Major / Other Conferences),MVFC,D1-FCS,Public
+North Dakota,,"Grand Forks, ND",,,Notable D1 Schools (Mid-Major / Other Conferences),MVFC,D1-FCS,Public
+Western Illinois,,"Macomb, IL",,,Notable D1 Schools (Mid-Major / Other Conferences),MVFC,D1-FCS,Public
+Incarnate Word,,"San Antonio, TX",,,Notable D1 Schools (Mid-Major / Other Conferences),Southland,D1-FCS,Private
+Nicholls State,,"Thibodaux, LA",,,Notable D1 Schools (Mid-Major / Other Conferences),Southland,D1-FCS,Public
+Lamar University,,"Beaumont, TX",,,Notable D1 Schools (Mid-Major / Other Conferences),Southland,D1-FCS,Public
+Stephen F. Austin,,"Nacogdoches, TX",,,Notable D1 Schools (Mid-Major / Other Conferences),Southland,D1-FCS,Public
+Central Arkansas,,"Conway, AR",,,Notable D1 Schools (Mid-Major / Other Conferences),Southland,D1-FCS,Public
+Grambling State,,"Grambling, LA",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Jackson State University,,"Jackson, MS",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Alcorn State University,,"Lorman, MS",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Prairie View A&M,,"Prairie View, TX",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Southern University,,"Baton Rouge, LA",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Alabama A&M,,"Normal, AL",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Alabama State University,,"Montgomery, AL",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Bethune-Cookman,,"Daytona Beach, FL",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Private
+Florida A&M (FAMU),,"Tallahassee, FL",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Mississippi Valley State,,"Itta Bena, MS",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Texas Southern University,,"Houston, TX",,,Notable D1 Schools (Mid-Major / Other Conferences),SWAC,D1-FCS,Public
+Howard University,,"Washington, DC",,,Notable D1 Schools (Mid-Major / Other Conferences),MEAC,D1-FCS,Private
+Morgan State University,,"Baltimore, MD",,,Notable D1 Schools (Mid-Major / Other Conferences),MEAC,D1-FCS,Public
+North Carolina A&T,,"Greensboro, NC",,,Notable D1 Schools (Mid-Major / Other Conferences),Big South,D1-FCS,Public
+North Carolina Central,,"Durham, NC",,,Notable D1 Schools (Mid-Major / Other Conferences),MEAC,D1-FCS,Public
+Coppin State,,"Baltimore, MD",,,Notable D1 Schools (Mid-Major / Other Conferences),MEAC,D1,Public
+Hampton University,,"Hampton, VA",,,Notable D1 Schools (Mid-Major / Other Conferences),CAA,D1-FCS,Private
+Norfolk State University,,"Norfolk, VA",,,Notable D1 Schools (Mid-Major / Other Conferences),MEAC,D1-FCS,Public
+South Carolina State,,"Orangeburg, SC",,,Notable D1 Schools (Mid-Major / Other Conferences),MEAC,D1-FCS,Public
+Savannah State,,"Savannah, GA",,,Notable D1 Schools (Mid-Major / Other Conferences),SIAC,D2,Public
+Marquette University,,"Milwaukee, WI",,,Notable D1 Schools (Mid-Major / Other Conferences),Big East,D1,Private
+Boise State,,"Boise, ID",,,Notable D1 Schools (Mid-Major / Other Conferences),Mountain West,D1-FBS,Public
+Nevada Las Vegas (UNLV),,"Las Vegas, NV",,,Notable D1 Schools (Mid-Major / Other Conferences),Mountain West,D1-FBS,Public
+Big3 Basketball,,"3-on-3 Pro, 12 teams",,,Notable D1 Schools (Mid-Major / Other Conferences),â,#,Type Label
+Description,,"---, ---",,,Notable D1 Schools (Mid-Major / Other Conferences),---,1,University / College
+4-year accredited institution,,"2, Community College",,,Notable D1 Schools (Mid-Major / Other Conferences),2-year institution,3,High School
+Secondary school (public or private),,"4, IFC Fraternity",,,Notable D1 Schools (Mid-Major / Other Conferences),NIC member fraternity,5,Panhellenic Sorority
+NPC member sorority,,"6, NPHC Organization",,,Notable D1 Schools (Mid-Major / Other Conferences),Divine Nine fraternity or sorority,7,Multicultural Greek Organization
+MGC member organization,,"8, Professional Fraternity / Sorority",,,Notable D1 Schools (Mid-Major / Other Conferences),"Business, law, engineering,","service, etc.",9
+Local Fraternity / Sorority,,"Non-affiliated Greek organization, 10",,,Notable D1 Schools (Mid-Major / Other Conferences),NCAA Athletic Team,Varsity sport at NCAA member school,11
+Club Sport,,"Recreational/competitive club team, 12",,,Notable D1 Schools (Mid-Major / Other Conferences),Intramural Sport,Intra-school competition league,13
+Professional Sports Team,,"NFL/NBA/MLB/NHL/MLS/NWSL or minor league, 14",,,Notable D1 Schools (Mid-Major / Other Conferences),Military Branch,One of the 6 U.S. military branches,15
+Military Unit / Base,,"Specific installation, command, or unit, 16",,,Notable D1 Schools (Mid-Major / Other Conferences),ROTC Program,Army/Navy/Air Force ROTC,17
+Professional Association,,"Industry org (IEEE, AMA, ABA, etc.), 18",,,Notable D1 Schools (Mid-Major / Other Conferences),Honor Society,Academic honor/recognition organization,19
+Business School Club,,"Org under a business/b-school umbrella, 20",,,Notable D1 Schools (Mid-Major / Other Conferences),Student Government,SGA or equivalent,21
+Student Organization,,"General campus club/org (catch-all), 22",,,Notable D1 Schools (Mid-Major / Other Conferences),Alumni Association,Formal alumni body of a school/org,23
+Country Club,,"Private social/athletic club, 24",,,Notable D1 Schools (Mid-Major / Other Conferences),Athletic / Fitness Program,"Gym, CrossFit, league, etc.",25
+Investor / Founder Network,,"VC network, angel group, founder community, 26",,,Notable D1 Schools (Mid-Major / Other Conferences),Philanthropic / Advisory Board,"Board, foundation, nonprofit advisory",27
+Young Professionals Organization,,"YPO, Rotary Young, Professionals, city-specific",,,Notable D1 Schools (Mid-Major / Other Conferences),28,Religious Organization,"Campus ministry, faith community, church"
+29,,"Cultural Organization, International/cultural student org",,,Notable D1 Schools (Mid-Major / Other Conferences),30,Graduate / Professional School,"MBA, law, med, or other grad program"
+31,,"Study Abroad Program, Program or destination-based cohort",,,Notable D1 Schools (Mid-Major / Other Conferences),32,Residence Hall / Housing,"Dorm, Greek house, living-learning community"
+33,,"Performing Arts, Theater, band, orchestra, dance, choir",,,Notable D1 Schools (Mid-Major / Other Conferences),34,Media / Publication,"Campus newspaper, magazine, radio, TV"
+35,,"Political Organization, College Dems/Republicans, advocacy groups",,,Notable D1 Schools (Mid-Major / Other Conferences),36,Debate / Academic Competition,"Mock trial, debate, Model UN"
+37,,"Other, Catch-all for unlisted org types",,,Notable D1 Schools (Mid-Major / Other Conferences),Section,Source,URL
+Universities (D1),,"NCAA Schools Directory, https://www.ncaa.org/schools",,,Notable D1 Schools (Mid-Major / Other Conferences),Public High Schools,NCES CCD,https://nces.ed.gov/ccd/
+Private High Schools,,"NCES PSS, https://nces.ed.gov/surveys/pss/",,,Notable D1 Schools (Mid-Major / Other Conferences),NIC Fraternities,NIC Website,https://www.northamericaninterfraternity.org/
+NPC Sororities,,"NPC Website, https://www.npcwomen.org/",,,Notable D1 Schools (Mid-Major / Other Conferences),NPHC Orgs,NPHC Website,https://www.nphchq.org/
+Sports Teams,,"SportsDB API, https://www.thesportsdb.com/api.php",,,Notable D1 Schools (Mid-Major / Other Conferences),Military Installations,Military OneSource,https://installations.militaryonesource.mil/
+Greek Chapters,,"Greekrank / OmegaFi, For chapter-level data",,,Notable D1 Schools (Mid-Major / Other Conferences),(school + org combos),NCES Data API,Urban Institute

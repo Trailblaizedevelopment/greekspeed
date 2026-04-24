@@ -13,7 +13,8 @@
     "test:notifications": "tsx scripts/test-notifications.ts",
     "test:crowded": "tsx scripts/test-crowded-api.ts",
     "test:event-check-in-token": "tsx scripts/verify-eventCheckInUrlToken.ts",
-    "test:announcement-metadata": "tsx scripts/test-announcement-metadata.ts"
+    "test:announcement-metadata": "tsx scripts/test-announcement-metadata.ts",
+    "parse-seeds": "tsx scripts/parse-seed-emails.ts"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",
