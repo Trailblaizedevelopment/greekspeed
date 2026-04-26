@@ -1,50 +1,70 @@
 "use client";
 
-import { useState } from "react";
 import { MyChapterSidebar } from "./MyChapterSidebar";
 import { MyChapterContent } from "./MyChapterContent";
+import { useChapterMembers } from "@/lib/hooks/useChapterMembers";
+import { useScopedChapterId } from "@/lib/hooks/useScopedChapterId";
+import { useMemberFilters } from "@/lib/hooks/useMemberFilters";
 
 export function MyChapterPage() {
-  // Default to "all" to show the original view
-  const [activeSection, setActiveSection] = useState("all");
-  const [searchTerm, setSearchTerm] = useState(""); // Add search state
+  const chapterId = useScopedChapterId();
+  const { members } = useChapterMembers(chapterId || undefined, true);
+
+  const {
+    filters,
+    setFilters,
+    clearFilters,
+    availableOptions,
+    advancedFilterCount,
+    totalFilterCount,
+    presets,
+    savePreset,
+    applyPreset,
+    renamePreset,
+    deletePreset,
+  } = useMemberFilters(members);
 
   const handleNavigate = (section: string) => {
-    // Navigating to section
-    setActiveSection(section);
-    
-    // TODO: Implement navigation logic
-    switch (section) {
-      case 'add-member':
-        // Opening add member modal/form
-        break;
-      case 'create-event':
-        // Opening create event modal/form
-        break;
-      default:
-        // Navigating to section
-    }
+    setFilters({ section });
   };
 
   return (
     <div className="flex min-h-[100dvh] bg-gray-50 md:flex-row">
-      {/* Desktop: collapsible chapter sidebar. Mobile: filters live in drawer (see MyChapterContent). */}
       <MyChapterSidebar
         onNavigate={handleNavigate}
-        activeSection={activeSection}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        activeSection={filters.section}
+        searchTerm={filters.searchTerm}
+        onSearchChange={(term) => setFilters({ searchTerm: term })}
+        filters={filters}
+        onFiltersChange={setFilters}
+        availableOptions={availableOptions}
+        advancedFilterCount={advancedFilterCount}
+        presets={presets}
+        onSavePreset={savePreset}
+        onApplyPreset={applyPreset}
+        onRenamePreset={renamePreset}
+        onDeletePreset={deletePreset}
       />
-      
-      {/* MyChapterContent will be rendered inside the sidebar's main content area */}
+
       <div className="flex-1 flex flex-col min-w-0">
         <MyChapterContent
           onNavigate={handleNavigate}
-          activeSection={activeSection}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
+          activeSection={filters.section}
+          searchTerm={filters.searchTerm}
+          onSearchChange={(term) => setFilters({ searchTerm: term })}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onClearFilters={clearFilters}
+          availableOptions={availableOptions}
+          advancedFilterCount={advancedFilterCount}
+          totalFilterCount={totalFilterCount}
+          presets={presets}
+          onSavePreset={savePreset}
+          onApplyPreset={applyPreset}
+          onRenamePreset={renamePreset}
+          onDeletePreset={deletePreset}
         />
       </div>
     </div>
   );
-} 
+}

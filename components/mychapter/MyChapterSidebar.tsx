@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, GraduationCap, UserPlus, Calendar, Lock, X, ChevronRight, Loader2, UserCheck, Settings } from "lucide-react";
+import { Users, GraduationCap, UserPlus, Calendar, Lock, X, ChevronRight, Loader2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useChapterMembers } from '@/lib/hooks/useChapterMembers';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
 import { AddMemberForm } from '@/components/chapter/AddMemberForm';
-import { EventForm } from '@/components/ui/EventForm'; // Add this import
-import { FeatureGuard } from '@/components/shared/FeatureGuard'; // Add this import
+import { EventForm } from '@/components/ui/EventForm';
+import { FeatureGuard } from '@/components/shared/FeatureGuard';
 import { AddRecruitForm } from '@/components/features/recruitment/AddRecruitForm';
+import { AdvancedFilterControls } from './AdvancedFilterControls';
 import type { Recruit } from '@/types/recruitment';
+import type { MemberSearchFilters, FilterPreset, AvailableFilterOptions } from '@/types/memberFilters';
 import { useRouter } from 'next/navigation';
 import { EXECUTIVE_ROLES } from '@/lib/permissions';
 
@@ -22,46 +24,60 @@ interface MyChapterSidebarProps {
   activeSection: string;
   searchTerm: string;
   onSearchChange: (term: string) => void;
+  filters: MemberSearchFilters;
+  onFiltersChange: (updates: Partial<MemberSearchFilters>) => void;
+  availableOptions: AvailableFilterOptions;
+  advancedFilterCount: number;
+  presets: FilterPreset[];
+  onSavePreset: (name: string) => FilterPreset;
+  onApplyPreset: (preset: FilterPreset) => void;
+  onRenamePreset: (id: string, name: string) => void;
+  onDeletePreset: (id: string) => void;
 }
 
-export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSearchChange }: MyChapterSidebarProps) {
+export function MyChapterSidebar({
+  onNavigate,
+  activeSection,
+  searchTerm,
+  onSearchChange,
+  filters,
+  onFiltersChange,
+  availableOptions,
+  advancedFilterCount,
+  presets,
+  onSavePreset,
+  onApplyPreset,
+  onRenamePreset,
+  onDeletePreset,
+}: MyChapterSidebarProps) {
   const router = useRouter();
   
-  // Add state for both modals
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
   const [showCreateEventForm, setShowCreateEventForm] = useState(false);
-  const [showAddRecruitModal, setShowAddRecruitModal] = useState(false); // New state for recruit modal
+  const [showAddRecruitModal, setShowAddRecruitModal] = useState(false);
   
-  // Get current user's profile to check role and chapter
   const { profile } = useProfile();
   const chapterId = useScopedChapterId();
   
-  // Fetch chapter members to calculate stats dynamically, excluding alumni
   const { members, loading: membersLoading } = useChapterMembers(chapterId || undefined, true);
   
-  // Check if user is admin (same pattern as other components)
   const isAdmin = profile?.role === 'admin';
-  // Check if user can submit recruits (active_member or admin)
   const canSubmitRecruit = profile?.role === 'active_member' || profile?.role === 'admin';
-  // Check if user is exec (admin or exec chapter_role) - can view recruitment page
   const isExec = isAdmin || (profile?.chapter_role && EXECUTIVE_ROLES.includes(profile.chapter_role as any));
 
-  // Calculate stats dynamically from the fetched members
   const stats = {
     totalMembers: members.length,
     activeMembers: members.filter(m => m.member_status === 'active').length,
     officers: members.filter(m => m.chapter_role && m.chapter_role !== 'member' && m.chapter_role !== 'pledge').length
   };
 
-  // Collapsible sidebar state (following AlumniPipelineLayout pattern)
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Set mobile-specific initial state (following AlumniPipelineLayout pattern)
   useEffect(() => {
-    const isMobile = window.innerWidth < 768; // md breakpoint
+    const isMobile = window.innerWidth < 768;
     if (isMobile) {
-      setSidebarCollapsed(true); // Start collapsed on mobile
+      setSidebarCollapsed(true);
     }
   }, []);
 
@@ -95,16 +111,11 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
     }
   ];
 
-  // Remove the filter since we no longer have adminOnly items
   const visibleItems = sidebarItems;
 
-  // Handle event creation
   const handleCreateEvent = async (eventData: any) => {
     try {
-      // TODO: Implement actual event creation API call
-      // Creating event
       setShowCreateEventForm(false);
-      // Optionally refresh events or navigate to events section
     } catch (error) {
       console.error('Error creating event:', error);
     }
@@ -112,9 +123,7 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
 
   return (
     <div className="flex bg-gray-50 overflow-hidden">
-      {/* Collapsible Sidebar — desktop only; mobile uses dashboard header + drawer (AlumniDashboard) or compact bar (standalone). */}
       <div className="hidden md:flex">
-        {/* Main Sidebar */}
         <AnimatePresence>
           {sidebarOpen && (
             <motion.div
@@ -127,8 +136,7 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className="bg-gradient-to-b from-[#FFFFFF] to-[#F9FAFB] shadow-sm flex-shrink-0 border-r-4 border-transparent bg-clip-padding"
             >
-              <div className="flex flex-col">
-                {/* Header */}
+              <div className="flex flex-col h-full">
                 <div className="p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -169,10 +177,8 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
                   </div>
                 </div>
 
-                {/* Sidebar Content */}
-                <div className="p-4">
+                <div className="p-4 flex-1 overflow-y-auto">
                   {sidebarCollapsed ? (
-                    // Collapsed view - show only icons
                     <div className="space-y-4">
                       <div className="flex flex-col items-center space-y-2">
                         {visibleItems.map((item) => (
@@ -197,9 +203,7 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
                       </div>
                     </div>
                   ) : (
-                    // Expanded view - show full sidebar content
                     <div className="space-y-6">
-                      {/* Search Bar */}
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Search Members</label>
                         <div className="relative">
@@ -216,7 +220,6 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
                         </div>
                       </div>
 
-                      {/* Navigation Items */}
                       <div className="space-y-2">
                         {visibleItems.map((item) => (
                           <Button
@@ -265,7 +268,20 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
                         ))}
                       </div>
 
-                      {/* Quick Actions - Only show for admins */}
+                      <div className="border-t border-gray-200 pt-4">
+                        <AdvancedFilterControls
+                          filters={filters}
+                          onFiltersChange={onFiltersChange}
+                          availableOptions={availableOptions}
+                          advancedFilterCount={advancedFilterCount}
+                          presets={presets}
+                          onSavePreset={onSavePreset}
+                          onApplyPreset={onApplyPreset}
+                          onRenamePreset={onRenamePreset}
+                          onDeletePreset={onDeletePreset}
+                        />
+                      </div>
+
                       {isAdmin && (
                         <div className="border-t border-gray-200 pt-4">
                           <h3 className="text-sm font-medium text-gray-900 mb-3">Quick Actions</h3>
@@ -292,7 +308,6 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
                         </div>
                       )}
 
-                      {/* Recruitment Management - Available to execs */}
                       {isExec && (
                         <FeatureGuard flagName="recruitment_crm_enabled">
                           <div className={`border-t border-gray-200 pt-4 ${!isAdmin ? 'mt-4' : ''}`}>
@@ -310,7 +325,6 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
                         </FeatureGuard>
                       )}
 
-                      {/* Submit Recruit - Available to active members and admins */}
                       {canSubmitRecruit && (
                         <FeatureGuard flagName="recruitment_crm_enabled">
                           <div className={`border-t border-gray-200 pt-4 ${!isAdmin && !isExec ? 'mt-4' : ''}`}>
@@ -337,7 +351,6 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
           )}
         </AnimatePresence>
 
-        {/* Sidebar Toggle Button (when sidebar is completely closed) */}
         {!sidebarOpen && (
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -356,7 +369,6 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
         )}
       </div>
 
-      {/* Add Member Modal */}
       {showAddMemberForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <AddMemberForm
@@ -374,7 +386,6 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
         </div>
       )}
 
-      {/* Create Event Modal */}
       {showCreateEventForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <EventForm
@@ -384,13 +395,11 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
         </div>
       )}
 
-      {/* Add Recruit Modal */}
       {showAddRecruitModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <AddRecruitForm
             onSuccess={(recruit: Recruit) => {
               setShowAddRecruitModal(false);
-              // Optionally refresh data or show notification
             }}
             onCancel={() => setShowAddRecruitModal(false)}
             variant="modal"
@@ -399,4 +408,4 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
       )}
     </div>
   );
-} 
+}
