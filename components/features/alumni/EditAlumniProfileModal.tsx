@@ -27,6 +27,9 @@ import { cn } from '@/lib/utils';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 import { LocationPicker } from '@/components/features/location/LocationPicker';
 import type { Profile } from '@/types/profile';
+import type { SocialLinkFormItem, ProfileSocialLink } from '@/types/socialLink';
+import { SocialLinksEditor } from '@/components/features/social-links/SocialLinksEditor';
+import { validateSocialLinks, normalizeSocialUrl } from '@/lib/utils/socialLinkValidation';
 import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 import {
   formatCanonicalPlaceDisplayForApp,
@@ -76,6 +79,8 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [socialLinks, setSocialLinks] = useState<SocialLinkFormItem[]>([]);
+  const [socialLinksLoaded, setSocialLinksLoaded] = useState(false);
 
   const locationPickerValue = useMemo(() => {
     const raw = formData.current_place_json?.trim();
@@ -162,7 +167,8 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
   // Load alumni data directly from alumni table
   const loadAlumniData = useCallback(async () => {
     if (!profile?.id) return;
-    
+
+    setSocialLinksLoaded(false);
     setLoadingAlumni(true);
     try {
       const { data, error } = await supabase
@@ -305,8 +311,9 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
   // Cleanup when modal closes
   useEffect(() => {
     if (!isOpen) {
-      // Reset when modal closes
       clearBaseline();
+      setSocialLinksLoaded(false);
+      setSocialLinks([]);
     }
   }, [isOpen, clearBaseline]);
 
@@ -334,6 +341,65 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       });
     }
   }, [isOpen, profile, alumniData, setBaseline]);
+
+  // Load social links when modal is open and alumni row is ready (same user as profile.id)
+  useEffect(() => {
+    if (!isOpen || !profile?.id || socialLinksLoaded || loadingAlumni) return;
+
+    const loadSocialLinks = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          setSocialLinksLoaded(true);
+          return;
+        }
+
+        const response = await fetch('/api/profile/social-links', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (response.ok) {
+          const { links } = await response.json();
+          const formLinks: SocialLinkFormItem[] = (links || []).map((l: ProfileSocialLink) => ({
+            id: l.id,
+            platform: l.platform,
+            url: l.url,
+            handle: l.handle || undefined,
+            label: l.label || undefined,
+            sort_order: l.sort_order,
+            is_visible: l.is_visible,
+          }));
+
+          const linkedinFallback =
+            (profile?.linkedin_url as string | undefined) ||
+            (alumniData?.linkedin_url as string | undefined) ||
+            '';
+          if (formLinks.length === 0 && linkedinFallback) {
+            formLinks.push({
+              platform: 'linkedin',
+              url: linkedinFallback,
+              sort_order: 0,
+              is_visible: true,
+            });
+          }
+
+          setSocialLinks(formLinks);
+        }
+      } catch (error) {
+        console.error('Error loading social links:', error);
+      } finally {
+        setSocialLinksLoaded(true);
+      }
+    };
+
+    void loadSocialLinks();
+  }, [
+    isOpen,
+    profile?.id,
+    profile?.linkedin_url,
+    socialLinksLoaded,
+    loadingAlumni,
+    alumniData?.linkedin_url,
+  ]);
 
   // Validation functions - same as original
   const validateEmail = (email: string): boolean => {
@@ -377,9 +443,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       setErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
     }
 
-    if (field === 'linkedin_url' && value && !validateLinkedInURL(value)) {
-      setErrors(prev => ({ ...prev, linkedin_url: 'Please enter a valid LinkedIn URL' }));
-    }
   };
 
   // Phone number specific handler with persistence
@@ -552,8 +615,21 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
     if (!validateEmail(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
-    if (formData.linkedin_url && !validateLinkedInURL(formData.linkedin_url)) {
-      newErrors.linkedin_url = 'Please enter a valid LinkedIn URL';
+    const socialLinksWithUrls = socialLinks.filter((l) => l.url.trim());
+    if (socialLinksWithUrls.length > 0) {
+      const socialValidationErrors = validateSocialLinks(socialLinksWithUrls);
+      if (socialValidationErrors.size > 0) {
+        const first = socialValidationErrors.entries().next().value;
+        newErrors.social_links = first
+          ? `Link ${Number(first[0]) + 1}: ${first[1]}`
+          : 'Invalid social link';
+      }
+    }
+    const linkedinFromSocial = socialLinksWithUrls.find((l) => l.platform === 'linkedin')?.url?.trim();
+    const linkedinUrlForLegacy =
+      linkedinFromSocial || formData.linkedin_url?.trim() || null;
+    if (linkedinUrlForLegacy && !validateLinkedInURL(linkedinUrlForLegacy)) {
+      newErrors.social_links = 'LinkedIn URL must be a valid profile link (e.g. https://linkedin.com/in/username)';
     }
     if (formData.description && formData.description.length > BIO_MAX_LENGTH) {
       newErrors.description = `Bio must be ${BIO_MAX_LENGTH} characters or fewer. Currently ${formData.description.length} characters.`;
@@ -640,7 +716,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
         current_place: persistedCurrentPlace,
         hometown: hometownLine || 'Not Specified',
         description: formData.description?.trim() || null,
-        linkedin_url: formData.linkedin_url?.trim() || null,
+        linkedin_url: linkedinUrlForLegacy,
         is_actively_hiring: formData.is_actively_hiring || false,
         is_email_public: formData.is_email_public !== false,
         is_phone_public: formData.is_phone_public !== false,
@@ -678,7 +754,7 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
         current_place: persistedCurrentPlace,
         hometown: hometownLine || null,
         hometown_place: persistedHometownPlace,
-        linkedin_url: formData.linkedin_url?.trim() || null
+        linkedin_url: linkedinUrlForLegacy,
       };
 
       // Add username and update profile_slug if username changed
@@ -709,6 +785,35 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
       // ===== END: Change detection computed before save =====
 
       await onUpdate(profileUpdates);
+
+      if (socialLinks.length > 0 || socialLinksLoaded) {
+        try {
+          const validationErrors = validateSocialLinks(socialLinks.filter((l) => l.url.trim()));
+          if (validationErrors.size === 0) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              const linksToSave = socialLinks
+                .filter((l) => l.url.trim())
+                .map((l, idx) => ({
+                  ...l,
+                  url: normalizeSocialUrl(l.url),
+                  sort_order: idx,
+                }));
+
+              await fetch('/api/profile/social-links', {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ links: linksToSave }),
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error saving social links:', error);
+        }
+      }
 
       // Clear saved form data on successful save
       clearFormDataFromStorage();
@@ -1081,24 +1186,36 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                 </div>
                 
                 <div>
-                  <Label htmlFor="linkedin_url" className="flex items-center gap-2">
-                    <Linkedin className="w-4 h-4" />
-                    LinkedIn URL
-                    <Badge variant="secondary" className="text-xs hidden sm:inline-flex">Optional</Badge>
-                  </Label>
-                  <Input
-                    id="linkedin_url"
-                    value={formData.linkedin_url}
-                    onChange={(e) => handleInputChange('linkedin_url', e.target.value)}
-                    className={`mt-1 ${errors.linkedin_url ? 'border-red-500 focus:border-red-500' : ''}`}
-                    placeholder="https://linkedin.com/in/yourprofile"
-                    type="url"
+                  {!isMobile && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <Linkedin className="w-5 h-5 text-brand-primary" />
+                      <h3 className="text-lg font-semibold text-brand-primary">Social links</h3>
+                      <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
+                        Optional
+                      </Badge>
+                    </div>
+                  )}
+                  {isMobile && (
+                    <Label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <Linkedin className="w-4 h-4" aria-hidden />
+                      Social links
+                    </Label>
+                  )}
+                  <SocialLinksEditor
+                    links={socialLinks}
+                    onChange={(next) => {
+                      setSocialLinks(next);
+                      if (errors.social_links) {
+                        setErrors((prev) => ({ ...prev, social_links: '' }));
+                      }
+                    }}
+                    isMobile={isMobile}
                   />
-                  {errors.linkedin_url && (
-                    <p className="text-xs text-red-500 mt-1">{errors.linkedin_url}</p>
+                  {errors.social_links && (
+                    <p className="text-xs text-red-500 mt-2">{errors.social_links}</p>
                   )}
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <LocationPicker
                     label={
