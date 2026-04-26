@@ -3,6 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface SupportSubmissionAuditRow {
   user_id: string;
   chapter_id: string | null;
+  /** Snapshot of profiles.chapter when chapters table is not available. */
+  chapter_name: string | null;
   category: string;
   subject: string;
   body: string;

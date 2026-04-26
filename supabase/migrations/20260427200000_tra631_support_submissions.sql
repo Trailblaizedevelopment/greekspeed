@@ -1,11 +1,15 @@
 -- TRA-631: Audit trail for in-app support requests (POST /api/support).
 -- RLS enabled; no grants to anon/authenticated — only service_role (API) reads/writes.
--- Helps when outbound email fails: row still exists if insert runs after email (see app ordering).
+--
+-- chapter_id: optional UUID aligned with profiles.chapter_id (no FK — `public.chapters`
+-- may be absent or replaced in some environments; FK would fail with "is not a table").
+-- chapter_name: denormalized snapshot from profiles.chapter at submit time for readable audit.
 
 CREATE TABLE IF NOT EXISTS public.support_submissions (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
-  chapter_id uuid NULL REFERENCES public.chapters (id) ON DELETE SET NULL,
+  chapter_id uuid NULL,
+  chapter_name text NULL,
   category text NOT NULL CHECK (category IN ('question', 'bug', 'billing', 'other')),
   subject text NOT NULL,
   body text NOT NULL,
@@ -16,6 +20,8 @@ CREATE TABLE IF NOT EXISTS public.support_submissions (
 );
 
 COMMENT ON TABLE public.support_submissions IS 'In-app support form submissions for audit / recovery (TRA-631).';
+COMMENT ON COLUMN public.support_submissions.chapter_id IS 'Optional chapter scope UUID (same meaning as profiles.chapter_id); no FK when chapters table is not used.';
+COMMENT ON COLUMN public.support_submissions.chapter_name IS 'Denormalized chapter label from profiles.chapter at submit time.';
 
 CREATE INDEX IF NOT EXISTS idx_support_submissions_user_created
   ON public.support_submissions (user_id, created_at DESC);
@@ -25,9 +31,6 @@ CREATE INDEX IF NOT EXISTS idx_support_submissions_chapter_created
   WHERE chapter_id IS NOT NULL;
 
 ALTER TABLE public.support_submissions ENABLE ROW LEVEL SECURITY;
-
--- No policies: JWT clients cannot SELECT/INSERT/UPDATE/DELETE via PostgREST.
--- service_role bypasses RLS for server-side API.
 
 REVOKE ALL ON TABLE public.support_submissions FROM PUBLIC;
 GRANT ALL ON TABLE public.support_submissions TO service_role;

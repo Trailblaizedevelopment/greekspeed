@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id, full_name, first_name, last_name, member_status, chapter_role')
+      .select('chapter_id, chapter, full_name, first_name, last_name, member_status, chapter_role')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -117,15 +117,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let chapterName: string | null = null;
-    if (profile.chapter_id) {
-      const { data: chapter } = await supabase
-        .from('chapters')
-        .select('name')
-        .eq('id', profile.chapter_id)
-        .maybeSingle();
-      chapterName = chapter?.name ?? null;
-    }
+    const chapterName =
+      typeof profile.chapter === 'string' && profile.chapter.trim()
+        ? profile.chapter.trim()
+        : null;
 
     const displayName =
       profile.full_name?.trim() ||
@@ -205,6 +200,7 @@ export async function POST(request: NextRequest) {
     await recordSupportSubmissionAudit(supabase, {
       user_id: user.id,
       chapter_id: profile.chapter_id ?? null,
+      chapter_name: chapterName,
       category,
       subject,
       body,
