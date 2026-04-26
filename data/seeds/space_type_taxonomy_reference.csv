@@ -1,0 +1,38 @@
+slug,label,description
+university_college,University / College,4-year accredited institution
+community_college,Community College,2-year institution
+high_school,High School,Secondary school (public or private)
+ifc_fraternity,IFC Fraternity,NIC member fraternity
+panhellenic_sorority,Panhellenic Sorority,NPC member sorority
+nphc_organization,NPHC Organization,Divine Nine fraternity or sorority
+multicultural_greek_organization,Multicultural Greek Organization,MGC member organization
+professional_fraternity_sorority,Professional Fraternity / Sorority,"Business, law, engineering, service, etc."
+local_fraternity_sorority,Local Fraternity / Sorority,Non-affiliated Greek organization
+ncaa_athletic_team,NCAA Athletic Team,Varsity sport at NCAA member school
+club_sport,Club Sport,Recreational/competitive club team
+intramural_sport,Intramural Sport,Intra-school competition league
+professional_sports_team,Professional Sports Team,NFL/NBA/MLB/NHL/MLS/NWSL or minor league
+military_branch,Military Branch,One of the 6 U.S. military branches
+military_unit_base,Military Unit / Base,"Specific installation, command, or unit"
+rotc_program,ROTC Program,Army/Navy/Air Force ROTC
+professional_association,Professional Association,"Industry org (IEEE, AMA, ABA, etc.)"
+honor_society,Honor Society,Academic honor/recognition organization
+business_school_club,Business School Club,Org under a business/b-school umbrella
+student_government,Student Government,SGA or equivalent
+student_organization,Student Organization,General campus club/org (catch-all)
+alumni_association,Alumni Association,Formal alumni body of a school/org
+country_club,Country Club,Private social/athletic club
+athletic_fitness_program,Athletic / Fitness Program,"Gym, CrossFit, league, etc."
+investor_founder_network,Investor / Founder Network,"VC network, angel group, founder community"
+philanthropic_advisory_board,Philanthropic / Advisory Board,"Board, foundation, nonprofit advisory"
+young_professionals_organization,Young Professionals Organization,"YPO, Rotary Young Professionals, city-specific"
+religious_organization,Religious Organization,"Campus ministry, faith community, church"
+cultural_organization,Cultural Organization,International/cultural student org
+graduate_professional_school,Graduate / Professional School,"MBA, law, med, or other grad program"
+study_abroad_program,Study Abroad Program,Program or destination-based cohort
+residence_hall_housing,Residence Hall / Housing,"Dorm, Greek house, living-learning community"
+performing_arts,Performing Arts,"Theater, band, orchestra, dance, choir"
+media_publication,Media / Publication,"Campus newspaper, magazine, radio, TV"
+political_organization,Political Organization,"College Dems/Republicans, advocacy groups"
+debate_academic_competition,Debate / Academic Competition,"Mock trial, debate, Model UN"
+other,Other,Catch-all for unlisted org types

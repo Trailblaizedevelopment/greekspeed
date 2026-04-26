@@ -8,3 +8,7 @@ export const MAPBOX_GEOCODE_V6_FORWARD_URL = 'https://api.mapbox.com/search/geoc
  */
 export const GEOCODING_SUGGEST_TYPES_DEFAULT_US =
   'place,locality,neighborhood,district,region,postcode,address,street';
+
+/** Prefer city/region over streets when bulk-resolving `alumni.location` text. */
+export const GEOCODING_BACKFILL_TYPES_PRIORITIZE_PLACE =
+  'place,locality,region,postcode,neighborhood,district';

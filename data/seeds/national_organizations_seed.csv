@@ -1,0 +1,211 @@
+name,short_name,type,website_url,logo_url,source_section
+Acacia,,nic_fraternity,,,2A_NIC
+Alpha Chi Rho,,nic_fraternity,,,2A_NIC
+Alpha Delta Gamma,,nic_fraternity,,,2A_NIC
+Alpha Delta Phi,,nic_fraternity,,,2A_NIC
+Alpha Epsilon Pi (AEPi),,nic_fraternity,,,2A_NIC
+Alpha Gamma Rho,,nic_fraternity,,,2A_NIC
+Alpha Gamma Sigma,,nic_fraternity,,,2A_NIC
+Alpha Kappa Lambda,,nic_fraternity,,,2A_NIC
+Alpha Phi Delta,,nic_fraternity,,,2A_NIC
+Alpha Sigma Phi,,nic_fraternity,,,2A_NIC
+Alpha Tau Omega (ATO),,nic_fraternity,,,2A_NIC
+Beta Chi Theta,,nic_fraternity,,,2A_NIC
+Beta Sigma Psi,,nic_fraternity,,,2A_NIC
+Beta Theta Pi,,nic_fraternity,,,2A_NIC
+Chi Phi,,nic_fraternity,,,2A_NIC
+Chi Psi,,nic_fraternity,,,2A_NIC
+Delta Chi,,nic_fraternity,,,2A_NIC
+Delta Kappa Epsilon (DKE),,nic_fraternity,,,2A_NIC
+Delta Phi,,nic_fraternity,,,2A_NIC
+Delta Sigma Phi,,nic_fraternity,,,2A_NIC
+Delta Tau Delta,,nic_fraternity,,,2A_NIC
+Delta Upsilon,,nic_fraternity,,,2A_NIC
+FarmHouse,,nic_fraternity,,,2A_NIC
+Kappa Alpha Order (KA),,nic_fraternity,,,2A_NIC
+Kappa Alpha Society,,nic_fraternity,,,2A_NIC
+Kappa Delta Phi,,nic_fraternity,,,2A_NIC
+Kappa Delta Rho,,nic_fraternity,,,2A_NIC
+Kappa Sigma,,nic_fraternity,,,2A_NIC
+Lambda Chi Alpha,,nic_fraternity,,,2A_NIC
+Lambda Phi Epsilon,,nic_fraternity,,,2A_NIC
+Lambda Theta Phi,,nic_fraternity,,,2A_NIC
+Omega Delta Phi,,nic_fraternity,,,2A_NIC
+Phi Delta Theta,,nic_fraternity,,,2A_NIC
+Phi Gamma Delta (FIJI),,nic_fraternity,,,2A_NIC
+Phi Kappa Psi,,nic_fraternity,,,2A_NIC
+Phi Kappa Sigma,,nic_fraternity,,,2A_NIC
+Phi Kappa Tau,,nic_fraternity,,,2A_NIC
+Phi Kappa Theta,,nic_fraternity,,,2A_NIC
+Phi Mu Delta,,nic_fraternity,,,2A_NIC
+Phi Sigma Kappa,,nic_fraternity,,,2A_NIC
+Pi Kappa Alpha (PIKE),,nic_fraternity,,,2A_NIC
+Pi Kappa Phi,,nic_fraternity,,,2A_NIC
+Pi Lambda Phi,,nic_fraternity,,,2A_NIC
+Psi Upsilon,,nic_fraternity,,,2A_NIC
+Sigma Alpha Epsilon (SAE),,nic_fraternity,,,2A_NIC
+Sigma Alpha Mu (Sammy),,nic_fraternity,,,2A_NIC
+Sigma Chi,,nic_fraternity,,,2A_NIC
+Sigma Nu,,nic_fraternity,,,2A_NIC
+Sigma Phi Epsilon (SigEp),,nic_fraternity,,,2A_NIC
+Sigma Pi,,nic_fraternity,,,2A_NIC
+Sigma Tau Gamma,,nic_fraternity,,,2A_NIC
+Tau Delta Phi,,nic_fraternity,,,2A_NIC
+Tau Epsilon Phi,,nic_fraternity,,,2A_NIC
+Tau Kappa Epsilon (TKE),,nic_fraternity,,,2A_NIC
+Theta Chi,,nic_fraternity,,,2A_NIC
+Theta Delta Chi,,nic_fraternity,,,2A_NIC
+Theta Xi,,nic_fraternity,,,2A_NIC
+Triangle Fraternity,,nic_fraternity,,,2A_NIC
+Zeta Beta Tau (ZBT),,nic_fraternity,,,2A_NIC
+Zeta Psi,,nic_fraternity,,,2A_NIC
+Phi Sigma Pi,,nic_fraternity,,,2A_NIC
+Alpha Chi Omega (AXO),,npc_sorority,,,2B_NPC
+Alpha Delta Pi (ADPi),,npc_sorority,,,2B_NPC
+Alpha Epsilon Phi (AEPhi),,npc_sorority,,,2B_NPC
+Alpha Gamma Delta (AGD),,npc_sorority,,,2B_NPC
+Alpha Omicron Pi (AOII),,npc_sorority,,,2B_NPC
+Alpha Phi (APhi),,npc_sorority,,,2B_NPC
+Alpha Sigma Alpha (ASA),,npc_sorority,,,2B_NPC
+Alpha Sigma Tau (AST),,npc_sorority,,,2B_NPC
+Alpha Xi Delta (AXiD),,npc_sorority,,,2B_NPC
+Chi Omega (Chi O),,npc_sorority,,,2B_NPC
+Delta Delta Delta (Tri Delta),,npc_sorority,,,2B_NPC
+Delta Gamma (DG),,npc_sorority,,,2B_NPC
+Delta Phi Epsilon (DPhiE),,npc_sorority,,,2B_NPC
+Delta Zeta (DZ),,npc_sorority,,,2B_NPC
+Gamma Phi Beta,,npc_sorority,,,2B_NPC
+Kappa Alpha Theta (Theta),,npc_sorority,,,2B_NPC
+Kappa Delta (KD),,npc_sorority,,,2B_NPC
+Kappa Kappa Gamma (Kappa),,npc_sorority,,,2B_NPC
+Phi Mu,,npc_sorority,,,2B_NPC
+Phi Sigma Sigma (PhiSig),,npc_sorority,,,2B_NPC
+Pi Beta Phi (Pi Phi),,npc_sorority,,,2B_NPC
+Sigma Delta Tau (SDT),,npc_sorority,,,2B_NPC
+Sigma Kappa (SK),,npc_sorority,,,2B_NPC
+Sigma Sigma Sigma (Tri Sigma),,npc_sorority,,,2B_NPC
+Theta Phi Alpha,,npc_sorority,,,2B_NPC
+Zeta Tau Alpha (ZTA),,npc_sorority,,,2B_NPC
+"Alpha Phi Alpha (ÎÎ¦Î) â founded 1906, Cornell",,nphc_fraternity,,,2C_NPHC
+"Kappa Alpha Psi (ÎÎÎ¨) â founded 1911, Indiana",,nphc_fraternity,,,2C_NPHC
+"Omega Psi Phi (Î©Î¨Î¦) â founded 1911, Howard",,nphc_fraternity,,,2C_NPHC
+"Phi Beta Sigma (Î¦ÎÎ£) â founded 1914, Howard",,nphc_fraternity,,,2C_NPHC
+"Iota Phi Theta (ÎÎ¦Î) â founded 1963, Morgan State",,nphc_fraternity,,,2C_NPHC
+"Alpha Kappa Alpha (ÎÎÎ) â founded 1908, Howard",,nphc_sorority,,,2C_NPHC
+"Delta Sigma Theta (ÎÎ£Î) â founded 1913, Howard",,nphc_sorority,,,2C_NPHC
+"Zeta Phi Beta (ÎÎ¦Î) â founded 1920, Howard",,nphc_sorority,,,2C_NPHC
+"Sigma Gamma Rho (Î£ÎÎ¡) â founded 1922, Butler",,nphc_sorority,,,2C_NPHC
+"Lambda Phi Epsilon (Asian-interest, 1981)",,mgc_fraternity,,,2D_MGC
+"Lambda Theta Phi (Latino, 1975)",,mgc_fraternity,,,2D_MGC
+"Lambda Upsilon Lambda (Latino ""La Unidad Latina"")",,mgc_fraternity,,,2D_MGC
+Omega Delta Phi (Latino),,mgc_fraternity,,,2D_MGC
+Pi Alpha Phi (Asian-interest),,mgc_fraternity,,,2D_MGC
+"Phi Iota Alpha (Latino, oldest Latino fraternity, 1931)",,mgc_fraternity,,,2D_MGC
+Sigma Lambda Beta (Latino/multicultural),,mgc_fraternity,,,2D_MGC
+Nu Alpha Phi (Asian-interest),,mgc_fraternity,,,2D_MGC
+Pi Delta Psi (Asian-interest),,mgc_fraternity,,,2D_MGC
+Beta Chi Theta (South Asian),,mgc_fraternity,,,2D_MGC
+Sigma Beta Rho (South Asian/multicultural),,mgc_fraternity,,,2D_MGC
+Alpha Kappa Delta Phi (Asian-interest sorority),,mgc_fraternity,,,2D_MGC
+Tau Kappa Phi (South Asian),,mgc_fraternity,,,2D_MGC
+Lambda Theta Alpha (Latina),,mgc_fraternity,,,2D_MGC
+Sigma Lambda Gamma (Latina/multicultural),,mgc_fraternity,,,2D_MGC
+Sigma Lambda Upsilon / SeÃ±oritas Latinas Unidas,,mgc_fraternity,,,2D_MGC
+Delta Phi Lambda (Asian-interest),,mgc_fraternity,,,2D_MGC
+Gamma Alpha Omega (Latina),,mgc_fraternity,,,2D_MGC
+Mu Sigma Upsilon (multicultural),,mgc_fraternity,,,2D_MGC
+Chi Delta Theta (Asian-interest),,mgc_fraternity,,,2D_MGC
+Theta Nu Xi (multicultural),,mgc_fraternity,,,2D_MGC
+Omega Phi Beta (Latina),,mgc_fraternity,,,2D_MGC
+Alpha Pi Omega (Native American),,mgc_fraternity,,,2D_MGC
+"Alpha Kappa Psi (AKPsi) â co-ed, business",,professional_service,,,2E_professional
+"Delta Sigma Pi (DSP) â co-ed, business",,professional_service,,,2E_professional
+"Phi Chi Theta â co-ed, business/economics",,professional_service,,,2E_professional
+"Phi Gamma Nu â women's, business",,professional_service,,,2E_professional
+"Phi Alpha Delta (PAD) â co-ed, pre-law/law",,professional_service,,,2E_professional
+Phi Delta Phi â law,,professional_service,,,2E_professional
+Delta Theta Phi â law,,professional_service,,,2E_professional
+Kappa Beta Pi â women's law,,professional_service,,,2E_professional
+Theta Tau â engineering (professional),,professional_service,,,2E_professional
+"Triangle â STEM (engineering, science, architecture)",,professional_service,,,2E_professional
+Alpha Chi Sigma â chemistry,,professional_service,,,2E_professional
+Alpha Rho Chi (APX),,professional_service,,,2E_professional
+Kappa Kappa Psi â band (men's),,professional_service,,,2E_professional
+Tau Beta Sigma â band (women's),,professional_service,,,2E_professional
+Phi Mu Alpha Sinfonia â music (men's),,professional_service,,,2E_professional
+Sigma Alpha Iota â music (women's),,professional_service,,,2E_professional
+"Alpha Phi Omega (APO) â co-ed, service",,professional_service,,,2E_professional
+"Phi Sigma Pi â co-ed, honor/service",,professional_service,,,2E_professional
+Phi Delta Epsilon â medical,,professional_service,,,2E_professional
+Lambda Kappa Sigma â women's pharmacy,,professional_service,,,2E_professional
+Alpha Kappa Psi (AKPsi) â largest professional business fraternity,,professional_association,,,Business / Finance:
+Delta Sigma Pi (DSP) â co-ed business fraternity,,professional_association,,,Business / Finance:
+"Phi Chi Theta â business/economics, co-ed",,professional_association,,,Business / Finance:
+Phi Gamma Nu â women's professional business,,professional_association,,,Business / Finance:
+FBLA (Future Business Leaders of America) â high school + college,,professional_association,,,Business / Finance:
+DECA â collegiate chapter,,professional_association,,,Business / Finance:
+Society for Human Resource Management (SHRM) â student chapter,,professional_association,,,Business / Finance:
+American Marketing Association (AMA) â student chapter,,professional_association,,,Business / Finance:
+Financial Management Association (FMA),,professional_association,,,Business / Finance:
+CFA Society Student Affiliates,,professional_association,,,Finance / Investment:
+Financial Planning Association (FPA) â student chapter,,professional_association,,,Finance / Investment:
+"Investment Banking Club (school-specific, widely common)",,professional_association,,,Finance / Investment:
+Rotary Club â campus chapter,,professional_association,,,Finance / Investment:
+Tau Beta Pi â engineering honor society (see also 6B),,professional_association,,,Engineering / STEM:
+IEEE Student Branch â electrical/computer engineering,,professional_association,,,Engineering / STEM:
+ASME (American Society of Mechanical Engineers) â student section,,professional_association,,,Engineering / STEM:
+ASCE (American Society of Civil Engineers) â student chapter,,professional_association,,,Engineering / STEM:
+AIChE (American Institute of Chemical Engineers) â student chapter,,professional_association,,,Engineering / STEM:
+Society of Women Engineers (SWE),,professional_association,,,Engineering / STEM:
+National Society of Black Engineers (NSBE),,professional_association,,,Engineering / STEM:
+Society of Hispanic Professional Engineers (SHPE),,professional_association,,,Engineering / STEM:
+ACM (Association for Computing Machinery) â student chapter,,professional_association,,,Engineering / STEM:
+Phi Alpha Delta (PAD) â pre-law,,professional_association,,,Law / Pre-Law:
+"Pre-Law Society (school-specific, widely common)",,professional_association,,,Law / Pre-Law:
+American Bar Association (ABA) Law Student Division,,professional_association,,,Law / Pre-Law:
+AMSA (American Medical Student Association),,professional_association,,,Medicine / Health Sciences:
+AED (Alpha Epsilon Delta) â pre-med honor society,,professional_association,,,Medicine / Health Sciences:
+SNMA (Student National Medical Association),,professional_association,,,Medicine / Health Sciences:
+APhA-ASP (American Pharmacists Association Academy of Student Pharmacists),,professional_association,,,Medicine / Health Sciences:
+PNSA (Pre-Nursing Student Association),,professional_association,,,Medicine / Health Sciences:
+Beta Alpha Psi â accounting/finance honor society,,professional_association,,,Accounting:
+IMA (Institute of Management Accountants) â student chapter,,professional_association,,,Accounting:
+AIA (American Institute of Architects) â student chapter,,professional_association,,,Architecture / Design:
+AIGA â design student chapter,,professional_association,,,Architecture / Design:
+Student NEA / state education associations,,professional_association,,,Education:
+Phi Beta Kappa (PBK) â oldest academic honor society (arts & sciences),,honor_society,,,Interdisciplinary / General:
+Mortar Board â senior honor society,,honor_society,,,Interdisciplinary / General:
+Omicron Delta Kappa (ODK) â leadership honor society,,honor_society,,,Interdisciplinary / General:
+Golden Key International Honour Society,,honor_society,,,Interdisciplinary / General:
+National Society of Collegiate Scholars (NSCS),,honor_society,,,Interdisciplinary / General:
+Phi Kappa Phi â all-discipline honor society,,honor_society,,,Interdisciplinary / General:
+Order of Omega â Greek honor society,,honor_society,,,Greek-Specific:
+Phi Sigma (biological sciences),,honor_society,,,Greek-Specific:
+Beta Gamma Sigma â AACSB-accredited business schools,,honor_society,,,Business:
+Beta Alpha Psi â accounting/finance,,honor_society,,,Business:
+Tau Beta Pi â engineering,,honor_society,,,Engineering:
+Eta Kappa Nu (HKN) â electrical/computer engineering (IEEE honor society),,honor_society,,,Engineering:
+Pi Tau Sigma â mechanical engineering,,honor_society,,,Engineering:
+Chi Epsilon â civil engineering,,honor_society,,,Engineering:
+Omega Chi Epsilon â chemical engineering,,honor_society,,,Engineering:
+Sigma Gamma Tau â aerospace engineering,,honor_society,,,Engineering:
+Sigma Xi â scientific research,,honor_society,,,Sciences:
+Phi Lambda Upsilon â chemistry,,honor_society,,,Sciences:
+Gamma Sigma Delta â agriculture,,honor_society,,,Sciences:
+Pi Mu Epsilon â mathematics,,honor_society,,,Sciences:
+Sigma Pi Sigma â physics,,honor_society,,,Sciences:
+Phi Alpha Theta â history,,honor_society,,,Social Sciences / Humanities:
+Pi Sigma Alpha â political science,,honor_society,,,Social Sciences / Humanities:
+Psi Chi â psychology,,honor_society,,,Social Sciences / Humanities:
+Lambda Pi Eta â communication,,honor_society,,,Social Sciences / Humanities:
+Kappa Tau Alpha â journalism/mass communication,,honor_society,,,Social Sciences / Humanities:
+Phi Alpha Delta â pre-law,,honor_society,,,Social Sciences / Humanities:
+Alpha Kappa Delta â sociology,,honor_society,,,Social Sciences / Humanities:
+Pi Kappa Lambda â music,,honor_society,,,Social Sciences / Humanities:
+Kappa Delta Pi â education,,honor_society,,,Social Sciences / Humanities:
+Alpha Epsilon Delta â pre-med,,honor_society,,,Healthcare:
+Rho Chi â pharmacy,,honor_society,,,Healthcare:
+Sigma Theta Tau â nursing,,honor_society,,,Healthcare:
+Alpha Sigma Lambda â non-traditional/adult students,,honor_society,,,Other:
+Alpha Lambda Delta â freshman academic honor,,honor_society,,,Other:
+Phi Eta Sigma â freshman honor society,,honor_society,,,Other:

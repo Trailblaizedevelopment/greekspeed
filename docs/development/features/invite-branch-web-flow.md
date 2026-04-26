@@ -21,12 +21,12 @@ flowchart TD
   A[Admin creates invitation] --> B[Token stored in invitations]
   B --> C{Link shared}
   C --> D[Smart link e.g. Branch]
-  C --> E[Direct web URL /join/token]
+  C --> E[Shared URL /open?intent=…]
   D --> F{Opens where?}
   F -->|Native app| G[App handles token / intent]
-  F -->|In-app browser or desktop browser| H["/open?intent=… or /join/…"]
-  E --> I["/join/token join UI"]
-  H --> I
+  F -->|In-app browser or desktop browser| H["/open?intent=…"]
+  E --> H
+  H --> I["/join/token join UI (after Continue in browser)"]
   I --> J[Sign up / sign in + accept invite APIs]
   J --> K["/onboarding/… as needed"]
 ```
@@ -45,14 +45,21 @@ flowchart TD
 
 Server-side validation for public flows uses **`validateInvitationToken()`** in `lib/utils/invitationUtils.ts` (checks active row, expiry, usage limits, loads chapter name for display).
 
-### Canonical web invite URLs (no Branch required)
+### Canonical shared URLs (no Branch required)
 
-- **`generateInvitationUrl()`** (`lib/utils/invitationUtils.ts`) builds:
-  - **`{origin}/join/{token}`** for standard chapter member invites.
-  - **`{origin}/alumni-join/{token}`** when `invitation_type === 'alumni'`.
-- **`generateChapterJoinUrl()`** builds **`{origin}/join/chapter/{slug}`** for slug-based join (role chosen on the page).
+- **`lib/utils/openBridgeUrls.ts`** builds absolute **`/open`** entry URLs with the same query contract as `deferredAppRouting.ts`.
+- **`generateInvitationUrl()`** / **`generateChapterJoinUrl()`** (`lib/utils/invitationUtils.ts`) delegate to those helpers:
+  - Active member: **`{origin}/open?intent=invite&token=…`** → continue → **`/join/{token}`**.
+  - Alumni type: **`{origin}/open?intent=alumni_invite&token=…`** → **`/alumni-join/{token}`**.
+  - Chapter slug: **`{origin}/open?intent=chapter_join&slug=…`** → **`/join/chapter/{slug}`**.
 
-Admins copy these from invite management UI; APIs such as **`POST /api/invitations`** return an `invitation_url` in the same shape.
+Admins copy these from invite management UI; APIs such as **`POST /api/invitations`** return `invitation_url` in this **bridge-first** shape. Join pages and validation are unchanged; only the **first** URL users receive is `/open`.
+
+### Event emails (magic link → bridge → event)
+
+- **New event** and **event reminder** emails (`EmailService.sendEventNotification`, `sendEventReminder`) use Supabase magic links whose **`redirectTo`** targets **`/open?intent=web&path=%2Fevent%2F…`** (built via **`buildOpenBridgeWebIntentRelativeLink`**), then **Continue in browser** resolves to the public **`/event/…`** page.
+
+**Supabase dashboard:** allow redirect URLs that include **`/open`** with query strings for the deployed host(s), e.g. `https://www.trailblaize.net/open**` (see Supabase redirect URL documentation).
 
 ### Join and accept flows
 
@@ -67,8 +74,8 @@ Admins copy these from invite management UI; APIs such as **`POST /api/invitatio
 
 When a smart link opens in a **normal browser** (app not opened), the product needs a small **bridge** page. This repo implements **`GET /open`** in the marketing area:
 
-- **Server:** `app/(marketing)/open/page.tsx` reads `searchParams`, resolves a **continue path** via **`resolveOpenBridgeContinuePath()`** (`lib/utils/deferredAppRouting.ts`), optionally resolves **chapter name** for **`intent=invite`** using **`validateInvitationToken()`** (only when valid — invalid tokens do not leak chapter names on this page).
-- **Client:** `app/(marketing)/open/OpenBridgeClient.tsx` — logo, trust copy when chapter name is known, **primary CTA: continue in browser** (navigates to resolved path), **secondary: App Store / Google Play** when `NEXT_PUBLIC_APP_STORE_URL` / `NEXT_PUBLIC_GOOGLE_PLAY_URL` are set (see `.env.example`).
+- **Server:** `app/open/page.tsx` reads `searchParams`, resolves a **continue path** via **`resolveOpenBridgeContinuePath()`** (`lib/utils/deferredAppRouting.ts`), optionally resolves **chapter name** for **`intent=invite`** using **`validateInvitationToken()`** (only when valid — invalid tokens do not leak chapter names on this page).
+- **Client:** `app/open/OpenBridgeClient.tsx` — minimal bridge UI (no marketing layout): full-width logo band, trust copy when chapter name is known, **primary CTA: continue in browser**, **secondary: App Store / Google Play** when env store URLs are set (see `.env.example`). Small Privacy / Contact links only.
 
 ### Supported bridge intents (web resolver)
 
@@ -101,7 +108,7 @@ The web implementation is **provider-agnostic**: Branch is optional. If you use 
 3. **Native app:** on successful open, handle the payload in the SDK; **do not** require hitting `/open` when the app already opened.
 4. **Allowlists:** if the provider restricts redirect domains, include all web hosts you use.
 
-**Note:** Admin-visible **`invitation_url`** today is the **direct** `/join/...` or `/alumni-join/...` URL. Sharing a **Branch** URL instead is a **product/ops** choice: either replace the copied link in the UI with a generated Branch link (when mobile SDK/API is available) or document that admins should use a template link; no separate DB column is strictly required if the Branch URL is deterministic from `token`.
+**Note:** Admin **`invitation_url`** values are **`/open?...`** entry URLs. A **Branch** (or other) short link can still wrap the same URL as its web fallback; no extra DB column is required if the Branch template mirrors `intent` + `token` / `slug`.
 
 ---
 
@@ -135,10 +142,11 @@ The web implementation is **provider-agnostic**: Branch is optional. If you use 
 | Area | Location |
 |------|-----------|
 | Invite token validation | `lib/utils/invitationUtils.ts` |
+| Open bridge URL builders | `lib/utils/openBridgeUrls.ts` |
 | Public URL helpers | `lib/utils/invitationUtils.ts` (`generateInvitationUrl`, `generateChapterJoinUrl`) |
 | `/open` resolver + allowlist | `lib/utils/deferredAppRouting.ts` |
-| `/open` server page | `app/(marketing)/open/page.tsx` |
-| `/open` UI | `app/(marketing)/open/OpenBridgeClient.tsx` |
+| `/open` server page | `app/open/page.tsx` |
+| `/open` UI | `app/open/OpenBridgeClient.tsx` |
 | Create/list invitations API | `app/api/invitations/` |
 | Validate token API | `app/api/invitations/validate/[token]/route.ts` |
 | Join pages | `app/join/`, `app/join/chapter/` |

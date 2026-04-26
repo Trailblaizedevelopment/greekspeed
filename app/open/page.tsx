@@ -21,6 +21,9 @@ interface OpenBridgePageProps {
 /**
  * Branch / app deep-link fallback: users land here in a browser when a smart link
  * does not open the native app. Query params are documented in `deferredAppRouting.ts`.
+ *
+ * Routed at `app/open` (outside `(marketing)`) so this page does not inherit the
+ * full marketing site footer.
  */
 export default async function OpenBridgePage({ searchParams }: OpenBridgePageProps) {
   const raw = await searchParams;

@@ -321,7 +321,7 @@ export function AlumniFilterBar({
             </Button>
 
 
-            {/* Location state (alumni.location) */}
+            {/* Location state (`alumni.work_state_code`) */}
             <div className="relative">
               <Select 
                 value={filters.state} 

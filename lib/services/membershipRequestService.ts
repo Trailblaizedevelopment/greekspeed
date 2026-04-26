@@ -117,6 +117,7 @@ async function syncAlumniRecord(params: {
     email: params.email,
     phone: params.phone,
     location: 'Not specified',
+    work_state_code: null,
     linkedin_url: params.linkedinUrl,
     description: existingAlumni?.description ?? `Alumni from ${params.chapterName}`,
     avatar_url: existingAlumni?.avatar_url ?? params.existingAvatarUrl,

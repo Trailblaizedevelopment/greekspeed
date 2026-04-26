@@ -2,6 +2,7 @@ import sgMail from '@sendgrid/mail';
 import { getEmailBaseUrl } from '@/lib/utils/urlUtils';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { getPrimaryLinkFromMetadata } from '@/lib/validation/announcementMetadata';
+import { buildOpenBridgeWebIntentRelativeLink } from '@/lib/utils/openBridgeUrls';
 
 function escapeHtmlForEmail(text: string): string {
   return text
@@ -292,11 +293,11 @@ export class EmailService {
       const eventPath = eventData?.slug 
         ? `/event/${eventData.slug}` 
         : `/event/${eventId}`;
-  
-      const notificationUrl = await this.generateMagicLink(
-        to,
-        eventPath
-      );
+
+      const bridgePath =
+        buildOpenBridgeWebIntentRelativeLink(eventPath) ?? eventPath;
+
+      const notificationUrl = await this.generateMagicLink(to, bridgePath);
   
       const formatDateTime = (date: Date) => {
         return date.toLocaleDateString('en-US', {
@@ -1383,7 +1384,7 @@ export class EmailService {
     eventDescription,
     eventLocation,
     eventStartTime,
-    eventEndTime,
+    eventEndTime: _eventEndTime,
     eventId,
     startAtRelative
   }: {
@@ -1413,6 +1414,20 @@ export class EmailService {
 
       const startHuman = eventStartTime ? formatDateTime(new Date(eventStartTime)) : 'Time TBD';
 
+      const supabase = createServerSupabaseClient();
+      const { data: eventRow } = await supabase
+        .from('events')
+        .select('slug')
+        .eq('id', eventId)
+        .maybeSingle();
+
+      const eventPath = eventRow?.slug
+        ? `/event/${eventRow.slug}`
+        : `/event/${eventId}`;
+      const bridgePath =
+        buildOpenBridgeWebIntentRelativeLink(eventPath) ?? eventPath;
+      const ctaUrl = await this.generateMagicLink(to, bridgePath);
+
       const msg = {
         to,
         from: {
@@ -1440,7 +1455,7 @@ export class EmailService {
             }
           },
           cta: {
-            url: 'https://www.trailblaize.net'
+            url: ctaUrl
           },
           unsubscribe: `{{unsubscribe}}`,
           unsubscribe_preferences: `{{unsubscribe_preferences}}`

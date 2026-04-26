@@ -1,6 +1,9 @@
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { Invitation, InvitationUsage, InvitationValidationResult } from '@/types/invitations';
-import { getBaseUrl } from '@/lib/utils/urlUtils';
+import {
+  buildOpenBridgeChapterJoinEntryUrl,
+  buildOpenBridgeInviteEntryUrl,
+} from '@/lib/utils/openBridgeUrls';
 
 /**
  * Generate a secure random token for invitations
@@ -256,26 +259,16 @@ export async function getInvitationStats(chapterId: string): Promise<{
 }
 
 /**
- * Generate invitation URL
+ * Generate invitation URL (via `/open` bridge → join / alumni-join).
  */
 export function generateInvitationUrl(token: string, invitationType?: string, baseUrl?: string): string {
-  // If baseUrl is explicitly provided, use it (for server-side with specific requirements)
-  // Otherwise, use getBaseUrl() which detects browser vs server environment
-  const base = baseUrl || getBaseUrl();
-
-  // Route to alumni join page for alumni invitations
-  if (invitationType === 'alumni') {
-    return `${base}/alumni-join/${token}`;
-  }
-  
-  return `${base}/join/${token}`;
+  return buildOpenBridgeInviteEntryUrl(token, invitationType, baseUrl);
 }
 
 /**
- * Generate a canonical chapter join URL using the chapter's slug.
+ * Generate a canonical chapter join URL using the chapter's slug (via `/open` bridge).
  * This link allows invitees to choose their role (alumni vs active) at join time.
  */
 export function generateChapterJoinUrl(slug: string, baseUrl?: string): string {
-  const base = baseUrl || getBaseUrl();
-  return `${base}/join/chapter/${slug}`;
+  return buildOpenBridgeChapterJoinEntryUrl(slug, baseUrl);
 }

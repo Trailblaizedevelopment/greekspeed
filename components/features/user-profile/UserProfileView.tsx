@@ -24,6 +24,8 @@ import { useRouter } from 'next/navigation';
 import { ShareProfileDrawer } from "@/components/features/messaging/ShareProfileDrawer";
 import { ConnectionRequestDialog } from "@/components/features/connections/ConnectionRequestDialog";
 import { formatLocationLineForApp } from "@/types/canonicalPlace";
+import { SocialLinksDisplay } from "@/components/features/social-links/SocialLinksDisplay";
+import { DEFAULT_BANNER_IMAGE } from "@/lib/constants";
 
 interface UserProfileViewProps {
   profile: UnifiedUserProfile;
@@ -221,7 +223,13 @@ export function UserProfileView({ profile, onClose, hideCloseButton = false }: U
       {/* Profile Header with Integrated Close Button */}
       <div className="relative">
         {/* Background Banner */}
-        <div className="h-20 bg-gradient-to-r from-primary-100 to-accent-100 rounded-t-xl" />
+        <div className="h-20 rounded-t-xl overflow-hidden">
+          <img
+            src={profile.banner_url || DEFAULT_BANNER_IMAGE}
+            alt="Profile banner"
+            className="w-full h-full object-cover"
+          />
+        </div>
         
         {/* Close Button - Only show if not hidden */}
         {!hideCloseButton && (
@@ -317,6 +325,13 @@ export function UserProfileView({ profile, onClose, hideCloseButton = false }: U
           )}
         </div>
       </div>
+
+      {/* Social Links */}
+      {profile.social_links && profile.social_links.length > 0 && (
+        <div className="px-6 pb-3">
+          <SocialLinksDisplay links={profile.social_links} compact centered />
+        </div>
+      )}
 
       {/* Compact Information Grid */}
       <div className="px-6 pb-6">

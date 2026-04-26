@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { normalizeIndustry } from '@/lib/industryUtils';
-import {
-  buildAlumniLocationStateOrFilter,
-  buildProfileHometownStateOrFilter,
-} from '@/lib/alumniDirectoryFilters';
+import { buildProfileHometownStateOrFilter } from '@/lib/alumniDirectoryFilters';
+import { getStateNameByCode } from '@/lib/usStates';
 
 /** Literal select strings so Supabase client keeps `alumni` row typing. */
 const ALUMNI_LIST_SELECT_LEFT_NOROLE = `
@@ -458,9 +456,11 @@ export async function GET(request: NextRequest) {
         }
         
         if (state) {
-          const locOr = buildAlumniLocationStateOrFilter(state);
-          chapterNameQuery = chapterNameQuery.or(locOr);
-          chapterIdQuery = chapterIdQuery.or(locOr);
+          const workStateCode = state.trim().toUpperCase();
+          if (getStateNameByCode(workStateCode)) {
+            chapterNameQuery = chapterNameQuery.eq('work_state_code', workStateCode);
+            chapterIdQuery = chapterIdQuery.eq('work_state_code', workStateCode);
+          }
         }
 
         if (hometownFilterActive) {
@@ -675,9 +675,11 @@ export async function GET(request: NextRequest) {
         }
         
         if (state) {
-          const locOr = buildAlumniLocationStateOrFilter(state);
-          chapterNameQuery = chapterNameQuery.or(locOr);
-          chapterIdQuery = chapterIdQuery.or(locOr);
+          const workStateCode = state.trim().toUpperCase();
+          if (getStateNameByCode(workStateCode)) {
+            chapterNameQuery = chapterNameQuery.eq('work_state_code', workStateCode);
+            chapterIdQuery = chapterIdQuery.eq('work_state_code', workStateCode);
+          }
         }
 
         if (hometownFilterActive) {
@@ -829,7 +831,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (state) {
-      query = query.or(buildAlumniLocationStateOrFilter(state));
+      const workStateCode = state.trim().toUpperCase();
+      if (getStateNameByCode(workStateCode)) {
+        query = query.eq('work_state_code', workStateCode);
+      }
     }
 
     if (hometownFilterActive) {
