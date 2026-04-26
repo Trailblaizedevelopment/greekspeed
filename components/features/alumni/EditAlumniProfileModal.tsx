@@ -1188,7 +1188,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                 <div>
                   {!isMobile && (
                     <div className="flex items-center gap-2 mb-3">
-                      <Linkedin className="w-5 h-5 text-brand-primary" />
                       <h3 className="text-lg font-semibold text-brand-primary">Social links</h3>
                       <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
                         Optional
@@ -1197,7 +1196,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                   )}
                   {isMobile && (
                     <Label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                      <Linkedin className="w-4 h-4" aria-hidden />
                       Social links
                     </Label>
                   )}
