@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Drawer } from "vaul";
-import { Filter, X } from "lucide-react";
+import { Filter, X, Search, SlidersHorizontal } from "lucide-react";
 import { LinkedInStyleChapterCard } from "./LinkedInStyleChapterCard";
 import { ChapterCardSkeletonGrid } from "./ChapterCardSkeleton";
 import { MyChapterMobileFiltersPanel } from "./MyChapterMobileFiltersPanel";
@@ -23,12 +23,31 @@ import { useVisualViewportHeight } from "@/lib/hooks/useVisualViewportHeight";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import type { MemberSearchFilters, FilterPreset, AvailableFilterOptions } from "@/types/memberFilters";
+import type { ChapterRole } from "@/types/profile";
 
 interface MyChapterContentProps {
   onNavigate: (section: string) => void;
   activeSection: string;
   searchTerm: string;
   onSearchChange: (term: string) => void;
+  filters: MemberSearchFilters;
+  onFiltersChange: (updates: Partial<MemberSearchFilters>) => void;
+  onClearFilters: () => void;
+  availableOptions: AvailableFilterOptions;
+  advancedFilterCount: number;
+  totalFilterCount: number;
+  presets: FilterPreset[];
+  onSavePreset: (name: string) => FilterPreset;
+  onApplyPreset: (preset: FilterPreset) => void;
+  onRenamePreset: (id: string, name: string) => void;
+  onDeletePreset: (id: string) => void;
+}
+
+interface TransformedMemberWithRawData extends ChapterMember {
+  _gradYear?: number;
+  _location?: string;
+  _chapterRole?: string;
 }
 
 export function MyChapterContent({
@@ -36,6 +55,17 @@ export function MyChapterContent({
   activeSection,
   searchTerm,
   onSearchChange,
+  filters,
+  onFiltersChange,
+  onClearFilters,
+  availableOptions,
+  advancedFilterCount,
+  totalFilterCount,
+  presets,
+  onSavePreset,
+  onApplyPreset,
+  onRenamePreset,
+  onDeletePreset,
 }: MyChapterContentProps) {
   const { loading: profileLoading } = useProfile();
   const { openUserProfile } = useProfileModal();
@@ -76,7 +106,7 @@ export function MyChapterContent({
 
   const isLoading = profileLoading || membersLoading;
 
-  const transformedMembers: ChapterMember[] = members.map((member) => {
+  const transformedMembers: TransformedMemberWithRawData[] = members.map((member) => {
     const memberDescription =
       member.bio && member.bio !== "null" && member.bio.trim() !== ""
         ? member.bio
@@ -92,7 +122,7 @@ export function MyChapterContent({
       major: member.major && member.major !== "null" ? member.major : undefined,
       position:
         member.chapter_role && member.chapter_role !== "member"
-          ? getRoleDisplayName(member.chapter_role as never)
+          ? getRoleDisplayName(member.chapter_role as ChapterRole)
           : undefined,
       avatar: member.avatar_url || undefined,
       verified: member.role === "admin",
@@ -101,17 +131,43 @@ export function MyChapterContent({
       mutualConnectionsCount:
         (member as { mutualConnectionsCount?: number }).mutualConnectionsCount || 0,
       description: memberDescription,
+      _gradYear: member.grad_year,
+      _location: member.location?.trim() || member.hometown?.trim() || undefined,
+      _chapterRole: member.chapter_role && member.chapter_role !== "member" ? member.chapter_role : undefined,
     };
   });
 
-  const filteredMembers = transformedMembers.filter((member) => {
-    const matchesSearch =
-      member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.major?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.description && member.description.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredMembers = useMemo(() => {
+    return transformedMembers.filter((member) => {
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        const matchesSearch =
+          member.name.toLowerCase().includes(term) ||
+          member.major?.toLowerCase().includes(term) ||
+          (member.description && member.description.toLowerCase().includes(term));
+        if (!matchesSearch) return false;
+      }
 
-    return matchesSearch;
-  });
+      if (filters.graduationYear && member._gradYear !== Number(filters.graduationYear)) {
+        return false;
+      }
+
+      if (filters.major && member.major !== filters.major) {
+        return false;
+      }
+
+      if (filters.location) {
+        const loc = member._location || "";
+        if (loc !== filters.location) return false;
+      }
+
+      if (filters.chapterRole && member._chapterRole !== filters.chapterRole) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [transformedMembers, searchTerm, filters.graduationYear, filters.major, filters.location, filters.chapterRole]);
 
   const leadershipTitles = [
     "President",
@@ -202,11 +258,8 @@ export function MyChapterContent({
   }, [activeSection, sortedOfficers.length, generalMembers.length, filteredMembers.length]);
 
   const activeFilterCount = useMemo(() => {
-    let n = 0;
-    if (searchTerm.trim()) n += 1;
-    if (activeSection !== "all") n += 1;
-    return n;
-  }, [searchTerm, activeSection]);
+    return totalFilterCount;
+  }, [totalFilterCount]);
 
   const h = mobileHosts;
   const canPortalDashboardMobile =
@@ -275,8 +328,7 @@ export function MyChapterContent({
     ) : null;
 
   const handleClearMobileFilters = () => {
-    onSearchChange("");
-    onNavigate("all");
+    onClearFilters();
     setMobileFiltersOpen(false);
   };
 
@@ -309,7 +361,7 @@ export function MyChapterContent({
             </Button>
           </div>
           <Drawer.Description className="sr-only">
-            Search chapter members and choose which roster to display.
+            Search and filter chapter members by name, graduation year, major, location, and role.
           </Drawer.Description>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2">
             <MyChapterMobileFiltersPanel
@@ -323,6 +375,15 @@ export function MyChapterContent({
               onClearFilters={handleClearMobileFilters}
               stats={memberStatsForFilters}
               statsLoading={membersLoading}
+              filters={filters}
+              onFiltersChange={onFiltersChange}
+              availableOptions={availableOptions}
+              advancedFilterCount={advancedFilterCount}
+              presets={presets}
+              onSavePreset={onSavePreset}
+              onApplyPreset={onApplyPreset}
+              onRenamePreset={onRenamePreset}
+              onDeletePreset={onDeletePreset}
             />
           </div>
         </Drawer.Content>
@@ -342,6 +403,59 @@ export function MyChapterContent({
 
   const scrollPaddingClass =
     "pb-[calc(120px+env(safe-area-inset-bottom))] sm:pb-6 md:pb-6";
+
+  const hasActiveFilters = totalFilterCount > 0;
+
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+        {hasActiveFilters ? (
+          <SlidersHorizontal className="h-7 w-7 text-gray-400" />
+        ) : (
+          <Search className="h-7 w-7 text-gray-400" />
+        )}
+      </div>
+      <h3 className="text-lg font-medium text-gray-900 mb-2">
+        {hasActiveFilters ? "No members match your filters" : "No members found"}
+      </h3>
+      <p className="max-w-sm text-sm text-gray-500 mb-6">
+        {hasActiveFilters
+          ? "Try broadening your search by removing some filters, or save your current filter set as a preset for later."
+          : "There are no chapter members to display yet. Members will appear here once they join."}
+      </p>
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            onClick={() => onClearFilters()}
+          >
+            Clear all filters
+          </Button>
+          {advancedFilterCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-full text-gray-500"
+              onClick={() =>
+                onFiltersChange({
+                  graduationYear: null,
+                  major: null,
+                  location: null,
+                  chapterRole: null,
+                })
+              }
+            >
+              Clear advanced filters only
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   if (activeSection === "all") {
     return (
@@ -387,12 +501,7 @@ export function MyChapterContent({
               </div>
             )}
 
-            {filteredMembers.length === 0 && !isLoading && (
-              <div className="text-center py-12">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No members found</h3>
-                <p className="text-gray-500">Try adjusting your search criteria.</p>
-              </div>
-            )}
+            {filteredMembers.length === 0 && !isLoading && emptyState}
           </div>
         </div>
       </>
@@ -417,10 +526,7 @@ export function MyChapterContent({
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No members found</h3>
-              <p className="text-gray-500"></p>
-            </div>
+            emptyState
           )}
         </div>
       </div>
