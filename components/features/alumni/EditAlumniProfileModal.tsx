@@ -1067,7 +1067,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="email" className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
                       Email
                       <Badge variant="secondary" className="text-xs hidden sm:inline-flex">Required</Badge>
                     </Label>
@@ -1104,7 +1103,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
             <div className={`${isMobile ? 'space-y-3 pt-4 border-t border-gray-200' : 'space-y-4'}`}>
               {!isMobile && (
                 <div className="flex items-center gap-2 mb-3">
-                  <Briefcase className="w-5 h-5 text-brand-primary" />
                   <h3 className="text-lg font-semibold text-brand-primary">Professional Information</h3>
                   <Badge variant="secondary" className="text-xs">Alumni</Badge>
                 </div>
@@ -1166,7 +1164,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
             <div className={`${isMobile ? 'space-y-3 pt-4 border-t border-gray-200' : 'space-y-4'}`}>
               {!isMobile && (
                 <div className="flex items-center gap-2 mb-3">
-                  <Phone className="w-5 h-5 text-brand-primary" />
                   <h3 className="text-lg font-semibold text-brand-primary">Contact & Location</h3>
                 </div>
               )}
@@ -1218,7 +1215,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                   <LocationPicker
                     label={
                       <span className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" aria-hidden />
                         Current location (ZIP code)
                       </span>
                     }
@@ -1242,7 +1238,6 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
                   <LocationPicker
                     label={
                       <span className="flex items-center gap-2">
-                        <Home className="w-4 h-4" aria-hidden />
                         Hometown (optional)
                       </span>
                     }
