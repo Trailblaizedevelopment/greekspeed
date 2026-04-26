@@ -10,6 +10,7 @@ import {
   findProfileByEmailForInviteAccept,
 } from '@/lib/services/invitationAcceptPendingProfile';
 import { upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
+import { deriveWorkStateCodeFromLocationText } from '@/lib/alumni/workStateCode';
 
 // New interface for alumni form data (simplified - most fields collected during onboarding)
 interface AlumniJoinFormData {
@@ -351,6 +352,7 @@ export async function POST(
       email: normalizedEmail,
       phone: phoneDigits || null,
       location: normalizedLocation,
+      work_state_code: deriveWorkStateCodeFromLocationText(normalizedLocation),
       linkedin_url: normalizedLinkedIn,
       description: existingAlumni?.description ?? `Alumni from ${validation.chapter_name}`,
       avatar_url: existingAlumni?.avatar_url ?? null,

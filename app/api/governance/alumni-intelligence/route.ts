@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     // Fetch alumni records with industry and location for matching chapters
     const { data: alumni, error: alumniError } = await supabase
       .from('alumni')
-      .select('industry, location')
+      .select('industry, location, work_state_code')
       .in('chapter', chapterNames);
 
     if (alumniError) {
@@ -159,9 +159,12 @@ export async function GET(request: NextRequest) {
     let matchedToState = 0;
 
     for (const row of rows) {
-      if (!isValidField(row.location)) continue;
+      const wscRaw = typeof row.work_state_code === 'string' ? row.work_state_code.trim().toUpperCase() : '';
+      const codeFromCol =
+        wscRaw.length === 2 && stateCodeMap.has(wscRaw.toLowerCase()) ? wscRaw : null;
+      const code = codeFromCol ?? (isValidField(row.location) ? extractStateCode(row.location, stateCodeMap) : null);
+      if (!codeFromCol && !isValidField(row.location)) continue;
       alumniWithLocation++;
-      const code = extractStateCode(row.location, stateCodeMap);
       if (code) {
         stateCounts.set(code, (stateCounts.get(code) ?? 0) + 1);
         matchedToState++;

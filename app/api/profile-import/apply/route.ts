@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { LinkedInImportService } from '@/lib/services/linkedinInImportService';
 import { ImportReviewFormInput } from '@/types/profile-import';
+import { deriveWorkStateCodeFromLocationText } from '@/lib/alumni/workStateCode';
 
 /**
  * POST /api/profile-import/apply
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
           job_title: formData.currentExperience?.title || 'Not specified',
           industry: formData.industry || 'Not specified',
           location: formData.location || 'Not specified',
+          work_state_code: deriveWorkStateCodeFromLocationText(formData.location ?? null),
           graduation_year: graduationYear,
           updated_at: new Date().toISOString(),
         })

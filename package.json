@@ -14,7 +14,8 @@
     "test:crowded": "tsx scripts/test-crowded-api.ts",
     "test:event-check-in-token": "tsx scripts/verify-eventCheckInUrlToken.ts",
     "test:announcement-metadata": "tsx scripts/test-announcement-metadata.ts",
-    "parse-seeds": "tsx scripts/parse-seed-emails.ts"
+    "parse-seeds": "tsx scripts/parse-seed-emails.ts",
+    "backfill:alumni-current-place": "tsx scripts/backfill-alumni-current-place.ts"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",

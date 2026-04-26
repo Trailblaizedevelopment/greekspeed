@@ -36,6 +36,7 @@ import {
   parseCanonicalPlace,
   parseCanonicalPlaceConfirmed,
 } from '@/types/canonicalPlace';
+import { resolveAlumniWorkStateCode } from '@/lib/alumni/workStateCode';
 
 const editAlumniIndustryOptions = buildIndustrySelectOptions('Select Industry');
 
@@ -714,6 +715,10 @@ export function EditAlumniProfileModal({ isOpen, onClose, profile, onUpdate, var
         phone: formData.phone?.trim() || 'Not Specified',
         location: locationLine || 'Not Specified',
         current_place: persistedCurrentPlace,
+        work_state_code: resolveAlumniWorkStateCode({
+          currentPlace: persistedCurrentPlace,
+          locationLine: locationLine || null,
+        }),
         hometown: hometownLine || 'Not Specified',
         description: formData.description?.trim() || null,
         linkedin_url: linkedinUrlForLegacy,

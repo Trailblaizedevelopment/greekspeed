@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/alumni-current-place-repair",
+      "schedule": "0 9 * * *"
+    }
+  ],
   "functions": {
     "app/api/announcements/route.ts": {
       "maxDuration": 60
@@ -14,6 +20,9 @@
     },
     "app/api/events/send-email/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/alumni-current-place-repair/route.ts": {
+      "maxDuration": 120
     }
   }
 }

@@ -21,6 +21,7 @@ import {
   parseCanonicalPlace,
   parseCanonicalPlaceConfirmed,
 } from '@/types/canonicalPlace';
+import { resolveAlumniWorkStateCode } from '@/lib/alumni/workStateCode';
 import {
   User,
   Building2,
@@ -541,6 +542,10 @@ export default function ProfileBasicsPage() {
           phone: formData.phone || null,
           location: locationDisplay,
           current_place: persistedCurrentAlumni,
+          work_state_code: resolveAlumniWorkStateCode({
+            currentPlace: persistedCurrentAlumni,
+            locationLine: locationDisplay !== 'Not Specified' ? locationDisplay : null,
+          }),
           hometown: hometownDisplay,
           description: `Alumni from ${chapterName}`,
           avatar_url: profile?.avatar_url || null,

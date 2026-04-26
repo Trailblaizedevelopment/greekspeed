@@ -33,6 +33,7 @@ import {
   parseCanonicalPlace,
   parseCanonicalPlaceConfirmed,
 } from '@/types/canonicalPlace';
+import { resolveAlumniWorkStateCode } from '@/lib/alumni/workStateCode';
 import type { SocialLinkFormItem, ProfileSocialLink } from '@/types/socialLink';
 import { SocialLinksEditor } from '@/components/features/social-links/SocialLinksEditor';
 import { validateSocialLinks, normalizeSocialUrl } from '@/lib/utils/socialLinkValidation';
@@ -845,6 +846,10 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
               phone: formData.phone?.trim() || 'Not Specified',
               location: locationLine || 'Not Specified',
               current_place: persistedCurrentPlace,
+              work_state_code: resolveAlumniWorkStateCode({
+                currentPlace: persistedCurrentPlace,
+                locationLine: locationLine || null,
+              }),
               hometown: hometownLine || 'Not Specified',
               description: formData.bio?.trim() || null, // This one can be null
               is_actively_hiring: formData.is_actively_hiring || false,

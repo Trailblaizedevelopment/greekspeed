@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
+import { deriveWorkStateCodeFromLocationText } from '@/lib/alumni/workStateCode';
 
 interface ChapterJoinFormData {
   email: string;
@@ -176,6 +177,7 @@ export async function POST(
         email: normalizedEmail,
         phone: phoneDigits || null,
         location: body.location?.trim() || 'Not specified',
+        work_state_code: deriveWorkStateCodeFromLocationText(body.location?.trim() || null),
         linkedin_url: body.linkedin_url?.trim() || null,
         description: existingAlumni?.description ?? `Alumni from ${chapter.name}`,
         avatar_url: existingAlumni?.avatar_url ?? null,
