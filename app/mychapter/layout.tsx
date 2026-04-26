@@ -10,6 +10,7 @@ import { EditAlumniProfileModal } from '@/components/features/alumni/EditAlumniP
 import { UserProfileModal } from '@/components/features/user-profile/UserProfileModal';
 import { ProfileService } from '@/lib/services/profileService';
 import { ChapterFeaturesProvider } from '@/lib/contexts/ChapterFeaturesContext';
+import { ActiveChapterProvider } from '@/lib/contexts/ActiveChapterContext';
 
 export default function MyChapterLayout({
   children,
@@ -17,6 +18,7 @@ export default function MyChapterLayout({
   children: React.ReactNode;
 }) {
   return (
+    <ActiveChapterProvider>
     <ChapterFeaturesProvider>
       <div className="min-h-screen bg-gray-50">
         {/* Always show the header */}
@@ -37,6 +39,7 @@ export default function MyChapterLayout({
         </main>
       </div>
     </ChapterFeaturesProvider>
+    </ActiveChapterProvider>
   );
 }
 
