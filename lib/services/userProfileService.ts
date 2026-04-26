@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase/client';
 import { UnifiedUserProfile, UserProfileType } from '@/types/user-profile';
 import { Alumni } from '@/lib/alumniConstants';
 import { formatLocationLineForApp } from '@/types/canonicalPlace';
+import type { ProfileSocialLink } from '@/types/socialLink';
 
 /** US-app display: strip trailing country from unified profile `location` (still raw in DB). */
 function locationForUnifiedProfileDisplay(raw: string | null | undefined): string | null {
@@ -33,6 +34,28 @@ export function invalidateProfileCache(userId?: string, slug?: string) {
         profileCache.delete(key);
       }
     }
+  }
+}
+
+/**
+ * Fetch visible social links for a given user, sorted by sort_order.
+ */
+async function fetchSocialLinks(userId: string): Promise<ProfileSocialLink[]> {
+  try {
+    const { data, error } = await supabase
+      .from('profile_social_links')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_visible', true)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching social links:', error);
+      return [];
+    }
+    return (data as ProfileSocialLink[]) || [];
+  } catch {
+    return [];
   }
 }
 
@@ -73,6 +96,8 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       .single();
 
     if (alumniData && !alumniError) {
+      const socialLinks = await fetchSocialLinks(userId);
+
       // User is an alumni
       const profile: UnifiedUserProfile = {
         id: userId,
@@ -92,6 +117,7 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       ),
       username: alumniData.profile?.username || null,
       profile_slug: alumniData.profile?.profile_slug || null,
+      social_links: socialLinks,
       alumni: {
           industry: alumniData.industry,
           graduationYear: alumniData.graduation_year,
@@ -125,6 +151,8 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       return null;
     }
 
+    const socialLinks = await fetchSocialLinks(userId);
+
     const profile: UnifiedUserProfile = {
       id: userId,
       type: 'user',
@@ -141,6 +169,7 @@ export async function fetchUserProfile(userId: string): Promise<UnifiedUserProfi
       location: locationForUnifiedProfileDisplay(profileData.location),
       username: profileData.username || null,
       profile_slug: profileData.profile_slug || null,
+      social_links: socialLinks,
       user: {
         role: profileData.role,
         chapter_role: profileData.chapter_role,
@@ -250,6 +279,8 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
       .single();
 
     if (alumniData && !alumniError) {
+      const socialLinks = await fetchSocialLinks(userId);
+
       // User is an alumni
       const profile: UnifiedUserProfile = {
         id: userId,
@@ -269,6 +300,7 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
       ),
       username: alumniData.profile?.username || null,
       profile_slug: alumniData.profile?.profile_slug || null,
+      social_links: socialLinks,
       alumni: {
           industry: alumniData.industry,
           graduationYear: alumniData.graduation_year,
@@ -292,6 +324,8 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
     }
 
     // If not alumni, use regular profile
+    const socialLinks = await fetchSocialLinks(userId);
+
     const profile: UnifiedUserProfile = {
       id: userId,
       type: 'user',
@@ -309,6 +343,7 @@ export async function fetchUserProfileBySlug(slug: string): Promise<UnifiedUserP
       username: profileData.username || null,
       profile_slug: profileData.profile_slug || null,
       created_at: profileData.created_at || null,
+      social_links: socialLinks,
       user: {
         role: profileData.role,
         chapter_role: profileData.chapter_role,

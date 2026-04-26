@@ -33,6 +33,9 @@ import {
   parseCanonicalPlace,
   parseCanonicalPlaceConfirmed,
 } from '@/types/canonicalPlace';
+import type { SocialLinkFormItem, ProfileSocialLink } from '@/types/socialLink';
+import { SocialLinksEditor } from '@/components/features/social-links/SocialLinksEditor';
+import { validateSocialLinks, normalizeSocialUrl } from '@/lib/utils/socialLinkValidation';
 
 const editProfileIndustryOptions = buildIndustrySelectOptions('Select Industry');
 
@@ -152,6 +155,10 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [cropType, setCropType] = useState<CropType | null>(null);
   const [showCropper, setShowCropper] = useState(false);
+
+  // Social links state
+  const [socialLinks, setSocialLinks] = useState<SocialLinkFormItem[]>([]);
+  const [socialLinksLoaded, setSocialLinksLoaded] = useState(false);
 
   // Add alumni data state
   const [alumniData, setAlumniData] = useState<any>(null);
@@ -287,6 +294,59 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
       setAlumniDataMerged(true);
     }
   }, [alumniData, updateFormData, alumniDataMerged, hasUnsavedChanges]);
+
+  // Load social links when modal opens
+  useEffect(() => {
+    if (!profile?.id || !isOpen || socialLinksLoaded) return;
+
+    const loadSocialLinks = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+
+        const response = await fetch('/api/profile/social-links', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (response.ok) {
+          const { links } = await response.json();
+          const formLinks: SocialLinkFormItem[] = (links || []).map((l: ProfileSocialLink) => ({
+            id: l.id,
+            platform: l.platform,
+            url: l.url,
+            handle: l.handle || undefined,
+            label: l.label || undefined,
+            sort_order: l.sort_order,
+            is_visible: l.is_visible,
+          }));
+
+          // If no saved social links but profile has linkedin_url, seed it
+          if (formLinks.length === 0 && profile?.linkedin_url) {
+            formLinks.push({
+              platform: 'linkedin',
+              url: profile.linkedin_url,
+              sort_order: 0,
+              is_visible: true,
+            });
+          }
+
+          setSocialLinks(formLinks);
+        }
+      } catch (error) {
+        console.error('Error loading social links:', error);
+      } finally {
+        setSocialLinksLoaded(true);
+      }
+    };
+
+    loadSocialLinks();
+  }, [profile?.id, isOpen, socialLinksLoaded]);
+
+  // Reset social links loaded flag when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSocialLinksLoaded(false);
+    }
+  }, [isOpen]);
 
   // Set baseline for change detection when modal opens
   useEffect(() => {
@@ -733,6 +793,36 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
       // Updating profile
       await onUpdate(profileUpdates);
 
+      // Save social links
+      if (socialLinks.length > 0 || socialLinksLoaded) {
+        try {
+          const validationErrors = validateSocialLinks(socialLinks.filter(l => l.url.trim()));
+          if (validationErrors.size === 0) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              const linksToSave = socialLinks
+                .filter(l => l.url.trim())
+                .map((l, idx) => ({
+                  ...l,
+                  url: normalizeSocialUrl(l.url),
+                  sort_order: idx,
+                }));
+
+              await fetch('/api/profile/social-links', {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ links: linksToSave }),
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error saving social links:', error);
+        }
+      }
+
       // If user is alumni, also update alumni table
       if (profile?.role === 'alumni') {
         // Updating alumni data...
@@ -1081,7 +1171,6 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="email" className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
                       Email
                       <Badge variant="secondary" className="text-xs hidden sm:inline-flex">Required</Badge>
                     </Label>
@@ -1212,7 +1301,6 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
             <div className={`${isMobile ? 'space-y-3 pt-4 border-t border-gray-200' : 'space-y-4'}`}>
               {!isMobile && (
                 <div className="flex items-center gap-2 mb-3">
-                  <Building className="w-5 h-5 text-brand-primary" />
                   <h3 className="text-lg font-semibold text-brand-primary">Chapter & Role</h3>
                 </div>
               )}
@@ -1253,7 +1341,6 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
               <div className={`${isMobile ? 'space-y-3 pt-4 border-t border-gray-200' : 'space-y-4'}`}>
                 {!isMobile && (
                   <div className="flex items-center gap-2 mb-3">
-                    <GraduationCap className="w-5 h-5 text-brand-primary" />
                     <h3 className="text-lg font-semibold text-brand-primary">Academic Information</h3>
                   </div>
                 )}
@@ -1323,7 +1410,6 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
             <div className={`${isMobile ? 'space-y-3 pt-4 border-t border-gray-200' : 'space-y-4'}`}>
               {!isMobile && (
                 <div className="flex items-center gap-2 mb-3">
-                  <Phone className="w-5 h-5 text-brand-primary" />
                   <h3 className="text-lg font-semibold text-brand-primary">Contact & Location</h3>
                 </div>
               )}
@@ -1342,31 +1428,10 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                   />
                 </div>
                 
-                {/* Add LinkedIn field here for all users */}
-                <div>
-                  <Label htmlFor="linkedin_url" className="flex items-center gap-2">
-                    <Linkedin className="w-4 h-4" />
-                    LinkedIn URL
-                    {!isMobile && <Badge variant="secondary" className="text-xs">Optional</Badge>}
-                  </Label>
-                  <Input
-                    id="linkedin_url"
-                    value={formData.linkedin_url}
-                    onChange={(e) => handleInputChange('linkedin_url', e.target.value)}
-                    className={`mt-1 ${errors.linkedin_url ? 'border-red-500 focus:border-red-500' : ''}`}
-                    placeholder="https://linkedin.com/in/yourprofile"
-                    type="url"
-                  />
-                  {errors.linkedin_url && (
-                    <p className="text-xs text-red-500 mt-1">{errors.linkedin_url}</p>
-                  )}
-                </div>
-                
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <LocationPicker
                     label={
                       <span className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" aria-hidden />
                         Current location
                       </span>
                     }
@@ -1384,7 +1449,6 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
                   <LocationPicker
                     label={
                       <span className="flex items-center gap-2">
-                        <Home className="w-4 h-4" aria-hidden />
                         Hometown (optional)
                       </span>
                     }
@@ -1403,11 +1467,30 @@ export function EditProfileModal({ isOpen, onClose, profile, onUpdate, variant =
               </div>
             </div>
 
+            {/* Social Links */}
+            <div className={`${isMobile ? 'space-y-3 pt-4 border-t border-gray-200' : 'space-y-4'}`}>
+              {!isMobile && (
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-lg font-semibold text-brand-primary">Social Links</h3>
+                  <Badge variant="secondary" className="text-xs">Optional</Badge>
+                </div>
+              )}
+              {isMobile && (
+                <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  Social Links
+                </Label>
+              )}
+              <SocialLinksEditor
+                links={socialLinks}
+                onChange={setSocialLinks}
+                isMobile={isMobile}
+              />
+            </div>
+
             {/* Bio */}
             <div className={`${isMobile ? 'space-y-3 pt-4 border-t border-gray-200' : 'space-y-4'}`}>
               {!isMobile && (
                 <div className="flex items-center gap-2 mb-3">
-                  <FileText className="w-5 h-5 text-brand-primary" />
                   <h3 className="text-lg font-semibold text-brand-primary">Bio</h3>
                   <Badge variant="secondary" className="text-xs">Optional</Badge>
                 </div>
