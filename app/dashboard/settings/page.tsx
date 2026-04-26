@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
@@ -12,6 +12,8 @@ import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useOneSignalPush } from '@/lib/hooks/useOneSignalPush';
 import { clearPushPromptCooldown } from '@/lib/utils/pushPromptStorage';
 import { ChangePasswordForm } from '@/components/features/settings/ChangePasswordForm';
+import { SupportRequestForm } from '@/components/features/support/SupportRequestForm';
+import { SUPPORT_EMAIL, SUPPORT_MAILTO_HREF } from '@/lib/constants/support';
 
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState('security');
@@ -191,8 +193,6 @@ export default function SettingsPage() {
       description: 'Help & support center',
       mobileDescription: 'Help & support',
       locked: false,
-      /** Opens full support page (TRA-628) instead of an in-settings panel. */
-      navigateTo: '/dashboard/support',
     }
   ];
 
@@ -220,27 +220,20 @@ export default function SettingsPage() {
   // Mobile-specific handlers
   const handleMobileSectionSelect = (item: (typeof sidebarItems)[number]) => {
     if (item.locked) return;
-    if (item.navigateTo) {
-      router.push(item.navigateTo);
-      setShowMobileMenu(false);
-      return;
-    }
     setActiveSection(item.id);
     setShowMobileMenu(false);
   };
 
   const handleDesktopSidebarItemClick = (item: (typeof sidebarItems)[number]) => {
     if (item.locked) return;
-    if (item.navigateTo) {
-      router.push(item.navigateTo);
-      return;
-    }
     setActiveSection(item.id);
   };
 
   const handleMobileBack = () => {
     if (activeSubSection) {
       setActiveSubSection(null);
+    } else if (activeSection === 'support') {
+      setActiveSection('security');
     } else {
       router.back();
     }
@@ -676,6 +669,34 @@ export default function SettingsPage() {
     </div>
   );
 
+  const renderSupportContent = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Help &amp; support</h2>
+        <p className="text-gray-600">
+          Send a message to the Trailblaize team. We respond by email.
+        </p>
+      </div>
+
+      <Card className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <CardHeader className="border-b border-gray-100 pb-4">
+          <CardTitle className="text-lg">Contact us</CardTitle>
+          <CardDescription>
+            Questions, billing, and bug reports go to the same inbox. For urgent security issues,
+            email{' '}
+            <Link href={SUPPORT_MAILTO_HREF} className="font-medium text-brand-primary hover:underline">
+              {SUPPORT_EMAIL}
+            </Link>
+            .
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <SupportRequestForm />
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   // Loading state with responsive design
   if (profileLoading) {
     return (
@@ -754,7 +775,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => handleDesktopSidebarItemClick(item)}
                         className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-all duration-200 ${
-                          activeSection === item.id && !item.navigateTo
+                          activeSection === item.id
                             ? 'bg-accent-50 text-accent-700 border border-accent-200 shadow-sm'
                             : item.locked
                             ? 'text-gray-400 cursor-not-allowed opacity-50'
@@ -787,6 +808,7 @@ export default function SettingsPage() {
             <div className="bg-white rounded-lg shadow-sm p-8">
               {activeSection === 'security' && renderSecurityContent()}
               {activeSection === 'notifications' && renderNotificationsContent()}
+              {activeSection === 'support' && renderSupportContent()}
             </div>
           </div>
         </div>
@@ -807,7 +829,11 @@ export default function SettingsPage() {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
               <h1 className="text-lg font-semibold text-gray-900">
-                {activeSubSection ? 'Security Settings' : 'Settings'}
+                {activeSubSection
+                  ? 'Security Settings'
+                  : activeSection === 'support'
+                    ? 'Support'
+                    : 'Settings'}
               </h1>
             </div>
             
@@ -843,7 +869,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => handleMobileSectionSelect(item)}
                     className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-colors ${
-                      activeSection === item.id && !item.navigateTo
+                      activeSection === item.id
                         ? 'bg-accent-50 text-accent-700 border border-accent-200'
                         : item.locked
                         ? 'text-gray-400 cursor-not-allowed opacity-50'
@@ -878,6 +904,11 @@ export default function SettingsPage() {
           {activeSection === 'notifications' && (
             <div>
               {renderNotificationsContent()}
+            </div>
+          )}
+          {activeSection === 'support' && (
+            <div>
+              {renderSupportContent()}
             </div>
           )}
         </div>
