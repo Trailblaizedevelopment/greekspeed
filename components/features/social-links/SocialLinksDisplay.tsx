@@ -8,19 +8,21 @@ import { SocialPlatformIcon } from './SocialPlatformIcon';
 interface SocialLinksDisplayProps {
   links: ProfileSocialLink[];
   compact?: boolean;
+  /** Owner / preview: show links even when `is_visible` is false. */
+  includeHidden?: boolean;
 }
 
 /**
  * Renders a list of social links with platform icons.
  * Hides entirely if the list is empty.
  */
-export function SocialLinksDisplay({ links, compact = false }: SocialLinksDisplayProps) {
-  const visibleLinks = links.filter((l) => l.is_visible);
-  if (visibleLinks.length === 0) return null;
+export function SocialLinksDisplay({ links, compact = false, includeHidden = false }: SocialLinksDisplayProps) {
+  const displayedLinks = includeHidden ? links : links.filter((l) => l.is_visible);
+  if (displayedLinks.length === 0) return null;
 
   return (
     <div className={compact ? 'flex flex-wrap gap-2' : 'space-y-2'}>
-      {visibleLinks.map((link) => (
+      {displayedLinks.map((link) => (
         <a
           key={link.id}
           href={link.url}

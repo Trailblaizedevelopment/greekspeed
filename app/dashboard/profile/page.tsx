@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, Mail, MapPin, Building, Shield, FileText, Phone, MessageCircle, Users, Calendar, Settings, Edit, UserCheck, UserPlus, Lock, Upload, Heart, Trash2, X, Linkedin, Copy, Check, ExternalLink, Clock } from 'lucide-react';
+import { User, Mail, MapPin, Building, Shield, FileText, Phone, MessageCircle, Users, Calendar, Settings, Edit, UserCheck, UserPlus, Lock, Upload, Heart, Trash2, X, Linkedin, Copy, Check, ExternalLink, Clock, Link2 } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useConnections } from '@/lib/contexts/ConnectionsContext';
 import { useAuth } from '@/lib/supabase/auth-context';
@@ -35,6 +35,9 @@ import { ContentFeedSection } from '@/components/features/profile/mobile/Content
 import { PostCard } from '@/components/features/social/PostCard';
 import { ConnectionRequestDialog } from '@/components/features/connections/ConnectionRequestDialog';
 import { formatLocationLineForApp } from '@/types/canonicalPlace';
+import { supabase } from '@/lib/supabase/client';
+import { SocialLinksDisplay } from '@/components/features/social-links/SocialLinksDisplay';
+import type { ProfileSocialLink } from '@/types/socialLink';
 
 // Add a helper function to format system roles for display (add this near the top of the component, after other helper functions)
 const formatSystemRole = (role: string | null | undefined): string => {
@@ -69,6 +72,9 @@ export default function ProfilePage() {
 
   const [showConnectionDialog, setShowConnectionDialog] = useState(false);
   const [selectedUserForConnection, setSelectedUserForConnection] = useState<any | null>(null);
+
+  const [dashboardSocialLinks, setDashboardSocialLinks] = useState<ProfileSocialLink[]>([]);
+  const [dashboardSocialLinksLoading, setDashboardSocialLinksLoading] = useState(false);
 
   // Calculate completion percentage
   const completion = profile ? ProfileService.calculateCompletion(profile) : null;
@@ -253,6 +259,39 @@ export default function ProfilePage() {
       last_name?: string;
     }>;
   }, [sortedConnections, profile]);
+
+  // Load social links when viewing About (refreshes after Edit profile saves)
+  useEffect(() => {
+    if (activeTab !== 'about' || !profile?.id) return;
+    let cancelled = false;
+
+    const loadSocialLinks = async () => {
+      setDashboardSocialLinksLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+        const response = await fetch('/api/profile/social-links', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (cancelled) return;
+        if (response.ok) {
+          const { links } = await response.json();
+          setDashboardSocialLinks((links || []) as ProfileSocialLink[]);
+        } else {
+          setDashboardSocialLinks([]);
+        }
+      } catch {
+        if (!cancelled) setDashboardSocialLinks([]);
+      } finally {
+        if (!cancelled) setDashboardSocialLinksLoading(false);
+      }
+    };
+
+    void loadSocialLinks();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, profile?.id]);
 
   if (loading) {
     return (
@@ -749,6 +788,39 @@ export default function ProfilePage() {
                             </div>
                           </div>
                         ))}
+
+                      <div className="flex items-start gap-3">
+                        <Link2 className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Social</p>
+                          {dashboardSocialLinksLoading ? (
+                            <p className="text-sm text-gray-500">Loading…</p>
+                          ) : dashboardSocialLinks.length > 0 ? (
+                            <SocialLinksDisplay links={dashboardSocialLinks} compact includeHidden />
+                          ) : profile.linkedin_url ? (
+                            <a
+                              href={profile.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-brand-accent hover:text-accent-700 underline inline-flex items-center gap-1"
+                            >
+                              View LinkedIn profile
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            <p className="text-sm text-gray-500">
+                              No social links yet.{' '}
+                              <button
+                                type="button"
+                                onClick={openEditProfileModal}
+                                className="text-brand-primary font-medium hover:underline"
+                              >
+                                Add them in Edit profile
+                              </button>
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
                       {profileFields.filter(field => field.value).length === 0 && (
                         <div className="py-12 text-center">
