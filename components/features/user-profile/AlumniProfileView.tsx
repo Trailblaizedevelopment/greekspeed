@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import { ShareProfileDrawer } from "@/components/features/messaging/ShareProfileDrawer";
 import { ConnectionRequestDialog } from "@/components/features/connections/ConnectionRequestDialog";
 import { formatLocationLineForApp } from "@/types/canonicalPlace";
+import { SocialLinksDisplay } from "@/components/features/social-links/SocialLinksDisplay";
 
 interface AlumniProfileViewProps {
   profile: UnifiedUserProfile;
@@ -355,6 +356,13 @@ export function AlumniProfileView({ profile, onClose, hideCloseButton = false }:
           )}
         </div>
       </div>
+
+      {/* Social Links */}
+      {profile.social_links && profile.social_links.length > 0 && (
+        <div className="px-6 pb-3">
+          <SocialLinksDisplay links={profile.social_links} compact />
+        </div>
+      )}
 
       {/* Compact Information Grid */}
       <div className="px-6 pb-6">

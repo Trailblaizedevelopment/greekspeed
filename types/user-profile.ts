@@ -1,4 +1,5 @@
 import type { CanonicalPlace } from './canonicalPlace';
+import type { ProfileSocialLink } from './socialLink';
 
 /**
  * Unified user profile type that works for both alumni and regular users
@@ -26,6 +27,9 @@ export interface UnifiedUserProfile {
   username?: string | null;
   profile_slug?: string | null;
   created_at?: string | null;
+
+  // Social links (loaded from profile_social_links table)
+  social_links?: ProfileSocialLink[];
 
   // Alumni-specific fields (optional)
   alumni?: {

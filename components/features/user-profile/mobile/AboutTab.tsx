@@ -18,6 +18,7 @@ import { UnifiedUserProfile } from "@/types/user-profile";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { formatLocationLineForApp } from "@/types/canonicalPlace";
+import { SocialLinksDisplay } from "@/components/features/social-links/SocialLinksDisplay";
 
 interface AboutTabProps {
   profile: UnifiedUserProfile;
@@ -77,7 +78,7 @@ export function AboutTab({ profile, isLoggedIn = false, canSeeFullProfile = fals
           )}
 
           {/* General Information Section - Always visible */}
-          {(profile.location || profile.bio || userData?.linkedin_url) && (
+          {(profile.location || profile.bio || (profile.social_links && profile.social_links.length > 0) || userData?.linkedin_url) && (
             <div className="pb-6 border-b border-gray-200">
               <div className="flex items-center gap-2 mb-4">
                 <User className="h-5 w-5 text-gray-400" />
@@ -98,7 +99,14 @@ export function AboutTab({ profile, isLoggedIn = false, canSeeFullProfile = fals
                     value={<span className="text-base text-gray-700 whitespace-pre-wrap break-words">{profile.bio}</span>}
                   />
                 )}
-                {userData?.linkedin_url && (
+                {profile.social_links && profile.social_links.length > 0 ? (
+                  <div className="pt-1">
+                    <span className="text-sm font-medium text-gray-500 uppercase tracking-wide block mb-2">
+                      Social
+                    </span>
+                    <SocialLinksDisplay links={profile.social_links} compact />
+                  </div>
+                ) : userData?.linkedin_url ? (
                   <InfoRow
                     label="LinkedIn"
                     value={
@@ -113,7 +121,7 @@ export function AboutTab({ profile, isLoggedIn = false, canSeeFullProfile = fals
                       </a>
                     }
                   />
-                )}
+                ) : null}
               </div>
             </div>
           )}
