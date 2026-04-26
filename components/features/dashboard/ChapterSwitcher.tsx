@@ -236,7 +236,7 @@ export function ChapterSwitcher() {
     <div className="flex items-center gap-1.5 min-w-0 max-w-full">
       {hasMultipleMemberships && !isDeveloper && !isGovernance && (
         <span
-          className="hidden lg:inline text-xs text-gray-500 whitespace-nowrap shrink-0"
+          className="hidden md:inline text-xs text-gray-500 whitespace-nowrap shrink-0"
           title="Feed, directory, and chapter tools use this chapter until you switch."
         >
           Viewing
@@ -247,21 +247,20 @@ export function ChapterSwitcher() {
         onClick={() => setIsOpen(!isOpen)}
         title={displayLabel}
         className={cn(
-          'flex items-center min-w-0 max-w-full min-[401px]:space-x-2 h-8 rounded-full px-3 min-[401px]:px-3 max-[400px]:px-2 text-sm font-medium transition-all duration-200 shadow-sm',
+          'flex items-center justify-center shrink-0 h-8 w-8 rounded-full p-0 text-sm font-medium transition-all duration-200 shadow-sm',
+          'md:h-8 md:min-w-0 md:max-w-full md:w-auto md:justify-start md:gap-2 md:rounded-full md:px-3',
           activeChapterId
             ? 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
         )}
       >
         <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
-        <span
-          className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[160px] max-[400px]:hidden"
-        >
+        <span className="hidden md:inline truncate md:max-w-[120px] lg:max-w-[160px] text-left">
           {displayLabel}
         </span>
         <ChevronDown
           className={cn(
-            'h-3.5 w-3.5 flex-shrink-0 transition-transform max-[400px]:hidden',
+            'hidden md:block h-3.5 w-3.5 flex-shrink-0 transition-transform',
             isOpen && 'rotate-180'
           )}
         />
@@ -334,21 +333,21 @@ export function ChapterSwitcher() {
                     key={chapter.id}
                     onClick={() => handleSelect(chapter.id)}
                     className={cn(
-                      'w-full flex items-start px-3 py-2 text-sm transition-colors',
+                      'w-full flex items-start justify-start text-left px-3 py-2.5 text-sm transition-colors',
                       activeChapterId === chapter.id
                         ? 'bg-brand-primary/5 text-brand-primary font-medium'
                         : 'text-gray-700 hover:bg-gray-50'
                     )}
                   >
-                    <div className="flex flex-col items-start min-w-0">
-                      <span className="truncate w-full font-medium">
+                    <div className="flex min-w-0 w-full flex-col items-stretch gap-0.5 text-left">
+                      <span className="block truncate font-medium leading-snug">
                         {chapter.name}
                         {chapter.is_primary && hasMultipleMemberships && (
                           <span className="ml-1.5 text-xs text-gray-400 font-normal">(primary)</span>
                         )}
                       </span>
                       {chapter.school && (
-                        <span className="text-xs text-gray-500 truncate w-full">
+                        <span className="block truncate text-left text-xs font-normal leading-snug text-gray-500">
                           {chapter.school}
                         </span>
                       )}

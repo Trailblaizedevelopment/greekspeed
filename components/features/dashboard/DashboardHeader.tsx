@@ -191,7 +191,7 @@ export function DashboardHeader() {
         {/* Right side — single ChapterSwitcher (all breakpoints) avoids duplicate member-spaces fetches */}
         <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0 min-w-0">
           {user && (
-            <div className="min-w-0 max-w-[min(40vw,200px)] sm:max-w-[220px] md:max-w-none">
+            <div className="shrink-0 min-w-0 max-md:max-w-none md:max-w-[min(42vw,260px)] lg:max-w-none">
               <ChapterSwitcher />
             </div>
           )}
