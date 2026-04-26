@@ -12,6 +12,7 @@ import {
   getSupportSubmissionCooldownSeconds,
   recordSuccessfulSupportSubmission,
 } from '@/lib/server/supportSubmissionRateLimit';
+import { recordSupportSubmissionAudit } from '@/lib/server/supportSubmissionAudit';
 
 function escapeHtml(text: string): string {
   return text
@@ -199,6 +200,18 @@ export async function POST(request: NextRequest) {
     }
 
     await recordSuccessfulSupportSubmission(supabase, user.id);
+
+    // TRA-631: audit row only after successful outbound email (same success path as rate limiter).
+    await recordSupportSubmissionAudit(supabase, {
+      user_id: user.id,
+      chapter_id: profile.chapter_id ?? null,
+      category,
+      subject,
+      body,
+      reporter_email: reporterEmail || null,
+      page_url: pageUrl?.trim() ? pageUrl.trim().slice(0, 2048) : null,
+      user_agent: userAgent?.trim() ? userAgent.trim().slice(0, 500) : null,
+    });
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error) {
