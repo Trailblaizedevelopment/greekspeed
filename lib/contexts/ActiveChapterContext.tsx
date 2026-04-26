@@ -1,5 +1,7 @@
 // lib/contexts/ActiveChapterContext.tsx
 // TRA-661: Extended to track multi-membership state
+// TRA-664: Module-level stable no-ops prevent useEffect dependency churn
+//          when the hook is called outside ActiveChapterProvider.
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
@@ -15,6 +17,11 @@ interface ActiveChapterContextType {
   memberSpaces: MemberSpaceSummary[];
   setMemberSpaces: (spaces: MemberSpaceSummary[]) => void;
 }
+
+const NOOP_SET_CHAPTER_ID = (_chapterId: string | null) => {};
+const NOOP_SET_BOOLEAN = (_value: boolean) => {};
+const NOOP_SET_SPACES = (_spaces: MemberSpaceSummary[]) => {};
+const EMPTY_SPACES: MemberSpaceSummary[] = [];
 
 const ActiveChapterContext = createContext<ActiveChapterContextType | undefined>(undefined);
 
@@ -44,11 +51,11 @@ export const useActiveChapter = (): ActiveChapterContextType => {
   if (!context) {
     return {
       activeChapterId: null,
-      setActiveChapterId: () => {},
+      setActiveChapterId: NOOP_SET_CHAPTER_ID,
       hasMultipleMemberships: false,
-      setHasMultipleMemberships: () => {},
-      memberSpaces: [],
-      setMemberSpaces: () => {},
+      setHasMultipleMemberships: NOOP_SET_BOOLEAN,
+      memberSpaces: EMPTY_SPACES,
+      setMemberSpaces: NOOP_SET_SPACES,
     };
   }
   return context;
