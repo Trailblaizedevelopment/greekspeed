@@ -10,19 +10,63 @@ interface SocialLinksDisplayProps {
   compact?: boolean;
   /** Owner / preview: show links even when `is_visible` is false. */
   includeHidden?: boolean;
+  /** When `compact`, center chips horizontally (e.g. profile modal). */
+  centered?: boolean;
+  /**
+   * Max pill links to show when `compact` is true (by `sort_order`, ascending).
+   * `undefined` defaults to 3; `null` shows all (no overflow chip).
+   */
+  maxCompactPills?: number | null;
 }
 
 /**
  * Renders a list of social links with platform icons.
  * Hides entirely if the list is empty.
  */
-export function SocialLinksDisplay({ links, compact = false, includeHidden = false }: SocialLinksDisplayProps) {
+export function SocialLinksDisplay({
+  links,
+  compact = false,
+  includeHidden = false,
+  centered = false,
+  maxCompactPills,
+}: SocialLinksDisplayProps) {
   const displayedLinks = includeHidden ? links : links.filter((l) => l.is_visible);
   if (displayedLinks.length === 0) return null;
 
+  const sortedLinks = [...displayedLinks].sort((a, b) => {
+    const sa = a.sort_order ?? 0;
+    const sb = b.sort_order ?? 0;
+    if (sa !== sb) return sa - sb;
+    return String(a.id).localeCompare(String(b.id));
+  });
+
+  const compactCap =
+    compact && maxCompactPills !== null
+      ? Math.max(1, maxCompactPills ?? 3)
+      : null;
+  const visibleLinks =
+    compactCap != null && sortedLinks.length > compactCap
+      ? sortedLinks.slice(0, compactCap)
+      : sortedLinks;
+  const overflowCount = sortedLinks.length - visibleLinks.length;
+  const overflowLabels = overflowCount > 0
+    ? sortedLinks
+        .slice(visibleLinks.length)
+        .map((l) => PLATFORM_LABELS[l.platform as SocialPlatform] || l.platform)
+        .join(', ')
+    : '';
+
   return (
-    <div className={compact ? 'flex flex-wrap gap-2' : 'space-y-2'}>
-      {displayedLinks.map((link) => (
+    <div
+      className={
+        compact
+          ? `flex flex-wrap gap-2${centered ? ' justify-center' : ''}`
+          : centered
+            ? 'flex flex-col items-center gap-2'
+            : 'space-y-2'
+      }
+    >
+      {visibleLinks.map((link) => (
         <a
           key={link.id}
           href={link.url}
@@ -44,6 +88,15 @@ export function SocialLinksDisplay({ links, compact = false, includeHidden = fal
           )}
         </a>
       ))}
+      {compact && overflowCount > 0 && (
+        <span
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-500"
+          title={overflowLabels ? `Also: ${overflowLabels}` : undefined}
+          aria-label={`${overflowCount} more social links: ${overflowLabels}`}
+        >
+          +{overflowCount} more
+        </span>
+      )}
     </div>
   );
 }
