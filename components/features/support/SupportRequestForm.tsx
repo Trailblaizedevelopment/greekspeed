@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectItem } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { SUPPORT_EMAIL, SUPPORT_MAILTO_HREF } from '@/lib/constants/support';
 import {
   SUPPORT_REQUEST_CATEGORIES,
@@ -27,7 +26,6 @@ export function SupportRequestForm() {
   const [category, setCategory] = useState<SupportRequestCategory>('question');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [includePageUrl, setIncludePageUrl] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -40,8 +38,6 @@ export function SupportRequestForm() {
 
     try {
       const headers = await getAuthHeadersAsync();
-      const pageUrl =
-        includePageUrl && typeof window !== 'undefined' ? window.location.href : undefined;
       const userAgent =
         typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 500) : undefined;
 
@@ -55,7 +51,7 @@ export function SupportRequestForm() {
           category,
           subject: subject.trim(),
           body: body.trim(),
-          pageUrl: pageUrl ?? null,
+          pageUrl: null,
           userAgent: userAgent ?? null,
         }),
       });
@@ -134,18 +130,11 @@ export function SupportRequestForm() {
           required
           disabled={isSubmitting}
         />
-      </div>
-
-      <div className="flex items-start gap-3">
-        <Checkbox
-          id="support-include-url"
-          checked={includePageUrl}
-          onCheckedChange={(checked) => setIncludePageUrl(Boolean(checked))}
-          disabled={isSubmitting}
-        />
-        <Label htmlFor="support-include-url" className="text-sm font-normal text-gray-700 cursor-pointer leading-snug">
-          Include current page URL (helps us reproduce bugs)
-        </Label>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          For screenshots, upload to a private link (Google Drive, Dropbox, iCloud, etc.) and paste
+          the URL here. Avoid public social posts if the image contains sensitive chapter or member
+          information.
+        </p>
       </div>
 
       {status === 'success' && (
