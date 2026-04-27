@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { APP_METADATA } from '@/lib/constants/metadata';
 import {
   getOpenBridgeChapterInviteToken,
   getOpenBridgeStoreUrls,
@@ -7,11 +8,35 @@ import {
 import { validateInvitationToken } from '@/lib/utils/invitationUtils';
 import { OpenBridgeClient } from './OpenBridgeClient';
 
+const OPEN_BRIDGE_DESCRIPTION =
+  'Continue to Trailblaize on the web or download the mobile app. Used when opening smart links in a browser.';
+
+/** Explicit OG/Twitter so crawlers do not rely on layout merge or page heuristics (e.g. /logo.png on /open). */
 export const metadata: Metadata = {
   title: 'Open Trailblaize',
-  description:
-    'Continue to Trailblaize on the web or download the mobile app. Used when opening smart links in a browser.',
+  description: OPEN_BRIDGE_DESCRIPTION,
   robots: { index: false, follow: false },
+  openGraph: {
+    title: 'Open Trailblaize',
+    description: OPEN_BRIDGE_DESCRIPTION,
+    url: `${APP_METADATA.baseUrl}/open`,
+    siteName: APP_METADATA.siteName,
+    images: [
+      {
+        url: APP_METADATA.ogImagePath,
+        width: 1200,
+        height: 630,
+        alt: APP_METADATA.title,
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Open Trailblaize',
+    description: OPEN_BRIDGE_DESCRIPTION,
+    images: [APP_METADATA.ogImagePath],
+  },
 };
 
 interface OpenBridgePageProps {
