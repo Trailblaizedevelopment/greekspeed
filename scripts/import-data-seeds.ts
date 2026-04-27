@@ -11,7 +11,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { parseCsv, csvRowsToObjects } from '../lib/dataSeeds/parseSeedCsv';
 import { buildSimulationSpaceRow, simulationRowDedupeKey } from '../lib/dataSeeds/spaceSeedMapping';
 
@@ -20,15 +20,35 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+type SeedImportScope = 'schools' | 'orgs' | 'spaces' | 'all';
+
+/** Untyped service client: assert row shapes for queries (no generated Database types in repo). */
+type SpaceUniquenessRow = {
+  slug: string | null;
+  name: string | null;
+  national_fraternity: string | null;
+  chapter_name: string | null;
+  school: string | null;
+};
+
+type SpaceLlmSeedRow = { llm_data: unknown };
+
+type SchoolKeyRow = { name: string | null; domain: string | null };
+
+type OrgNameRow = { name: string | null };
+
+/** Avoid `ReturnType<typeof createClient>` — it resolves to `unknown` DB and a `never` schema. */
+type SeedImportSupabase = SupabaseClient<any, 'public', 'public', any, any>;
+
 function parseArgs() {
   const argv = process.argv.slice(2);
   let dryRun = false;
-  let only: 'schools' | 'orgs' | 'spaces' | 'all' = 'all';
+  let only: SeedImportScope = 'all';
   let spacesLimit: number | null = null;
   for (const a of argv) {
     if (a === '--dry-run') dryRun = true;
     else if (a.startsWith('--only=')) {
-      const v = a.split('=')[1] as typeof only;
+      const v = a.split('=')[1] as SeedImportScope;
       if (v === 'schools' || v === 'orgs' || v === 'spaces' || v === 'all') only = v;
     } else if (a.startsWith('--spaces-limit=')) {
       spacesLimit = Math.max(0, parseInt(a.split('=')[1]!, 10) || 0);
@@ -37,7 +57,7 @@ function parseArgs() {
   return { dryRun, only, spacesLimit };
 }
 
-async function loadSpaceUniquenessSets(supabase: ReturnType<typeof createClient>) {
+async function loadSpaceUniquenessSets(supabase: SeedImportSupabase) {
   const usedSlugs = new Set<string>();
   const usedNames = new Set<string>();
   const usedComposites = new Set<string>();
@@ -52,7 +72,7 @@ async function loadSpaceUniquenessSets(supabase: ReturnType<typeof createClient>
       .select('slug,name,national_fraternity,chapter_name,school')
       .range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    const rows = data ?? [];
+    const rows = (data ?? []) as SpaceUniquenessRow[];
     if (rows.length === 0) break;
     for (const r of rows) {
       if (r.slug) usedSlugs.add(r.slug);
@@ -67,7 +87,7 @@ async function loadSpaceUniquenessSets(supabase: ReturnType<typeof createClient>
   return { usedSlugs, usedNames, usedComposites };
 }
 
-async function loadExistingSimulationSeedKeys(supabase: ReturnType<typeof createClient>): Promise<Set<string>> {
+async function loadExistingSimulationSeedKeys(supabase: SeedImportSupabase): Promise<Set<string>> {
   const keys = new Set<string>();
   const pageSize = 1000;
   let from = 0;
@@ -78,7 +98,7 @@ async function loadExistingSimulationSeedKeys(supabase: ReturnType<typeof create
       .not('llm_data', 'is', null)
       .range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    const rows = data ?? [];
+    const rows = (data ?? []) as SpaceLlmSeedRow[];
     if (rows.length === 0) break;
     for (const r of rows) {
       const ld = r.llm_data as Record<string, unknown> | null;
@@ -95,7 +115,7 @@ async function loadExistingSimulationSeedKeys(supabase: ReturnType<typeof create
   return keys;
 }
 
-async function loadExistingSchoolKeys(supabase: ReturnType<typeof createClient>) {
+async function loadExistingSchoolKeys(supabase: SeedImportSupabase) {
   const names = new Set<string>();
   const domains = new Set<string>();
   const pageSize = 2000;
@@ -103,7 +123,7 @@ async function loadExistingSchoolKeys(supabase: ReturnType<typeof createClient>)
   for (;;) {
     const { data, error } = await supabase.from('schools').select('name,domain').range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    const rows = data ?? [];
+    const rows = (data ?? []) as SchoolKeyRow[];
     if (rows.length === 0) break;
     for (const r of rows) {
       if (r.name) names.add(r.name.toLowerCase().trim());
@@ -116,14 +136,14 @@ async function loadExistingSchoolKeys(supabase: ReturnType<typeof createClient>)
   return { names, domains };
 }
 
-async function loadExistingOrgNames(supabase: ReturnType<typeof createClient>) {
+async function loadExistingOrgNames(supabase: SeedImportSupabase) {
   const names = new Set<string>();
   const pageSize = 2000;
   let from = 0;
   for (;;) {
     const { data, error } = await supabase.from('national_organizations').select('name').range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    const rows = data ?? [];
+    const rows = (data ?? []) as OrgNameRow[];
     if (rows.length === 0) break;
     for (const r of rows) {
       if (r.name) names.add(r.name.toLowerCase().trim());
