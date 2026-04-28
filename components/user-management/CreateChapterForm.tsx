@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { X, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -398,25 +398,34 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="chapter_status">Space status</Label>
-                  <FieldHint text="Controls whether the space is treated as active, inactive, suspended, or on probation in admin and member flows." />
+              <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50/70 px-3 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-gray-900" id="create_chapter_status_label">
+                      Space status
+                    </span>
+                    <FieldHint text="On = Active (live). Off = Inactive (directory shell; use for seeded spaces until you launch them)." />
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {formData.chapter_status === 'active' ? (
+                      <>New space will be <strong>active</strong> when created.</>
+                    ) : (
+                      <>New space will be <strong>inactive</strong> (hidden from active-only lists).</>
+                    )}
+                  </p>
                 </div>
-                <Select
-                  value={formData.chapter_status}
-                  onValueChange={(value) => handleInputChange('chapter_status', value)}
-                >
-                  <SelectTrigger id="chapter_status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="suspended">Suspended</SelectItem>
-                    <SelectItem value="probation">Probation</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col items-end gap-1 shrink-0 sm:pt-0.5">
+                  <span className="text-[10px] text-gray-500">Live</span>
+                  <Switch
+                    checked={formData.chapter_status === 'active'}
+                    onCheckedChange={(checked) =>
+                      handleInputChange('chapter_status', checked ? 'active' : 'inactive')
+                    }
+                    className="shrink-0"
+                    aria-labelledby="create_chapter_status_label"
+                    aria-label={formData.chapter_status === 'active' ? 'Create as active space' : 'Create as inactive space'}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
