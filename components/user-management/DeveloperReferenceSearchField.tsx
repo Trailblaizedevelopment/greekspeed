@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, ChevronDown } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,8 @@ type SchoolRow = {
   short_name: string | null;
   location: string | null;
   domain?: string | null;
+  source?: 'database' | 'openalex';
+  openAlexId?: string;
 };
 
 type OrgRow = {
@@ -73,17 +76,20 @@ export function DeveloperReferenceSearchField({
 
   const endpoint =
     kind === 'schools'
-      ? '/api/developer/reference/schools'
+      ? '/api/schools/search'
       : '/api/developer/reference/national-organizations';
 
   const fetchHits = useCallback(
     async (q: string) => {
-      if (!accessToken) return;
+      if (kind === 'national-organizations' && !accessToken) return;
       setLoading(true);
       try {
         const params = new URLSearchParams({ q, limit: '30' });
         const res = await fetch(`${endpoint}?${params}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers:
+            kind === 'schools'
+              ? {}
+              : { Authorization: `Bearer ${accessToken}` },
         });
         if (!res.ok) return;
         const json = (await res.json()) as { schools?: SchoolRow[]; nationalOrganizations?: OrgRow[] };
@@ -93,7 +99,7 @@ export function DeveloperReferenceSearchField({
         setLoading(false);
       }
     },
-    [accessToken, endpoint, kind]
+    [accessToken, endpoint, kind],
   );
 
   useEffect(() => {
@@ -149,8 +155,49 @@ export function DeveloperReferenceSearchField({
 
   const hits: (SchoolRow | OrgRow)[] = kind === 'schools' ? schoolHits : orgHits;
 
-  const selectSchool = (row: SchoolRow) => {
-    onChange({ kind: 'school', id: row.id, label: schoolLabel(row), row });
+  const selectSchool = async (row: SchoolRow) => {
+    if (row.source === 'openalex' && row.openAlexId) {
+      if (!accessToken) {
+        toast.error('Sign in to link a school from the global directory.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch('/api/schools/materialize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ openAlexId: row.openAlexId }),
+        });
+        const json = (await res.json()) as {
+          school?: { id: string; name: string; short_name: string | null; location: string | null; domain?: string | null };
+          error?: string;
+        };
+        if (!res.ok) {
+          toast.error(json.error || 'Could not save school');
+          return;
+        }
+        if (!json.school) {
+          toast.error('Unexpected response from server.');
+          return;
+        }
+        const saved: SchoolRow = {
+          id: json.school.id,
+          name: json.school.name,
+          short_name: json.school.short_name,
+          location: json.school.location,
+          domain: json.school.domain ?? null,
+          source: 'database',
+        };
+        onChange({ kind: 'school', id: saved.id, label: schoolLabel(saved), row: saved });
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      onChange({ kind: 'school', id: row.id, label: schoolLabel(row), row });
+    }
     setOpen(false);
     setQuery('');
   };
@@ -161,7 +208,7 @@ export function DeveloperReferenceSearchField({
     setQuery('');
   };
 
-  const noToken = !accessToken;
+  const orgsNeedToken = kind === 'national-organizations' && !accessToken;
 
   return (
     <div ref={wrapRef} className="space-y-2">
@@ -180,20 +227,24 @@ export function DeveloperReferenceSearchField({
         ) : null}
       </div>
 
-      {noToken ? (
-        <p className="text-xs text-amber-700">Sign in as a developer to search the directory.</p>
+      {orgsNeedToken ? (
+        <p className="text-xs text-amber-700">Sign in as a developer to search national organizations.</p>
+      ) : kind === 'schools' && !accessToken ? (
+        <p className="text-xs text-gray-600">
+          School search works without signing in; sign in to link a directory-only campus (saves it to your database).
+        </p>
       ) : null}
 
       <div className="relative">
         <button
           ref={triggerRef}
           type="button"
-          disabled={disabled || noToken}
-          onClick={() => !noToken && setOpen((o) => !o)}
+          disabled={disabled || orgsNeedToken}
+          onClick={() => !orgsNeedToken && setOpen((o) => !o)}
           className={cn(
             'flex h-9 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm',
             'focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary',
-            (disabled || noToken) && 'opacity-50 cursor-not-allowed'
+            (disabled || orgsNeedToken) && 'opacity-50 cursor-not-allowed'
           )}
         >
           <span className={cn('truncate text-left', !value && 'text-gray-500')}>
@@ -250,7 +301,9 @@ export function DeveloperReferenceSearchField({
                       type="button"
                       className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
                       onClick={() =>
-                        kind === 'schools' ? selectSchool(row as SchoolRow) : selectOrg(row as OrgRow)
+                        kind === 'schools'
+                          ? void selectSchool(row as SchoolRow)
+                          : selectOrg(row as OrgRow)
                       }
                     >
                       {kind === 'schools' ? schoolLabel(row as SchoolRow) : orgLabel(row as OrgRow)}

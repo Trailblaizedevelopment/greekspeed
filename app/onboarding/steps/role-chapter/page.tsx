@@ -29,6 +29,9 @@ import {
 } from '@/lib/constants/onboardingUi';
 import { cn } from '@/lib/utils';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
+import { SchoolSearchCombobox } from '@/components/schools/SchoolSearchCombobox';
+import type { SchoolDirectoryPick } from '@/lib/utils/chapterSchoolMatch';
+import { chapterMatchesSchoolDirectory } from '@/lib/utils/chapterSchoolMatch';
 
 // ============================================================================
 // Component
@@ -60,6 +63,8 @@ export default function RoleChapterPage() {
   const [invitationLoading, setInvitationLoading] = useState(false);
   /** Public chapter join link (/join/chapter/...) — session set before OAuth; used for prefill + copy */
   const [hasChapterJoinFromLink, setHasChapterJoinFromLink] = useState(false);
+  /** Optional: narrow chapter list by canonical school (Handshake-style directory). */
+  const [schoolDirectoryFilter, setSchoolDirectoryFilter] = useState<SchoolDirectoryPick | null>(null);
 
   // Session + profile + join-link slug prefill before paint so Radix Select and labels don’t flash empty.
   useLayoutEffect(() => {
@@ -167,9 +172,22 @@ export default function RoleChapterPage() {
     void loadInvitationFromToken();
   }, [profileChapter, profileRole, chapters]);
 
+  const chaptersForDirectory = useMemo(() => {
+    if (!schoolDirectoryFilter) return chapters;
+    return chapters.filter((c) => chapterMatchesSchoolDirectory(c, schoolDirectoryFilter));
+  }, [chapters, schoolDirectoryFilter]);
+
+  useEffect(() => {
+    if (!schoolDirectoryFilter || !formData.chapter) return;
+    const stillListed = chaptersForDirectory.some((c) => c.name === formData.chapter);
+    if (!stillListed) {
+      setFormData((prev) => ({ ...prev, chapter: '', chapterId: '' }));
+    }
+  }, [schoolDirectoryFilter, chaptersForDirectory, formData.chapter]);
+
   /** Ensures Radix Select always has a SelectItem for the current value (API list may still be loading). */
   const chapterSelectOptions = useMemo(() => {
-    const fromApi = chapters.map(c => ({ id: c.id, name: c.name }));
+    const fromApi = chaptersForDirectory.map(c => ({ id: c.id, name: c.name }));
     const namesToEnsure = new Set<string>();
     const p = profile?.chapter?.trim();
     if (p) namesToEnsure.add(p);
@@ -189,7 +207,7 @@ export default function RoleChapterPage() {
       }
     }
     return result;
-  }, [chapters, profile?.chapter, profile?.chapter_id, formData.chapter, formData.chapterId]);
+  }, [chaptersForDirectory, profile?.chapter, profile?.chapter_id, formData.chapter, formData.chapterId]);
 
   const selectChapterValue =
     formData.chapter || profile?.chapter?.trim() || '';
@@ -664,6 +682,17 @@ export default function RoleChapterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {showChapterDirectoryPicker ? (
+              <SchoolSearchCombobox
+                id="onboarding-school-directory"
+                label="Your school (optional)"
+                description="Search the school directory, then pick your campus to narrow the chapter list."
+                getAuthHeaders={getAuthHeaders}
+                value={schoolDirectoryFilter}
+                onChange={setSchoolDirectoryFilter}
+                disabled={chaptersLoading}
+              />
+            ) : null}
             {/* Chapter: directory picker (marketing self-serve only) vs read-only (invite / chapter join) */}
             <div className="space-y-2">
               <Label htmlFor="chapter" className="flex items-center gap-2">
