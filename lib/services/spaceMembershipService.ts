@@ -80,6 +80,43 @@ export async function clearSpaceIconFlagsForSpace(
 }
 
 /**
+ * Seeded / directory “shell” spaces use `chapter_status = 'inactive'`. After a membership is added,
+ * promote to `active` so join and member flows match a live space. No-op for `active`, `suspended`,
+ * `probation`, or unknown values (only `inactive` is promoted).
+ */
+export async function activateShellSpaceIfInactive(
+  supabase: SupabaseClient,
+  spaceId: string
+): Promise<{ ok: true; activated: boolean } | { ok: false; error: string }> {
+  const { data: row, error: selErr } = await supabase
+    .from('spaces')
+    .select('id, chapter_status')
+    .eq('id', spaceId)
+    .maybeSingle();
+
+  if (selErr) {
+    return { ok: false, error: selErr.message };
+  }
+  if (!row) {
+    return { ok: false, error: 'Space not found' };
+  }
+  if (row.chapter_status !== 'inactive') {
+    return { ok: true, activated: false };
+  }
+
+  const updatedAt = new Date().toISOString();
+  const { error: upErr } = await supabase
+    .from('spaces')
+    .update({ chapter_status: 'active', updated_at: updatedAt })
+    .eq('id', spaceId);
+
+  if (upErr) {
+    return { ok: false, error: upErr.message };
+  }
+  return { ok: true, activated: true };
+}
+
+/**
  * TRA-661: Upsert a space membership row (e.g. on join/approval).
  *
  * Cannot use PostgREST `.upsert({ onConflict: 'user_id,space_id' })` because the DB only defines a

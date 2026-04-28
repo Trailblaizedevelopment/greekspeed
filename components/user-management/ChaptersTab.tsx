@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Building2,
   Plus,
@@ -78,6 +79,8 @@ export function ChaptersTab() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalChapters, setTotalChapters] = useState(0);
   const [pageSize] = useState(100); // Show 100 chapters per page
+  /** Inactive = directory shells / not yet active; default list shows active spaces only. */
+  const [includeInactiveSpaces, setIncludeInactiveSpaces] = useState(false);
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim(), 400);
   /** When search changes we reset to page 1; skip one fetch while `currentPage` is still stale. */
@@ -94,6 +97,7 @@ export function ChaptersTab() {
       const params = new URLSearchParams({
         page: String(currentPage),
         limit: String(pageSize),
+        status: includeInactiveSpaces ? 'all' : 'active',
       });
       if (debouncedSearch.length > 0) {
         params.set('q', debouncedSearch);
@@ -114,7 +118,7 @@ export function ChaptersTab() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearch, accessToken]);
+  }, [currentPage, pageSize, debouncedSearch, accessToken, includeInactiveSpaces]);
 
   useEffect(() => {
     if (pendingSearchPageResetRef.current && currentPage !== 1) {
@@ -230,17 +234,31 @@ export function ChaptersTab() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
+      {/* Search + inactive filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+        <div className="flex-1 min-w-0">
           <Input
-            placeholder="Search across all chapters (name, university, fraternity, slug, school…) — results paginate on the server"
+            placeholder="Search chapters (name, university, fraternity, slug, school…) — paginated on the server"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
           />
         </div>
+        <label className="flex cursor-pointer items-center gap-2 shrink-0 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+          <Checkbox
+            checked={includeInactiveSpaces}
+            onCheckedChange={(checked) => {
+              setIncludeInactiveSpaces(checked);
+              setCurrentPage(1);
+            }}
+          />
+          <span className="select-none">Include inactive / directory shells</span>
+        </label>
       </div>
+      <p className="text-xs text-gray-500 -mt-2">
+        Seeded spaces can use status <span className="font-medium">inactive</span> until you assign members. Turn
+        the option on to find them, or set status to Active in edit after launch.
+      </p>
 
       {/* Chapters Table */}
       <Card>
@@ -248,7 +266,12 @@ export function ChaptersTab() {
           <CardTitle className="flex items-center space-x-2">
             <Building2 className="h-5 w-5" />
             <span>
-              {debouncedSearch ? 'Matching chapters' : 'All chapters'} ({totalChapters.toLocaleString()})
+              {debouncedSearch
+                ? 'Matching spaces'
+                : includeInactiveSpaces
+                  ? 'All spaces'
+                  : 'Active spaces'}{' '}
+              ({totalChapters.toLocaleString()})
             </span>
           </CardTitle>
         </CardHeader>
@@ -290,8 +313,10 @@ export function ChaptersTab() {
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-sm text-gray-500">
                         {debouncedSearch
-                          ? `No chapters match “${debouncedSearch}”. Try a shorter or different search.`
-                          : 'No chapters found.'}
+                          ? `No spaces match “${debouncedSearch}”. Try a shorter or different search.`
+                          : includeInactiveSpaces
+                            ? 'No spaces found.'
+                            : 'No active spaces in this page. Enable “Include inactive / directory shells” to list seeded or dormant spaces.'}
                       </td>
                     </tr>
                   ) : null}

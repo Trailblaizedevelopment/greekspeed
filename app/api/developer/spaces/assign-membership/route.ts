@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDeveloperWithServiceClient } from '@/lib/api/requireDeveloperServiceClient';
-import { syncProfileHomeFromPrimaryMembership, upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
+import {
+  activateShellSpaceIfInactive,
+  syncProfileHomeFromPrimaryMembership,
+  upsertSpaceMembership,
+} from '@/lib/services/spaceMembershipService';
 
 const bodySchema = z.object({
   user_id: z.string().uuid(),
@@ -46,6 +50,14 @@ export async function POST(request: NextRequest) {
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error ?? 'Membership upsert failed' }, { status: 500 });
+  }
+
+  let spaceActivated = false;
+  const activation = await activateShellSpaceIfInactive(auth.service, space_id);
+  if (!activation.ok) {
+    console.warn('assign-membership: activateShellSpaceIfInactive:', activation.error);
+  } else if (activation.activated) {
+    spaceActivated = true;
   }
 
   let home_space:
@@ -93,6 +105,7 @@ export async function POST(request: NextRequest) {
     status,
     is_primary,
     is_space_icon: is_space_icon ?? null,
+    space_activated: spaceActivated,
     home_space,
   });
 }

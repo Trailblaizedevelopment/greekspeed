@@ -5,7 +5,11 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { generateSimplePassword } from '@/lib/utils/passwordGenerator';
-import { syncProfileHomeFromPrimaryMembership, upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
+import {
+  activateShellSpaceIfInactive,
+  syncProfileHomeFromPrimaryMembership,
+  upsertSpaceMembership,
+} from '@/lib/services/spaceMembershipService';
 
 function profileRoleToSpaceMembership(profileRole: string): {
   role: string;
@@ -319,6 +323,11 @@ export async function POST(request: NextRequest) {
           },
           { status: 500 }
         );
+      }
+
+      const activation = await activateShellSpaceIfInactive(supabase, spaceUuid);
+      if (!activation.ok) {
+        console.warn('⚠️ create-user activateShellSpaceIfInactive:', activation.error);
       }
 
       const home = await syncProfileHomeFromPrimaryMembership(supabase, {

@@ -7,7 +7,7 @@ import {
   buildSpaceInsertRow,
   buildSpaceUpdateRow,
 } from '@/lib/api/developerChapterSpacePayload';
-import { upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
+import { activateShellSpaceIfInactive, upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
 
 function buildSearchOrFilter(qRaw: string): string | null {
   const token = postgrestIlikeQuotedPattern(qRaw);
@@ -34,11 +34,22 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
     const qParam = (searchParams.get('q') || '').trim();
     const orFilter = buildSearchOrFilter(qParam);
+    const statusParam = (searchParams.get('status') || 'all').trim().toLowerCase();
+    if (statusParam !== 'all' && statusParam !== 'active') {
+      return NextResponse.json(
+        { error: 'Invalid status filter. Use status=all or status=active.' },
+        { status: 400 }
+      );
+    }
 
     let query = auth.service
       .from('spaces')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
+
+    if (statusParam === 'active') {
+      query = query.eq('chapter_status', 'active');
+    }
 
     if (orFilter) {
       query = query.or(orFilter);
@@ -60,6 +71,7 @@ export async function GET(request: NextRequest) {
       limit,
       totalPages: Math.ceil(total / limit) || 1,
       q: qParam.replace(/%/g, '').replace(/,/g, '').trim().slice(0, 120) || null,
+      status: statusParam,
     });
   } catch (error) {
     console.error('Error in chapters API:', error);
@@ -123,6 +135,11 @@ export async function POST(request: NextRequest) {
           },
           { status: 500 }
         );
+      }
+
+      const activated = await activateShellSpaceIfInactive(auth.service, newChapter.id as string);
+      if (!activated.ok) {
+        console.warn('create chapter: activateShellSpaceIfInactive after icon:', activated.error);
       }
     }
 

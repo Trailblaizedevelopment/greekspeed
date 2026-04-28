@@ -129,7 +129,7 @@ export function ChapterSwitcher() {
           );
         } else if (isDeveloper) {
           const response = await fetch(
-            `/api/developer/chapters?page=1&limit=${DEVELOPER_RECENT_LIMIT}`,
+            `/api/developer/chapters?page=1&limit=${DEVELOPER_RECENT_LIMIT}&status=active`,
             {
               headers: {
                 'Content-Type': 'application/json',
@@ -184,6 +184,7 @@ export function ChapterSwitcher() {
         const params = new URLSearchParams({
           page: '1',
           limit: String(DEVELOPER_SEARCH_LIMIT),
+          status: 'all',
           q: debouncedSearchTrim,
         });
         const response = await fetch(`/api/developer/chapters?${params.toString()}`, {

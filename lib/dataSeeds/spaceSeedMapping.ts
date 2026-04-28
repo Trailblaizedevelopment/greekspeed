@@ -103,3 +103,18 @@ export function buildSimulationSpaceRow(params: {
     llm_data,
   };
 }
+
+/** True for rows created from `reference_spaces_simulation_seed.csv` (see `buildSimulationSpaceRow`). */
+export function isSimulationCsvSpaceRow(row: {
+  llm_data: unknown;
+  school?: string | null;
+}): boolean {
+  const ld = row.llm_data;
+  if (ld && typeof ld === 'object') {
+    const raw = (ld as Record<string, unknown>).seed_raw_name;
+    if (typeof raw === 'string' && raw.trim()) return true;
+  }
+  const sch = (row.school ?? '').trim();
+  if (/^simulation/i.test(sch)) return true;
+  return false;
+}

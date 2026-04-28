@@ -16,6 +16,7 @@
     "test:announcement-metadata": "tsx scripts/test-announcement-metadata.ts",
     "parse-seeds": "tsx scripts/parse-seed-emails.ts",
     "import-seeds": "tsx scripts/import-data-seeds.ts",
+    "backfill:simulation-spaces-inactive": "tsx scripts/backfill-simulation-spaces-inactive.ts",
     "backfill:alumni-current-place": "tsx scripts/backfill-alumni-current-place.ts"
   },
   "dependencies": {

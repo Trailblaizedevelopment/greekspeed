@@ -8,6 +8,10 @@
  * Usage:
  *   npx tsx scripts/import-data-seeds.ts [--dry-run] [--only=schools|orgs|spaces|all] [--spaces-limit=N]
  *
+ * Existing DB rows inserted before simulation spaces defaulted to `inactive`: run
+ *   npm run backfill:simulation-spaces-inactive -- --dry-run
+ *   npm run backfill:simulation-spaces-inactive
+ *
  * Requires `.env.local`: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 import * as fs from 'fs';
@@ -388,6 +392,8 @@ async function main() {
           school: p.school,
           space_type: p.space_type,
           llm_data: p.llm_data,
+          /** Directory shells: hidden from active-only lists until promoted (e.g. first membership). */
+          chapter_status: 'inactive' as const,
         }));
         const { error } = await supabase.from('spaces').insert(chunk);
         if (error) {
