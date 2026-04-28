@@ -50,7 +50,54 @@ export async function GET(
     return NextResponse.json({ error: 'Space not found' }, { status: 404 });
   }
 
-  return NextResponse.json({ space: data });
+  const row = data as Record<string, unknown>;
+  const schoolId = typeof row.school_id === 'string' ? row.school_id : null;
+  const orgId = typeof row.national_organization_id === 'string' ? row.national_organization_id : null;
+
+  let linked_school: {
+    id: string;
+    name: string;
+    short_name: string | null;
+    location: string | null;
+  } | null = null;
+  let linked_national_organization: {
+    id: string;
+    name: string;
+    short_name: string | null;
+  } | null = null;
+
+  if (schoolId) {
+    const { data: s, error: sErr } = await auth.service
+      .from('schools')
+      .select('id,name,short_name,location')
+      .eq('id', schoolId)
+      .maybeSingle();
+    if (!sErr && s) {
+      linked_school = {
+        id: String(s.id),
+        name: String(s.name ?? ''),
+        short_name: s.short_name != null ? String(s.short_name) : null,
+        location: s.location != null ? String(s.location) : null,
+      };
+    }
+  }
+
+  if (orgId) {
+    const { data: o, error: oErr } = await auth.service
+      .from('national_organizations')
+      .select('id,name,short_name')
+      .eq('id', orgId)
+      .maybeSingle();
+    if (!oErr && o) {
+      linked_national_organization = {
+        id: String(o.id),
+        name: String(o.name ?? ''),
+        short_name: o.short_name != null ? String(o.short_name) : null,
+      };
+    }
+  }
+
+  return NextResponse.json({ space: data, linked_school, linked_national_organization });
 }
 
 export async function PATCH(

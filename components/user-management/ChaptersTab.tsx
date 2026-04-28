@@ -12,13 +12,10 @@ import {
   Eye,
   Edit,
   Trash2,
-  MapPin,
-  Users,
-  Calendar,
   Palette,
   UserPlus,
 } from 'lucide-react';
-import { ViewChapterModal } from './ViewChapterModal';
+import { ViewChapterSheet } from './ViewChapterSheet';
 import { DeleteChapterModal } from './DeleteChapterModal';
 import { EditChapterModal } from './EditChapterModal';
 import { CreateChapterForm } from './CreateChapterForm';
@@ -259,81 +256,111 @@ export function ChaptersTab() {
           <div className="overflow-x-auto">
             {/* Scrollable container with fixed height */}
             <div className="max-h-[70vh] overflow-y-auto border border-gray-200 rounded-lg">
-              <table className="w-full border-collapse">
+              <table className="w-full min-w-[920px] border-collapse text-sm">
                 <thead className="sticky top-0 bg-gray-50 z-10">
                   <tr className="border-b">
-                    <th className="text-left p-3 font-medium text-sm bg-gray-50">Chapter Info</th>
-                    <th className="text-left p-3 font-medium text-sm bg-gray-50">Location & University</th>
-                    <th className="text-left p-3 font-medium text-sm bg-gray-50">National Fraternity</th>
-                    <th className="text-left p-3 font-medium text-sm bg-gray-50">Members & Founded</th>
-                    <th className="text-left p-3 font-medium text-sm bg-gray-50">Status</th>
-                    <th className="text-left p-3 font-medium text-sm bg-gray-50">Created</th>
-                    <th className="text-left p-3 font-medium text-sm bg-gray-50">Actions</th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 max-w-[220px]">
+                      Name
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 max-w-[160px]">
+                      Location
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 max-w-[180px]">
+                      University
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 max-w-[200px]">
+                      National fraternity
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 whitespace-nowrap">
+                      Members
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 whitespace-nowrap">
+                      Status
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 whitespace-nowrap">
+                      Created
+                    </th>
+                    <th className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 whitespace-nowrap">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {chapters.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-sm text-gray-500">
+                      <td colSpan={8} className="p-8 text-center text-sm text-gray-500">
                         {debouncedSearch
                           ? `No chapters match “${debouncedSearch}”. Try a shorter or different search.`
                           : 'No chapters found.'}
                       </td>
                     </tr>
                   ) : null}
-                  {chapters.map((chapter) => (
-                    <tr key={chapter.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3">
-                        <div>
-                          <p className="font-medium">{chapter.name}</p>
-                          <p className="text-sm text-gray-600">{chapter.chapter_name}</p>
-                          <p className="text-xs text-gray-500">{chapter.slug}</p>
-                        </div>
+                  {chapters.map((chapter) => {
+                    const nameTitle = [
+                      chapter.name,
+                      chapter.chapter_name,
+                      chapter.slug,
+                    ]
+                      .filter(Boolean)
+                      .join(' — ');
+                    return (
+                    <tr key={chapter.id} className="border-b hover:bg-gray-50 align-middle">
+                      <td className="py-2 px-3 min-w-0 max-w-[220px]">
+                        <p
+                          className="truncate font-medium text-gray-900 whitespace-nowrap"
+                          title={nameTitle || undefined}
+                        >
+                          {chapter.name}
+                          {chapter.chapter_name ? (
+                            <span className="font-normal text-gray-500"> · {chapter.chapter_name}</span>
+                          ) : null}
+                        </p>
                       </td>
-                      <td className="p-3">
-                        <div className="flex items-center space-x-2">
-                          <MapPin className="h-4 w-4 text-gray-400" />
-                          <div>
-                            <p className="font-medium">{chapter.location}</p>
-                            <p className="text-sm text-gray-600">{chapter.university}</p>
-                          </div>
-                        </div>
+                      <td className="py-2 px-3 min-w-0 max-w-[160px] text-gray-700">
+                        <p className="truncate whitespace-nowrap" title={chapter.location || undefined}>
+                          {chapter.location || '—'}
+                        </p>
                       </td>
-                      <td className="p-3">
-                        <div>
-                          <p className="font-medium">{chapter.national_fraternity}</p>
-                          <p className="text-sm text-gray-600">{chapter.school}</p>
-                        </div>
+                      <td className="py-2 px-3 min-w-0 max-w-[180px] text-gray-700">
+                        <p className="truncate whitespace-nowrap" title={chapter.university || undefined}>
+                          {chapter.university || '—'}
+                        </p>
                       </td>
-                      <td className="p-3">
-                        <div className="flex items-center space-x-2">
-                          <Users className="h-4 w-4 text-gray-400" />
-                          <span className="font-medium">{chapter.member_count}</span>
-                          <span className="text-gray-400">|</span>
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span>{chapter.founded_year}</span>
-                        </div>
+                      <td className="py-2 px-3 min-w-0 max-w-[200px] text-gray-700">
+                        <p className="truncate whitespace-nowrap" title={chapter.national_fraternity || undefined}>
+                          {chapter.national_fraternity || '—'}
+                        </p>
                       </td>
-                      <td className="p-3">
+                      <td
+                        className="py-2 px-3 whitespace-nowrap text-gray-900 tabular-nums"
+                        title={
+                          chapter.founded_year != null
+                            ? `Founded ${chapter.founded_year}`
+                            : undefined
+                        }
+                      >
+                        <span className="font-medium">{chapter.member_count}</span>
+                        <span className="text-gray-400 mx-1.5">·</span>
+                        <span className="text-gray-600">{chapter.founded_year ?? '—'}</span>
+                      </td>
+                      <td className="py-2 px-3 whitespace-nowrap">
                         <Badge 
                           variant={chapter.chapter_status === 'active' ? 'default' : 'secondary'}
-                          className="capitalize"
+                          className="capitalize text-xs"
                         >
                           {chapter.chapter_status}
                         </Badge>
                       </td>
-                      <td className="p-3">
-                        <div className="text-sm text-gray-600">
-                          {new Date(chapter.created_at).toLocaleDateString()}
-                        </div>
+                      <td className="py-2 px-3 whitespace-nowrap text-gray-600 tabular-nums">
+                        {new Date(chapter.created_at).toLocaleDateString()}
                       </td>
-                      <td className="p-3">
-                        <div className="flex items-center space-x-2">
+                      <td className="py-2 px-3 text-right">
+                        <div className="inline-flex items-center justify-end gap-1">
                           <Button 
                             variant="outline" 
                             size="sm"
                             onClick={() => handleViewChapter(chapter)}
-                            className="hover:bg-accent-50 hover:text-brand-accent"
+                            className="h-9 w-9 shrink-0 rounded-full p-0 hover:bg-accent-50 hover:text-brand-accent"
                             title="View Chapter"
                           >
                             <Eye className="h-4 w-4" />
@@ -343,7 +370,7 @@ export function ChaptersTab() {
                             variant="outline"
                             size="sm"
                             onClick={() => openManageSheet(chapter)}
-                            className="hover:bg-accent-50 hover:text-brand-accent"
+                            className="h-9 w-9 shrink-0 rounded-full p-0 hover:bg-accent-50 hover:text-brand-accent"
                             title="Members & assign"
                           >
                             <UserPlus className="h-4 w-4" />
@@ -353,7 +380,7 @@ export function ChaptersTab() {
                             variant="outline" 
                             size="sm"
                             onClick={() => handleEditChapter(chapter)}
-                            className="hover:bg-accent-50 hover:text-brand-accent"
+                            className="h-9 w-9 shrink-0 rounded-full p-0 hover:bg-accent-50 hover:text-brand-accent"
                             title="Edit Chapter"
                           >
                             <Edit className="h-4 w-4" />
@@ -363,7 +390,7 @@ export function ChaptersTab() {
                             variant="outline" 
                             size="sm"
                             onClick={() => router.push(`/dashboard/user-management/chapters/${chapter.id}/branding`)}
-                            className="hover:bg-purple-50 hover:text-purple-600"
+                            className="h-9 w-9 shrink-0 rounded-full p-0 hover:bg-purple-50 hover:text-purple-600"
                             title="Manage Branding"
                           >
                             <Palette className="h-4 w-4" />
@@ -372,7 +399,7 @@ export function ChaptersTab() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                            className="h-9 w-9 shrink-0 rounded-full p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
                             onClick={() => openDeleteModal(chapter)}
                             disabled={deletingChapterId === chapter.id}
                             title="Delete Chapter"
@@ -382,7 +409,8 @@ export function ChaptersTab() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -428,14 +456,17 @@ export function ChaptersTab() {
         </CardContent>
       </Card>
 
-      {/* View Chapter Modal */}
-      {isViewModalOpen && viewChapter && (
-        <ViewChapterModal
-          isOpen={isViewModalOpen}
-          onClose={() => setIsViewModalOpen(false)}
-          chapter={viewChapter}
+      {viewChapter ? (
+        <ViewChapterSheet
+          open={isViewModalOpen}
+          onOpenChange={(next) => {
+            setIsViewModalOpen(next);
+            if (!next) setViewChapter(null);
+          }}
+          chapter={{ id: viewChapter.id, name: viewChapter.name }}
+          accessToken={accessToken}
         />
-      )}
+      ) : null}
 
       {/* Create Chapter Form */}
       {showCreateForm && (

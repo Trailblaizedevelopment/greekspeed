@@ -9,8 +9,6 @@ import { Users, Shield, GraduationCap } from 'lucide-react';
 import { UsersTab } from '@/components/user-management/UsersTab';
 import { ChaptersTab } from '@/components/user-management/ChaptersTab';
 import { AlumniTab } from '@/components/user-management/AlumniTab';
-import { ViewChapterModal } from '@/components/user-management/ViewChapterModal';
-
 export default function UserManagementPage() {
   const { profile, isDeveloper } = useProfile();
   const [activeTab, setActiveTab] = useState('users');
