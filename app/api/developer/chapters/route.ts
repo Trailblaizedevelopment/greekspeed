@@ -7,6 +7,7 @@ import {
   buildSpaceInsertRow,
   buildSpaceUpdateRow,
 } from '@/lib/api/developerChapterSpacePayload';
+import { upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
 
 function buildSearchOrFilter(qRaw: string): string | null {
   const token = postgrestIlikeQuotedPattern(qRaw);
@@ -97,6 +98,32 @@ export async function POST(request: NextRequest) {
         { error: error.message || 'Failed to create chapter' },
         { status: 500 }
       );
+    }
+
+    const iconUserId = parsed.data.space_icon_user_id;
+    if (iconUserId) {
+      const membership = await upsertSpaceMembership(auth.service, {
+        userId: iconUserId,
+        spaceId: newChapter.id as string,
+        role: 'active_member',
+        status: 'active',
+        isPrimary: false,
+        isSpaceIcon: true,
+      });
+      if (!membership.ok) {
+        const { error: rollbackErr } = await auth.service.from('spaces').delete().eq('id', newChapter.id as string);
+        if (rollbackErr) {
+          console.error('Rollback after Space Icon failure:', rollbackErr);
+        }
+        return NextResponse.json(
+          {
+            error:
+              membership.error ??
+              'Failed to assign Space Icon. The space was not saved; fix the user or try again without a Space Icon.',
+          },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({

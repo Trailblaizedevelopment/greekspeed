@@ -14,6 +14,7 @@ import {
   DeveloperReferenceSearchField,
   type DeveloperReferenceSelection,
 } from './DeveloperReferenceSearchField';
+import { DeveloperUserSearchPickField, type DeveloperUserPick } from './DeveloperUserSearchPickField';
 import { FieldHint } from './FieldHint';
 
 interface CreateChapterFormProps {
@@ -42,6 +43,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [schoolLink, setSchoolLink] = useState<DeveloperReferenceSelection | null>(null);
   const [orgLink, setOrgLink] = useState<DeveloperReferenceSelection | null>(null);
+  const [spaceIconUser, setSpaceIconUser] = useState<DeveloperUserPick | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -106,6 +108,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
         school_id: schoolLink?.kind === 'school' ? schoolLink.id : null,
         national_organization_id:
           orgLink?.kind === 'national_organization' ? orgLink.id : null,
+        ...(spaceIconUser ? { space_icon_user_id: spaceIconUser.id } : {}),
       };
 
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -226,6 +229,16 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
                     }}
                   />
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-sky-200/90 bg-sky-50/50 p-4">
+                <DeveloperUserSearchPickField
+                  label="Space Icon (optional)"
+                  labelHint="Search a profile by name, email, or UUID. On save, that user becomes an active member of the new space and the exclusive Space Icon."
+                  accessToken={accessToken}
+                  value={spaceIconUser}
+                  onChange={setSpaceIconUser}
+                />
               </div>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

@@ -2,8 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { z } from 'zod';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { generateSimplePassword } from '@/lib/utils/passwordGenerator';
+import { syncProfileHomeFromPrimaryMembership, upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
+
+function profileRoleToSpaceMembership(profileRole: string): {
+  role: string;
+  status: 'active' | 'alumni' | 'inactive';
+} {
+  if (profileRole === 'alumni') {
+    return { role: 'alumni', status: 'alumni' };
+  }
+  return { role: 'active_member', status: 'active' };
+}
 
 async function authenticateRequest(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -60,17 +72,20 @@ export async function POST(request: NextRequest) {
       .single();
 
     const body = await request.json();
-    let { 
-      email, 
-      firstName, 
-      lastName, 
-      chapter, 
-      role = 'active_member', 
+    let {
+      email,
+      firstName,
+      lastName,
+      chapter,
+      role = 'active_member',
       chapter_role = 'member',
-      is_developer = false, 
+      is_developer = false,
       member_status = 'active',
-      governance_chapter_ids = [] as string[]
+      governance_chapter_ids = [] as string[],
     } = body;
+
+    /** Exclusive Space Icon for this chapter (only when chapter is a space UUID). */
+    const is_space_icon_requested = body.is_space_icon === true;
 
     // Validate required fields
     if (!email || !firstName || !lastName || !chapter) {
@@ -278,6 +293,40 @@ export async function POST(request: NextRequest) {
       const { error: gcError } = await supabase.from('governance_chapters').insert(rows);
       if (gcError) {
         console.error('❌ governance_chapters insert error:', gcError);
+      }
+    }
+
+    // TRA-665: Ensure space_memberships row + optional exclusive icon (when chapter_id is a UUID).
+    const spaceIdParsed = z.string().uuid().safeParse(String(chapterId));
+    if (spaceIdParsed.success) {
+      const spaceUuid = spaceIdParsed.data;
+      const { role: membershipRole, status: membershipStatus } = profileRoleToSpaceMembership(role);
+
+      const mem = await upsertSpaceMembership(supabase, {
+        userId: newUserAuth.user.id,
+        spaceId: spaceUuid,
+        role: membershipRole,
+        status: membershipStatus,
+        isPrimary: true,
+        isSpaceIcon: is_space_icon_requested ? true : undefined,
+      });
+
+      if (!mem.ok) {
+        console.error('❌ create-user upsertSpaceMembership:', mem.error);
+        return NextResponse.json(
+          {
+            error: `User created but space membership failed: ${mem.error ?? 'unknown error'}`,
+          },
+          { status: 500 }
+        );
+      }
+
+      const home = await syncProfileHomeFromPrimaryMembership(supabase, {
+        userId: newUserAuth.user.id,
+        spaceId: spaceUuid,
+      });
+      if (!home.ok) {
+        console.warn('⚠️ create-user syncProfileHomeFromPrimaryMembership:', home.error);
       }
     }
 

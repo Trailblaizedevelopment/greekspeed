@@ -39,7 +39,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     role: 'active_member' as 'admin' | 'active_member' | 'alumni' | 'governance',
     chapter_role: 'member' as string,
     is_developer: false,
-    governance_chapter_ids: [] as string[]
+    governance_chapter_ids: [] as string[],
+    /** Developer: set user as exclusive Space Icon for the selected space (requires space UUID). */
+    setAsSpaceIcon: false,
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -107,6 +109,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       };
       if (formData.role === 'governance' && formData.governance_chapter_ids.length > 0) {
         body.governance_chapter_ids = formData.governance_chapter_ids;
+      }
+      if (isDeveloper && formData.setAsSpaceIcon) {
+        body.is_space_icon = true;
       }
       const response = await fetch('/api/developer/create-user', {
         method: 'POST',
@@ -342,6 +347,29 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           </Select>
         </div>
       )}
+
+      {isDeveloper ? (
+        <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50/90 p-3">
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="set_as_space_icon"
+              checked={formData.setAsSpaceIcon}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, setAsSpaceIcon: Boolean(checked) }))
+              }
+            />
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="set_as_space_icon" className="cursor-pointer text-sm font-medium text-gray-900">
+                Space Icon
+              </Label>
+              <p className="text-xs leading-snug text-gray-600">
+                Only one Space Icon exists per space. Checking this removes the designation from anyone else, then
+                assigns this user. Applies when the chapter value is a space UUID.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Role and Chapter Role - Stack on mobile, side-by-side on desktop */}
       <div className={cn(

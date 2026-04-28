@@ -58,11 +58,36 @@ export async function getUserMemberSpaceIds(
 }
 
 /**
+ * Clears `is_space_icon` on all non-inactive memberships for a space. Call before assigning the
+ * single **Space Icon** user so the previous holder loses the designation.
+ */
+export async function clearSpaceIconFlagsForSpace(
+  supabase: SupabaseClient,
+  spaceId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const updatedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('space_memberships')
+    .update({ is_space_icon: false, updated_at: updatedAt })
+    .eq('space_id', spaceId)
+    .neq('status', 'inactive');
+
+  if (error) {
+    console.error('clearSpaceIconFlagsForSpace:', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+/**
  * TRA-661: Upsert a space membership row (e.g. on join/approval).
  *
  * Cannot use PostgREST `.upsert({ onConflict: 'user_id,space_id' })` because the DB only defines a
- * **partial** unique index on (user_id, space_id) WHERE status != 'inactive', which does not satisfy
+ * **partial** unique index on `(user_id, space_id)` WHERE status != 'inactive', which does not satisfy
  * Postgres `ON CONFLICT` inference (42P10).
+ *
+ * **Space Icon:** At most one active/alumni membership per space may have `is_space_icon: true`.
+ * Whenever this upsert sets that flag to `true`, other memberships on the same space are cleared first.
  */
 export async function upsertSpaceMembership(
   supabase: SupabaseClient,
@@ -72,7 +97,7 @@ export async function upsertSpaceMembership(
     role: string;
     status: 'active' | 'alumni' | 'inactive';
     isPrimary: boolean;
-    /** TRA-665: space picker “icon” membership */
+    /** When `true`, this user becomes the only Space Icon for the space (others cleared first). */
     isSpaceIcon?: boolean;
   }
 ): Promise<{ ok: boolean; error?: string }> {
@@ -92,6 +117,12 @@ export async function upsertSpaceMembership(
   }
 
   if (existing?.id) {
+    if (params.isSpaceIcon === true) {
+      const cleared = await clearSpaceIconFlagsForSpace(supabase, params.spaceId);
+      if (!cleared.ok) {
+        return { ok: false, error: cleared.error };
+      }
+    }
     const patch: Record<string, unknown> = {
       role: params.role,
       status: params.status,
@@ -123,6 +154,13 @@ export async function upsertSpaceMembership(
   }
   const isSpaceIcon =
     params.isSpaceIcon !== undefined ? params.isSpaceIcon : firstMemberIcon;
+
+  if (isSpaceIcon === true) {
+    const cleared = await clearSpaceIconFlagsForSpace(supabase, params.spaceId);
+    if (!cleared.ok) {
+      return { ok: false, error: cleared.error };
+    }
+  }
 
   const { error: insertError } = await supabase.from('space_memberships').insert({
     user_id: params.userId,

@@ -7,7 +7,7 @@ export interface SpaceMembership {
   role: string;
   status: SpaceMembershipStatus;
   is_primary: boolean;
-  /** TRA-665: designated “icon” face for space picker / onboarding; not alumni.verified */
+  /** TRA-665: exclusive Space Icon for this space (avatar/face in search & pickers). */
   is_space_icon: boolean;
   created_at: string;
   updated_at: string;
