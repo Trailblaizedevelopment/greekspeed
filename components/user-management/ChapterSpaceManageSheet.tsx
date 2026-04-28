@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SpaceMembershipAssignPanel } from '@/components/user-management/SpaceMembershipAssignPanel';
+import { FieldHint } from '@/components/user-management/FieldHint';
 import { Loader2, Users, UserPlus, Pencil, RefreshCw, Search, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
@@ -362,20 +363,37 @@ export function ChapterSpaceManageSheet({
 
             {tab === 'quick_edit' ? (
               <div className="space-y-3">
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Updates plain-text columns on <span className="font-mono">spaces</span> only. To link directory rows
+                  (<span className="font-mono">school_id</span>, <span className="font-mono">national_organization_id</span>
+                  ), use full chapter edit.
+                </p>
                 <div className="space-y-2">
-                  <Label htmlFor="qe-name">Name</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="qe-name">Name</Label>
+                    <FieldHint text="spaces.name — primary title shown in lists, search, and the chapter switcher." />
+                  </div>
                   <Input id="qe-name" value={quick.name} onChange={(e) => setQuick((q) => ({ ...q, name: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="qe-slug">Slug</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="qe-slug">Slug</Label>
+                    <FieldHint text="spaces.slug — stable URL-style identifier on the row (developer search matches it). You can edit freely; the database may still require it to stay unique. Nothing in this quick form changes foreign keys." />
+                  </div>
                   <Input id="qe-slug" value={quick.slug} onChange={(e) => setQuick((q) => ({ ...q, slug: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="qe-school">School (label)</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="qe-school">School (label)</Label>
+                    <FieldHint text="spaces.school — denormalized short label stored for display and search. Not the same as school_id; directory school linking is done in full edit." />
+                  </div>
                   <Input id="qe-school" value={quick.school} onChange={(e) => setQuick((q) => ({ ...q, school: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="qe-nat">National / category string</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="qe-nat">National / category</Label>
+                    <FieldHint text="spaces.national_fraternity — category or national line text on the row. Not national_organization_id; link the directory org in full edit." />
+                  </div>
                   <Input
                     id="qe-nat"
                     value={quick.national_fraternity}
@@ -383,7 +401,10 @@ export function ChapterSpaceManageSheet({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="qe-ch">Chapter name</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="qe-ch">Chapter name</Label>
+                    <FieldHint text="spaces.chapter_name — local designation (for example Greek letters or a short branch label) shown next to the full name." />
+                  </div>
                   <Input
                     id="qe-ch"
                     value={quick.chapter_name}
@@ -391,7 +412,10 @@ export function ChapterSpaceManageSheet({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="qe-st">space_type</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="qe-st">Space type</Label>
+                    <FieldHint text="spaces.space_type — internal grouping key (for example seed category). Plain text on the row, not a foreign key." />
+                  </div>
                   <Input
                     id="qe-st"
                     value={quick.space_type}
@@ -399,10 +423,15 @@ export function ChapterSpaceManageSheet({
                   />
                 </div>
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <Button type="button" onClick={() => void saveQuickEdit()} disabled={saveLoading || !accessToken}>
+                  <Button
+                    type="button"
+                    className="rounded-full"
+                    onClick={() => void saveQuickEdit()}
+                    disabled={saveLoading || !accessToken}
+                  >
                     {saveLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => onRequestFullEdit(chapter)}>
+                  <Button type="button" variant="outline" className="rounded-full" onClick={() => onRequestFullEdit(chapter)}>
                     Open full edit modal
                   </Button>
                 </div>
