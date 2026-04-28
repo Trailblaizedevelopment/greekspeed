@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { DeveloperPortal } from '@/components/features/dashboard/dashboards/DeveloperPortal';
 import { Badge } from '@/components/ui/badge';
@@ -9,11 +9,17 @@ import { Users, Shield, GraduationCap } from 'lucide-react';
 import { UsersTab } from '@/components/user-management/UsersTab';
 import { ChaptersTab } from '@/components/user-management/ChaptersTab';
 import { AlumniTab } from '@/components/user-management/AlumniTab';
-import { ViewChapterModal } from '@/components/user-management/ViewChapterModal';
-
 export default function UserManagementPage() {
   const { profile, isDeveloper } = useProfile();
   const [activeTab, setActiveTab] = useState('users');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t === 'chapters' || t === 'users' || t === 'alumni') {
+      setActiveTab(t);
+    }
+  }, []);
 
   if (!isDeveloper) {
     return (
@@ -39,7 +45,7 @@ export default function UserManagementPage() {
               </TabsTrigger>
               <TabsTrigger value="chapters" className="flex items-center space-x-2">
                 <Shield className="h-4 w-4" />
-                <span>Chapters</span>
+                <span>Spaces</span>
               </TabsTrigger>
               <TabsTrigger value="alumni" className="flex items-center space-x-2">
                 <GraduationCap className="h-4 w-4" />

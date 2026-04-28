@@ -7,6 +7,8 @@ export interface SpaceMembership {
   role: string;
   status: SpaceMembershipStatus;
   is_primary: boolean;
+  /** TRA-665: designated “icon” face for space picker / onboarding; not alumni.verified */
+  is_space_icon: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -17,6 +19,8 @@ export interface MemberSpace {
   school?: string | null;
   slug?: string | null;
   is_primary: boolean;
+  /** Present when sourced from space_memberships; false for profile.chapter_id fallback */
+  is_space_icon?: boolean;
   membership_status: SpaceMembershipStatus;
   membership_role: string;
 }
