@@ -15,6 +15,7 @@ import { DEVELOPER_PERMISSIONS } from '@/lib/developerPermissions';
 import { DeveloperPermission } from '@/types/profile';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 import { cn } from '@/lib/utils';
+import { DeveloperSpaceSelectCombobox } from '@/components/user-management/DeveloperSpaceSelectCombobox';
 
 interface CreateUserFormProps {
   onClose: () => void;
@@ -45,9 +46,11 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const [createdUser, setCreatedUser] = useState<any>(null);
   const [tempPassword, setTempPassword] = useState('');
   const [isMobile, setIsMobile] = useState(false);
-  
-  // Use the chapters hook to fetch available chapters
-  const { chapters, loading: chaptersLoading, error: chaptersError } = useChapters();
+  /** Label for the selected space when using developer server search (CreateUserForm). */
+  const [chapterPickLabel, setChapterPickLabel] = useState('');
+
+  // Chapters for non-developer chapter picker and governance checkboxes
+  const { chapters, loading: chaptersLoading } = useChapters();
 
   const { height: visualHeight, offsetTop } = useVisualViewportHeight();
   const [innerHeight, setInnerHeight] = useState(
@@ -78,7 +81,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   // Auto-populate chapter if provided
   useEffect(() => {
     if (chapterContext && chapterContext.isChapterAdmin) {
-      setFormData(prev => ({ ...prev, chapter: chapterContext.chapterId }));
+      setFormData((prev) => ({ ...prev, chapter: chapterContext.chapterId }));
+      setChapterPickLabel(chapterContext.chapterName);
     }
   }, [chapterContext]);
 
@@ -301,12 +305,33 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
             className="bg-gray-100"
           />
         </div>
+      ) : isDeveloper ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="chapter-space-trigger">Chapter *</Label>
+          <DeveloperSpaceSelectCombobox
+            id="chapter-space-trigger"
+            value={formData.chapter}
+            selectedLabel={chapterPickLabel}
+            onValueChange={(spaceId, spaceName) => {
+              setFormData({ ...formData, chapter: spaceId });
+              setChapterPickLabel(spaceName);
+            }}
+            disabled={loading}
+          />
+          <p className="text-xs text-muted-foreground">
+            Search the full space directory (same as developer tools). Results update as you type.
+          </p>
+        </div>
       ) : (
         <div>
           <Label htmlFor="chapter">Chapter *</Label>
-          <Select 
-            value={formData.chapter} 
-            onValueChange={(value: string) => setFormData({ ...formData, chapter: value })}
+          <Select
+            value={formData.chapter}
+            onValueChange={(value: string) => {
+              setFormData({ ...formData, chapter: value });
+              const ch = chapters.find((c) => c.id === value);
+              setChapterPickLabel(ch?.name ?? '');
+            }}
             placeholder="Select a chapter"
           >
             {chapters.map((chapterData) => (
