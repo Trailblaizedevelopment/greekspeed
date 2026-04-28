@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { createPortal } from 'react-dom';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +45,8 @@ interface EditChapterModalProps {
 }
 
 export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSuccess }: EditChapterModalProps) {
+  const [mounted, setMounted] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -62,6 +65,10 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [schoolLink, setSchoolLink] = useState<DeveloperReferenceSelection | null>(null);
   const [orgLink, setOrgLink] = useState<DeveloperReferenceSelection | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Initialize form data when chapter changes
   useEffect(() => {
@@ -116,6 +123,15 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
     }
   }, [chapter]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
@@ -127,10 +143,10 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Chapter name is required';
+    if (!formData.name.trim()) newErrors.name = 'Full space name is required';
     if (!formData.university.trim()) newErrors.university = 'University is required';
-    if (!formData.national_fraternity.trim()) newErrors.national_fraternity = 'National fraternity is required';
-    if (!formData.chapter_name.trim()) newErrors.chapter_name = 'Chapter name is required';
+    if (!formData.national_fraternity.trim()) newErrors.national_fraternity = 'National organization is required';
+    if (!formData.chapter_name.trim()) newErrors.chapter_name = 'Local designation is required';
     if (!formData.location.trim()) newErrors.location = 'Location is required';
     if (!formData.founded_year.trim()) newErrors.founded_year = 'Founded year is required';
     if (!formData.member_count.trim()) newErrors.member_count = 'Member count is required';
@@ -179,22 +195,22 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update chapter');
+        throw new Error(errorData.error || 'Failed to update space');
       }
 
       onSuccess();
       onClose();
-      alert('Chapter updated successfully!');
+      alert('Space updated successfully!');
       
     } catch (error) {
       console.error('Error updating chapter:', error);
-      alert(`Failed to update chapter: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`Failed to update space: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!isOpen || !chapter) return null;
+  if (!mounted || !isOpen || !chapter) return null;
 
   const hasSchoolDirectoryLink = schoolLink?.kind === 'school';
   const hasOrgDirectoryLink = orgLink?.kind === 'national_organization';
@@ -202,27 +218,43 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
   const showManualUniversityField = !hasSchoolDirectoryLink;
   const showDirectoryBackedFieldsRow = showManualOrgField || showManualUniversityField;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <Building2 className="h-5 w-5 text-brand-accent" />
-              <span>Edit Chapter: {chapter.name}</span>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100150] flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <Card
+        className="relative z-[100160] flex h-full max-h-[min(90vh,820px)] w-full max-w-4xl flex-col overflow-hidden shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <CardHeader className="shrink-0 border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+              <Building2 className="h-5 w-5 shrink-0 text-brand-accent" />
+              <span>Edit space: {chapter.name}</span>
             </CardTitle>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="h-8 w-8 p-0 hover:bg-gray-100"
+              className="h-8 w-8 shrink-0 p-0 hover:bg-gray-100"
+              aria-label="Close"
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
+          <p className="mt-2 text-sm text-gray-500">
+            Update directory links and fields on this space. Only the middle section scrolls.
+          </p>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+            <div className="space-y-6">
             <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 space-y-4">
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-medium text-gray-800">Directory links</p>
@@ -276,7 +308,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label htmlFor="name">Full Chapter Name *</Label>
+                  <Label htmlFor="name">Full space name *</Label>
                   <FieldHint text="The main title shown for this space in lists, search, and headers across the product." />
                 </div>
                 <Input
@@ -291,7 +323,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
 
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label htmlFor="chapter_name">Chapter Name *</Label>
+                  <Label htmlFor="chapter_name">Local designation *</Label>
                   <FieldHint text="Short branch label for this space (for example a Greek letter chapter) stored as the local designation alongside the full name." />
                 </div>
                 <Input
@@ -437,7 +469,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
             {/* Chapter Status */}
             <div className="space-y-2">
               <div className="flex items-center gap-1.5">
-                <Label htmlFor="chapter_status">Chapter Status</Label>
+                <Label htmlFor="chapter_status">Space status</Label>
                 <FieldHint text="Controls whether the space is treated as active, inactive, suspended, or on probation in admin and member flows." />
               </div>
               <Select
@@ -466,7 +498,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
                 id="description"
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Enter a description of the chapter..."
+                placeholder="Describe this space…"
                 rows={3}
               />
             </div>
@@ -478,38 +510,32 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
               </div>
               <Input value={formData.slug} readOnly className="bg-gray-50 text-gray-600" />
             </div>
+            </div>
+          </div>
 
-            {/* Form Actions */}
-            <div className="flex justify-end space-x-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={loading}
-              >
+          <div className="shrink-0 border-t border-gray-200 bg-gray-50/90 px-6 py-4">
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="flex items-center space-x-2"
-              >
+              <Button type="submit" disabled={loading} className="flex items-center gap-2">
                 {loading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Updating...</span>
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
+                    <span>Updating…</span>
                   </>
                 ) : (
                   <>
                     <Building2 className="h-4 w-4" />
-                    <span>Update Chapter</span>
+                    <span>Update space</span>
                   </>
                 )}
               </Button>
             </div>
-          </form>
-        </CardContent>
+          </div>
+        </form>
       </Card>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -80,7 +80,6 @@ export function ChapterSpaceManageSheet({
     name: '',
     slug: '',
     school: '',
-    national_fraternity: '',
     chapter_name: '',
     space_type: '',
   });
@@ -141,7 +140,6 @@ export function ChapterSpaceManageSheet({
       name: chapter.name ?? '',
       slug: chapter.slug ?? '',
       school: chapter.school ?? '',
-      national_fraternity: chapter.national_fraternity ?? '',
       chapter_name: chapter.chapter_name ?? '',
       space_type: chapter.space_type ?? '',
     });
@@ -170,7 +168,6 @@ export function ChapterSpaceManageSheet({
           name: quick.name.trim() || undefined,
           slug: quick.slug.trim() || undefined,
           school: quick.school.trim() || undefined,
-          national_fraternity: quick.national_fraternity.trim() || undefined,
           chapter_name: quick.chapter_name.trim() || undefined,
           space_type: quick.space_type.trim() || undefined,
         }),
@@ -366,7 +363,7 @@ export function ChapterSpaceManageSheet({
                 <p className="text-xs text-gray-500 leading-relaxed">
                   Updates plain-text columns on <span className="font-mono">spaces</span> only. To link directory rows
                   (<span className="font-mono">school_id</span>, <span className="font-mono">national_organization_id</span>
-                  ), use full chapter edit.
+                  ) or edit national/category text, use full space edit.
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
@@ -391,18 +388,7 @@ export function ChapterSpaceManageSheet({
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="qe-nat">National / category</Label>
-                    <FieldHint text="spaces.national_fraternity — category or national line text on the row. Not national_organization_id; link the directory org in full edit." />
-                  </div>
-                  <Input
-                    id="qe-nat"
-                    value={quick.national_fraternity}
-                    onChange={(e) => setQuick((q) => ({ ...q, national_fraternity: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="qe-ch">Chapter name</Label>
+                    <Label htmlFor="qe-ch">Local designation</Label>
                     <FieldHint text="spaces.chapter_name — local designation (for example Greek letters or a short branch label) shown next to the full name." />
                   </div>
                   <Input
@@ -432,7 +418,7 @@ export function ChapterSpaceManageSheet({
                     {saveLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
                   </Button>
                   <Button type="button" variant="outline" className="rounded-full" onClick={() => onRequestFullEdit(chapter)}>
-                    Open full edit modal
+                    Open full space edit
                   </Button>
                 </div>
               </div>
