@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
 
 export async function POST(
   request: NextRequest,
@@ -51,15 +52,28 @@ export async function POST(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Check if user is in the same chapter
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('chapter_id')
+      .select('chapter_id, signup_channel, is_developer')
       .eq('id', user.id)
       .single();
 
-    if (profileError || profile?.chapter_id !== post.chapter_id) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const access = await assertAuthenticatedChapterReadAccess(
+      supabase,
+      user.id,
+      {
+        chapter_id: profile.chapter_id,
+        signup_channel: profile.signup_channel,
+        is_developer: profile.is_developer,
+      },
+      post.chapter_id as string
+    );
+    if (!access.ok) {
+      return access.response;
     }
 
     // Check if user already liked the comment
