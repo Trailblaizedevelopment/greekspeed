@@ -45,7 +45,7 @@ export default function UserManagementPage() {
               </TabsTrigger>
               <TabsTrigger value="chapters" className="flex items-center space-x-2">
                 <Shield className="h-4 w-4" />
-                <span>Chapters</span>
+                <span>Spaces</span>
               </TabsTrigger>
               <TabsTrigger value="alumni" className="flex items-center space-x-2">
                 <GraduationCap className="h-4 w-4" />
