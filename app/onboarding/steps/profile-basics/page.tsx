@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useProfile } from '@/lib/contexts/ProfileContext';
@@ -42,6 +42,9 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
+import { SchoolSearchCombobox } from '@/components/schools/SchoolSearchCombobox';
+import type { SchoolDirectoryPick } from '@/lib/utils/chapterSchoolMatch';
+import { chapterMatchesSchoolDirectory } from '@/lib/utils/chapterSchoolMatch';
 
 const profileBasicsIndustryOptions = buildIndustrySelectOptions('Select industry');
 
@@ -75,7 +78,7 @@ const USER_ROLES = [
 
 export default function ProfileBasicsPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const { profile, refreshProfile } = useProfile();
   const { completeStep } = useOnboarding();
   const { chapters, loading: chaptersLoading } = useChapters();
@@ -109,8 +112,22 @@ export default function ProfileBasicsPage() {
   const [invitationLoading, setInvitationLoading] = useState(true);
   /** TRA-579: canonical chapter UUID when profile.chapter_id is null (pending marketing request). */
   const [pendingRequestChapterId, setPendingRequestChapterId] = useState<string | null>(null);
+  const [schoolDirectoryFilter, setSchoolDirectoryFilter] = useState<SchoolDirectoryPick | null>(null);
 
   const graduationYears = getGraduationYears();
+
+  const chaptersForSelect = useMemo(() => {
+    if (!schoolDirectoryFilter) return chapters;
+    return chapters.filter((c) => chapterMatchesSchoolDirectory(c, schoolDirectoryFilter));
+  }, [chapters, schoolDirectoryFilter]);
+
+  useEffect(() => {
+    if (!schoolDirectoryFilter || !formData.chapter) return;
+    const stillListed = chaptersForSelect.some((c) => c.name === formData.chapter);
+    if (!stillListed) {
+      setFormData((prev) => ({ ...prev, chapter: '', chapterId: '' }));
+    }
+  }, [schoolDirectoryFilter, chaptersForSelect, formData.chapter]);
 
   /** Chapter + role already set (e.g. join link or step 1) — hide redundant fields */
   const chapterAndRoleLocked = !!(profile?.chapter && profile?.role);
@@ -641,6 +658,15 @@ export default function ProfileBasicsPage() {
 
             {!chapterAndRoleLocked && (
               <>
+                <SchoolSearchCombobox
+                  id="profile-basics-school-directory"
+                  label="Your school (optional)"
+                  description="Narrow the chapter list by campus before choosing your chapter."
+                  getAuthHeaders={getAuthHeaders}
+                  value={schoolDirectoryFilter}
+                  onChange={setSchoolDirectoryFilter}
+                  disabled={chaptersLoading || !!profile?.chapter}
+                />
                 {/* Chapter Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="chapter" className="flex items-center gap-2">
@@ -655,7 +681,7 @@ export default function ProfileBasicsPage() {
                       <SelectValue placeholder="Select your chapter" />
                     </SelectTrigger>
                     <SelectContent>
-                      {chapters.map((chapter) => (
+                      {chaptersForSelect.map((chapter) => (
                         <SelectItem key={chapter.id} value={chapter.name}>
                           {chapter.name}
                         </SelectItem>
