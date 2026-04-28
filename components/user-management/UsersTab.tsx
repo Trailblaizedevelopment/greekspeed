@@ -72,12 +72,15 @@ export function UsersTab({
   const [pageSize] = useState(25); // Show 100 users per page
 
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'active_member' | 'alumni' | 'governance'>('all');
+  const [spaceIconOnly, setSpaceIconOnly] = useState(false);
 
-  useEffect(() => { setCurrentPage(1); }, [roleFilter]);
-  
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter, spaceIconOnly]);
+
   useEffect(() => {
     if (session) fetchUsers();
-  }, [currentPage, searchDebounced, roleFilter, session]);
+  }, [currentPage, searchDebounced, roleFilter, spaceIconOnly, session]);
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(searchTerm.trim()), 300);
@@ -95,7 +98,8 @@ export function UsersTab({
       setLoading(true);
       const q = searchDebounced ? `&q=${encodeURIComponent(searchDebounced)}` : '';
       const role = roleFilter !== 'all' ? `&role=${encodeURIComponent(roleFilter)}` : '';
-      const url = `/api/developer/users?page=${currentPage}&limit=${pageSize}${chapterId ? `&chapterId=${encodeURIComponent(chapterId)}` : ''}${q}${role}`;
+      const icon = spaceIconOnly ? '&spaceIconOnly=true' : '';
+      const url = `/api/developer/users?page=${currentPage}&limit=${pageSize}${chapterId ? `&chapterId=${encodeURIComponent(chapterId)}` : ''}${q}${role}${icon}`;
       const response = await fetch(url, {
         headers: getAuthHeaders(),
       });
@@ -228,11 +232,25 @@ export function UsersTab({
             <SelectItem value="governance">Governance</SelectItem>
           </Select>
         </div>
+
+        <div className="w-full sm:w-48">
+          <Select
+            value={spaceIconOnly ? 'icons' : 'all'}
+            onValueChange={(v: string) => setSpaceIconOnly(v === 'icons')}
+          >
+            <SelectItem value="all">All users</SelectItem>
+            <SelectItem value="icons">Space Icons only</SelectItem>
+          </Select>
+        </div>
       </div>
 
       {/* Users Table */}
       <UsersTable
-        title={`All Users (${totalUsers.toLocaleString()})`}
+        title={
+          spaceIconOnly
+            ? `Space Icon users (${totalUsers.toLocaleString()})`
+            : `All Users (${totalUsers.toLocaleString()})`
+        }
         users={filteredUsers}
         loading={loading}
         columns={columns}

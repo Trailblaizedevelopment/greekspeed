@@ -96,6 +96,93 @@ export async function GET(request: NextRequest) {
     const chapterId = searchParams.get('chapterId');
     const q = (searchParams.get('q') || '').trim();
     const role = searchParams.get('role');
+    const spaceIconOnly = searchParams.get('spaceIconOnly') === 'true';
+
+    if (spaceIconOnly) {
+      let memQuery = supabase
+        .from('space_memberships')
+        .select('user_id')
+        .eq('is_space_icon', true)
+        .neq('status', 'inactive');
+
+      if (chapterId) {
+        memQuery = memQuery.eq('space_id', chapterId);
+      }
+
+      const { data: memRows, error: memError } = await memQuery.limit(5000);
+
+      if (memError) {
+        console.error('Error fetching space icon memberships:', memError);
+        return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+      }
+
+      const iconUserIds = [
+        ...new Set((memRows ?? []).map((r) => r.user_id).filter((id): id is string => Boolean(id))),
+      ];
+
+      if (iconUserIds.length === 0) {
+        return NextResponse.json({
+          users: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 1,
+        });
+      }
+
+      type ProfileRow = Record<string, unknown> & { id: string; created_at?: string };
+      const byId = new Map<string, ProfileRow>();
+      const chunkSize = 100;
+      for (let i = 0; i < iconUserIds.length; i += chunkSize) {
+        const chunk = iconUserIds.slice(i, i + chunkSize);
+        const { data: chunkRows, error: chunkError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', chunk);
+
+        if (chunkError) {
+          console.error('Error fetching space icon profiles:', chunkError);
+          return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+        }
+
+        for (const row of chunkRows ?? []) {
+          const p = row as ProfileRow;
+          if (p.id) byId.set(p.id, p);
+        }
+      }
+
+      let merged = [...byId.values()];
+
+      if (q) {
+        const needle = q.toLowerCase();
+        merged = merged.filter((p) =>
+          [p.email, p.full_name, p.role, p.chapter].some((x) =>
+            String(x ?? '').toLowerCase().includes(needle)
+          )
+        );
+      }
+
+      if (role) {
+        merged = merged.filter((p) => p.role === role);
+      }
+
+      merged.sort((a, b) => {
+        const ta = new Date(String(a.created_at ?? 0)).getTime();
+        const tb = new Date(String(b.created_at ?? 0)).getTime();
+        return tb - ta;
+      });
+
+      const total = merged.length;
+      const users = merged.slice(offset, offset + limit);
+
+      return NextResponse.json({
+        users,
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      });
+    }
 
     let query = supabase
       .from('profiles')
