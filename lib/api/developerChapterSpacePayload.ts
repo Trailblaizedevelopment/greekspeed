@@ -29,6 +29,8 @@ const chapterCoreSchema = z.object({
   achievements: z.unknown().optional().nullable(),
   llm_enriched: z.boolean().optional(),
   llm_data: z.unknown().optional().nullable(),
+  /** After space insert: upsert membership for this user as exclusive Space Icon (active_member). */
+  space_icon_user_id: z.string().uuid().optional(),
 });
 
 export type ParsedChapterCore = z.infer<typeof chapterCoreSchema>;

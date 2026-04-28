@@ -5,6 +5,7 @@ import { Drawer } from 'vaul';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { SpaceMembershipAssignPanel } from '@/components/user-management/SpaceMembershipAssignPanel';
 import { FieldHint } from '@/components/user-management/FieldHint';
 import { Loader2, Users, UserPlus, Pencil, RefreshCw, Search, X } from 'lucide-react';
@@ -84,6 +85,7 @@ export function ChapterSpaceManageSheet({
     space_type: '',
   });
   const [saveLoading, setSaveLoading] = useState(false);
+  const [spaceIconSavingId, setSpaceIconSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
@@ -153,6 +155,50 @@ export function ChapterSpaceManageSheet({
   useEffect(() => {
     setMembersPage(1);
   }, [membersSearchDebounced]);
+
+  const patchSpaceIconForMember = useCallback(
+    async (m: SpaceMemberRow, next: boolean) => {
+      if (!chapter?.id || !accessToken) return;
+      if (next === m.is_space_icon) return;
+      setSpaceIconSavingId(m.membership_id);
+      try {
+        const r = await fetch(`/api/developer/spaces/${chapter.id}/members`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ membership_id: m.membership_id, is_space_icon: next }),
+        });
+        const j = (await r.json().catch(() => ({}))) as {
+          error?: string;
+          membership?: { id: string; is_space_icon: boolean };
+        };
+        if (!r.ok) {
+          toast.error(j.error ?? 'Could not update Space Icon');
+          return;
+        }
+        const mem = j.membership;
+        if (mem) {
+          setMembers((prev) =>
+            prev.map((row) => {
+              if (mem.is_space_icon) {
+                return { ...row, is_space_icon: row.membership_id === mem.id };
+              }
+              if (row.membership_id === mem.id) {
+                return { ...row, is_space_icon: false };
+              }
+              return row;
+            })
+          );
+        }
+        toast.success(next ? 'Space Icon set' : 'Space Icon cleared');
+      } finally {
+        setSpaceIconSavingId(null);
+      }
+    },
+    [chapter?.id, accessToken]
+  );
 
   const saveQuickEdit = async () => {
     if (!chapter?.id || !accessToken) return;
@@ -269,7 +315,7 @@ export function ChapterSpaceManageSheet({
             >
             {tab === 'members' ? (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <p className="text-sm text-gray-600">
                     {membersTotal.toLocaleString()} active membership{membersTotal === 1 ? '' : 's'}
                   </p>
@@ -278,6 +324,10 @@ export function ChapterSpaceManageSheet({
                     Refresh
                   </Button>
                 </div>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  At most one Space Icon per space. Use the toggle on each row to set or clear it (including after
+                  assigning someone on the Assign tab).
+                </p>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <Input
@@ -298,17 +348,30 @@ export function ChapterSpaceManageSheet({
                 ) : (
                   <ul className="divide-y rounded-md border border-gray-200 text-sm">
                     {members.map((m) => (
-                      <li key={m.membership_id} className="p-3 space-y-0.5">
-                        <div className="font-medium text-gray-900">{m.full_name || '—'}</div>
-                        <div className="text-xs text-gray-600">{m.email || '—'}</div>
-                        <div className="text-[10px] font-mono text-gray-400 break-all">{m.user_id}</div>
-                        <div className="flex flex-wrap gap-2 text-xs text-gray-600 pt-1">
-                          <span>role: {m.role}</span>
-                          <span>status: {m.status}</span>
-                          {m.is_primary ? (
-                            <span className="text-amber-800 font-medium">primary</span>
-                          ) : null}
-                          {m.is_space_icon ? <span className="text-brand-primary font-medium">icon</span> : null}
+                      <li key={m.membership_id} className="p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div className="font-medium text-gray-900">{m.full_name || '—'}</div>
+                            <div className="text-xs text-gray-600">{m.email || '—'}</div>
+                            <div className="text-[10px] font-mono text-gray-400 break-all">{m.user_id}</div>
+                            <div className="flex flex-wrap gap-2 text-xs text-gray-600 pt-1">
+                              <span>role: {m.role}</span>
+                              <span>status: {m.status}</span>
+                              {m.is_primary ? (
+                                <span className="text-amber-800 font-medium">primary</span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0 pt-0.5">
+                            <span className="text-[10px] text-gray-500">Space Icon</span>
+                            <Switch
+                              checked={m.is_space_icon}
+                              disabled={membersLoading || spaceIconSavingId !== null}
+                              onCheckedChange={(c) => void patchSpaceIconForMember(m, c)}
+                              className="shrink-0"
+                              aria-label={`Space Icon: ${(m.full_name || m.email || m.user_id).slice(0, 48)}`}
+                            />
+                          </div>
                         </div>
                       </li>
                     ))}

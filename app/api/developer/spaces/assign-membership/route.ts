@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDeveloperWithServiceClient } from '@/lib/api/requireDeveloperServiceClient';
 import {
+  activateShellSpaceIfInactive,
   syncProfileHomeFromPrimaryMembership,
   upsertSpaceMembership,
 } from '@/lib/services/spaceMembershipService';
@@ -11,6 +12,8 @@ const bodySchema = z.object({
   space_id: z.string().uuid(),
   role: z.enum(['active_member', 'alumni']).default('active_member'),
   is_primary: z.boolean().optional().default(false),
+  /** When true, this user becomes the only Space Icon for the space (previous holder cleared). */
+  is_space_icon: z.boolean().optional(),
 });
 
 /**
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { user_id, space_id, role, is_primary } = parsed.data;
+  const { user_id, space_id, role, is_primary, is_space_icon } = parsed.data;
   const status = role === 'alumni' ? 'alumni' : 'active';
 
   const result = await upsertSpaceMembership(auth.service, {
@@ -42,10 +45,19 @@ export async function POST(request: NextRequest) {
     role,
     status,
     isPrimary: is_primary,
+    isSpaceIcon: is_space_icon,
   });
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error ?? 'Membership upsert failed' }, { status: 500 });
+  }
+
+  let spaceActivated = false;
+  const activation = await activateShellSpaceIfInactive(auth.service, space_id);
+  if (!activation.ok) {
+    console.warn('assign-membership: activateShellSpaceIfInactive:', activation.error);
+  } else if (activation.activated) {
+    spaceActivated = true;
   }
 
   let home_space:
@@ -92,6 +104,8 @@ export async function POST(request: NextRequest) {
     role,
     status,
     is_primary,
+    is_space_icon: is_space_icon ?? null,
+    space_activated: spaceActivated,
     home_space,
   });
 }

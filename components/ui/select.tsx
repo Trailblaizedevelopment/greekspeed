@@ -192,7 +192,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
 
             if (disableDynamicPositioning) {
               // Simple positioning: always below, no dynamic behavior
-              dropdownRef.current.style.top = `${rect.bottom + 4}px`;
+              dropdownRef.current.style.top = `${rect.bottom + 2}px`;
               dropdownRef.current.style.left = `${rect.left}px`;
               dropdownRef.current.style.width = `${rect.width}px`;
               dropdownRef.current.style.minWidth = `${rect.width}px`;
@@ -207,43 +207,59 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
               const maxDropdownHeight = 240; // max-h-60 = 240px
               const minDropdownHeight = 100; // Minimum height to show at least a few items
               const padding = 8; // Padding from viewport edges
+              const gap = 2; // Visual gap between trigger and menu (tight so it feels “connected”)
 
               // Determine if we should open upward
               // Open upward if there's more space above OR if space below is insufficient
               const shouldOpenUpward = spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow;
 
-              let topPosition: number;
               let maxHeight: number;
 
               if (shouldOpenUpward) {
-                // Position above the trigger
-                const availableHeight = spaceAbove - padding;
+                // Position above the trigger — use actual rendered height after maxHeight, not maxHeight itself,
+                // or the menu floats too high with empty space above the trigger (Create User modal, etc.).
+                const availableHeight = spaceAbove - padding - gap;
                 maxHeight = Math.min(maxDropdownHeight, Math.max(minDropdownHeight, availableHeight));
-                topPosition = rect.top - maxHeight - 4;
 
-                // Ensure we don't go above the viewport
-                if (topPosition < padding) {
-                  topPosition = padding;
-                  maxHeight = Math.min(maxDropdownHeight, rect.top - padding - 4);
-                }
+                dropdownRef.current.style.left = `${Math.max(padding, Math.min(rect.left, viewportWidth - rect.width - padding))}px`;
+                dropdownRef.current.style.width = `${rect.width}px`;
+                dropdownRef.current.style.minWidth = `${rect.width}px`;
+                dropdownRef.current.style.maxHeight = `${maxHeight}px`;
+
+                const placeAbove = () => {
+                  if (!selectRef.current || !dropdownRef.current) return;
+                  const r = selectRef.current.getBoundingClientRect();
+                  let h = dropdownRef.current.offsetHeight;
+                  let top = r.top - h - gap;
+                  if (top < padding) {
+                    const maxAllowed = Math.max(minDropdownHeight, r.top - padding - gap);
+                    dropdownRef.current.style.maxHeight = `${Math.min(maxHeight, maxAllowed)}px`;
+                    h = dropdownRef.current.offsetHeight;
+                    top = r.top - h - gap;
+                    if (top < padding) top = padding;
+                  }
+                  dropdownRef.current.style.top = `${top}px`;
+                };
+
+                placeAbove();
+                requestAnimationFrame(placeAbove);
               } else {
                 // Position below the trigger (default)
                 const availableHeight = spaceBelow - padding;
                 maxHeight = Math.min(maxDropdownHeight, Math.max(minDropdownHeight, availableHeight));
-                topPosition = rect.bottom + 4;
+                let topPosition = rect.bottom + gap;
 
                 // Ensure we don't go below the viewport
                 if (topPosition + maxHeight > viewportHeight - padding) {
                   maxHeight = viewportHeight - topPosition - padding;
                 }
-              }
 
-              // Set position and size
-              dropdownRef.current.style.top = `${topPosition}px`;
-              dropdownRef.current.style.left = `${Math.max(padding, Math.min(rect.left, viewportWidth - rect.width - padding))}px`;
-              dropdownRef.current.style.width = `${rect.width}px`;
-              dropdownRef.current.style.minWidth = `${rect.width}px`;
-              dropdownRef.current.style.maxHeight = `${maxHeight}px`;
+                dropdownRef.current.style.top = `${topPosition}px`;
+                dropdownRef.current.style.left = `${Math.max(padding, Math.min(rect.left, viewportWidth - rect.width - padding))}px`;
+                dropdownRef.current.style.width = `${rect.width}px`;
+                dropdownRef.current.style.minWidth = `${rect.width}px`;
+                dropdownRef.current.style.maxHeight = `${maxHeight}px`;
+              }
             }
           }
         };

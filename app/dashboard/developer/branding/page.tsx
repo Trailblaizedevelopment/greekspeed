@@ -128,7 +128,7 @@ function DeveloperBrandingPageContent() {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
-      const response = await fetch('/api/developer/chapters?page=1&limit=100', {
+      const response = await fetch('/api/developer/chapters?page=1&limit=100&status=all', {
         headers,
       });
 

@@ -83,7 +83,11 @@ export function DeveloperSpaceSelectCombobox({
   const fetchList = useCallback(
     async (q: string, signal: AbortSignal) => {
       if (!token) return;
-      const params = new URLSearchParams({ page: '1', limit: String(PAGE_LIMIT) });
+      const params = new URLSearchParams({
+        page: '1',
+        limit: String(PAGE_LIMIT),
+        status: 'all',
+      });
       if (q) params.set('q', q);
       const res = await fetch(`/api/developer/chapters?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },

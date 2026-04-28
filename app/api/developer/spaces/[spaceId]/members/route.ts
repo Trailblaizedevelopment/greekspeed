@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDeveloperWithServiceClient } from '@/lib/api/requireDeveloperServiceClient';
+import { clearSpaceIconFlagsForSpace } from '@/lib/services/spaceMembershipService';
+
+const patchSpaceIconBody = z
+  .object({
+    membership_id: z.string().uuid(),
+    is_space_icon: z.boolean(),
+  })
+  .strict();
 
 /**
  * GET /api/developer/spaces/:spaceId/members
@@ -150,4 +158,74 @@ export async function GET(
     totalPages: Math.max(1, Math.ceil(total / limit)),
     q: qRaw || null,
   });
+}
+
+/**
+ * PATCH /api/developer/spaces/:spaceId/members
+ * Body: `{ membership_id, is_space_icon }` — set or clear Space Icon for one membership (exclusive when true).
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ spaceId: string }> }
+) {
+  const auth = await requireDeveloperWithServiceClient(request);
+  if (!auth.ok) return auth.response;
+
+  const { spaceId } = await params;
+  if (!z.string().uuid().safeParse(spaceId).success) {
+    return NextResponse.json({ error: 'Invalid space id' }, { status: 400 });
+  }
+
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  const parsed = patchSpaceIconBody.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid body', details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const { membership_id, is_space_icon } = parsed.data;
+
+  const { data: row, error: fetchErr } = await auth.service
+    .from('space_memberships')
+    .select('id, space_id, status')
+    .eq('id', membership_id)
+    .eq('space_id', spaceId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    console.error('developer space members PATCH fetch:', fetchErr);
+    return NextResponse.json({ error: 'Failed to load membership' }, { status: 500 });
+  }
+
+  if (!row || row.status === 'inactive') {
+    return NextResponse.json({ error: 'Membership not found' }, { status: 404 });
+  }
+
+  if (is_space_icon) {
+    const cleared = await clearSpaceIconFlagsForSpace(auth.service, spaceId);
+    if (!cleared.ok) {
+      return NextResponse.json({ error: cleared.error ?? 'Failed to clear Space Icon flags' }, { status: 500 });
+    }
+  }
+
+  const updatedAt = new Date().toISOString();
+  const { data: updated, error: updateErr } = await auth.service
+    .from('space_memberships')
+    .update({ is_space_icon, updated_at: updatedAt })
+    .eq('id', membership_id)
+    .eq('space_id', spaceId)
+    .select('id, user_id, is_space_icon')
+    .single();
+
+  if (updateErr) {
+    console.error('developer space members PATCH update:', updateErr);
+    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ membership: updated });
 }

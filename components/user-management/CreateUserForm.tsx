@@ -39,7 +39,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     role: 'active_member' as 'admin' | 'active_member' | 'alumni' | 'governance',
     chapter_role: 'member' as string,
     is_developer: false,
-    governance_chapter_ids: [] as string[]
+    governance_chapter_ids: [] as string[],
+    /** Developer: set user as exclusive Space Icon for the selected space (requires space UUID). */
+    setAsSpaceIcon: false,
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -107,6 +109,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       };
       if (formData.role === 'governance' && formData.governance_chapter_ids.length > 0) {
         body.governance_chapter_ids = formData.governance_chapter_ids;
+      }
+      if (isDeveloper && formData.setAsSpaceIcon) {
+        body.is_space_icon = true;
       }
       const response = await fetch('/api/developer/create-user', {
         method: 'POST',
@@ -343,6 +348,29 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         </div>
       )}
 
+      {isDeveloper ? (
+        <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50/90 p-3">
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="set_as_space_icon"
+              checked={formData.setAsSpaceIcon}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, setAsSpaceIcon: Boolean(checked) }))
+              }
+            />
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="set_as_space_icon" className="cursor-pointer text-sm font-medium text-gray-900">
+                Space Icon
+              </Label>
+              <p className="text-xs leading-snug text-gray-600">
+                Only one Space Icon exists per space. Checking this removes the designation from anyone else, then
+                assigns this user. Applies when the chapter value is a space UUID.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Role and Chapter Role - Stack on mobile, side-by-side on desktop */}
       <div className={cn(
         "gap-4",
@@ -476,22 +504,25 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
 
   const actionButtons = (
     <>
-      <Button 
-        variant="outline" 
-        onClick={onClose} 
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onClose}
         className={cn(
-          "flex-1",
-          isMobile && "rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300"
+          isMobile ? 'flex-1' : 'rounded-full',
+          isMobile &&
+            'rounded-full bg-white/80 backdrop-blur-md border border-brand-primary/50 shadow-lg shadow-navy-100/20 hover:shadow-xl hover:shadow-navy-100/30 hover:bg-white/90 text-brand-primary-hover hover:text-primary-900 transition-all duration-300'
         )}
         disabled={loading}
       >
         Cancel
       </Button>
-      <Button 
-        onClick={handleSubmit} 
+      <Button
+        type="submit"
         className={cn(
-          "flex-1",
-          isMobile && "rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover shadow-lg shadow-navy-100/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          isMobile ? 'flex-1' : 'rounded-full',
+          isMobile &&
+            'rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover shadow-lg shadow-navy-100/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
         )}
         disabled={loading}
       >
@@ -517,7 +548,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         />
 
         <div
-          className="fixed bottom-0 left-0 right-0 z-10 flex flex-col max-h-[85dvh] min-h-0 rounded-t-2xl bg-white shadow-xl"
+          className="fixed bottom-0 left-0 right-0 z-10 flex max-h-[85dvh] min-h-0 flex-col rounded-t-2xl bg-white shadow-xl"
           style={
             maxHeightPx !== undefined || bottomPx !== undefined
               ? {
@@ -538,52 +569,63 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
             </div>
           </div>
 
-          {/* Scrollable Body */}
-          <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
-            {formFields}
-          </div>
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+            {/* Scrollable Body */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+              <div className="space-y-4">{formFields}</div>
+            </div>
 
-          {/* Fixed Footer */}
-          <div className="flex-shrink-0 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))] flex space-x-2">
-            {actionButtons}
-          </div>
+            {/* Fixed Footer */}
+            <div className="flex flex-shrink-0 space-x-2 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+              {actionButtons}
+            </div>
+          </form>
         </div>
       </div>,
       document.body
     );
   }
 
-  // Desktop: Centered modal (unchanged layout)
+  // Desktop: fixed header + scrollable body + fixed footer (matches Edit space / Create space modals)
   return typeof window !== 'undefined' && createPortal(
-    <div className="fixed inset-0 z-[9999]">
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-        onClick={onClose}
-      />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <Card 
-          className="w-full max-w-2xl mx-4 max-h-[90vh] rounded-xl relative z-10 overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle>Create New User</CardTitle>
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-0">
-            {formFields}
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <Card
+        className="relative z-[10000] flex h-full max-h-[min(90vh,820px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <CardHeader className="shrink-0 border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-lg font-semibold">Create New User</CardTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-8 w-8 shrink-0 p-0 hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="mt-2 text-sm text-gray-500">Only the middle section scrolls.</p>
+        </CardHeader>
 
-            {/* Action Buttons */}
-            <div className="flex space-x-2 pt-4 flex-shrink-0 border-t border-gray-200">
-              {actionButtons}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+            <div className="space-y-4">{formFields}</div>
+          </div>
+
+          <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/90 px-6 py-4">
+            {actionButtons}
+          </div>
+        </form>
+      </Card>
     </div>,
     document.body
   );
