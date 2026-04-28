@@ -10,6 +10,14 @@ import { Loader2, Users, UserPlus, Pencil, RefreshCw, Search, X } from 'lucide-r
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
 
+function preventSpaceManageDrawerPortaledUi(event: { preventDefault: () => void; target: EventTarget | null }) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest('[data-trailblaize-dropdown-portal]')) {
+    event.preventDefault();
+  }
+}
+
 export type ChapterRow = {
   id: string;
   name: string;
@@ -190,6 +198,8 @@ export function ChapterSpaceManageSheet({
             'bg-white flex flex-col z-[10000] fixed bottom-0 left-0 right-0 shadow-2xl border border-gray-200 outline-none',
             isMobile ? 'max-h-[85dvh] rounded-t-[20px]' : 'max-h-[80vh] max-w-lg mx-auto rounded-t-[20px]'
           )}
+          onPointerDownOutside={preventSpaceManageDrawerPortaledUi}
+          onInteractOutside={preventSpaceManageDrawerPortaledUi}
         >
           {isMobile ? (
             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-1" aria-hidden />
