@@ -7,10 +7,10 @@ import { requireDeveloperWithServiceClient } from '@/lib/api/requireDeveloperSer
  * Active (non-inactive) memberships with minimal profile fields.
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ spaceId: string }> }
 ) {
-  const auth = await requireDeveloperWithServiceClient(_request);
+  const auth = await requireDeveloperWithServiceClient(request);
   if (!auth.ok) return auth.response;
 
   const { spaceId } = await params;
@@ -18,15 +18,77 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid space id' }, { status: 400 });
   }
 
-  const { data: memberships, error: mErr } = await auth.service
+  const { searchParams } = new URL(request.url);
+  const qRaw = (searchParams.get('q') ?? '').trim();
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '25', 10) || 25));
+  const offset = (page - 1) * limit;
+
+  let scopedUserIds: string[] | null = null;
+  if (qRaw.length > 0) {
+    const q = qRaw.replace(/[%",]/g, '').slice(0, 120);
+    if (q.length > 0) {
+      const pattern = `%${q}%`;
+      let profileQuery = auth.service
+        .from('profiles')
+        .select('id')
+        .or(`full_name.ilike.${pattern},email.ilike.${pattern}`)
+        .limit(5000);
+
+      // If search token looks like a UUID, include exact id match for fast lookup.
+      if (z.string().uuid().safeParse(q).success) {
+        profileQuery = auth.service
+          .from('profiles')
+          .select('id')
+          .or(`id.eq.${q},full_name.ilike.${pattern},email.ilike.${pattern}`)
+          .limit(5000);
+      }
+
+      const { data: profileHits, error: pHitErr } = await profileQuery;
+      if (pHitErr) {
+        console.error('developer space members profile search:', pHitErr);
+        return NextResponse.json({ error: 'Failed to search members' }, { status: 500 });
+      }
+      scopedUserIds = (profileHits ?? []).map((p) => String(p.id));
+      if (scopedUserIds.length === 0) {
+        return NextResponse.json({
+          members: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 1,
+          q: qRaw,
+        });
+      }
+    }
+  }
+
+  let countQuery = auth.service
+    .from('space_memberships')
+    .select('id', { count: 'exact', head: true })
+    .eq('space_id', spaceId)
+    .neq('status', 'inactive');
+
+  let membersQuery = auth.service
     .from('space_memberships')
     .select('id, user_id, role, status, is_primary, is_space_icon, created_at, updated_at')
     .eq('space_id', spaceId)
     .neq('status', 'inactive')
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .range(offset, offset + limit - 1);
 
-  if (mErr) {
-    console.error('developer space members:', mErr);
+  if (scopedUserIds && scopedUserIds.length > 0) {
+    countQuery = countQuery.in('user_id', scopedUserIds);
+    membersQuery = membersQuery.in('user_id', scopedUserIds);
+  }
+
+  const [{ count, error: cErr }, { data: memberships, error: mErr }] = await Promise.all([
+    countQuery,
+    membersQuery,
+  ]);
+
+  if (cErr || mErr) {
+    console.error('developer space members:', cErr ?? mErr);
     return NextResponse.json({ error: 'Failed to load memberships' }, { status: 500 });
   }
 
@@ -79,5 +141,13 @@ export async function GET(
     };
   });
 
-  return NextResponse.json({ members, total: members.length });
+  const total = count ?? 0;
+  return NextResponse.json({
+    members,
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+    q: qRaw || null,
+  });
 }

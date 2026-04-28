@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SpaceMembershipAssignPanel } from '@/components/user-management/SpaceMembershipAssignPanel';
-import { Loader2, Users, UserPlus, Pencil, RefreshCw, X } from 'lucide-react';
+import { Loader2, Users, UserPlus, Pencil, RefreshCw, Search, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
 
@@ -61,6 +61,12 @@ export function ChapterSpaceManageSheet({
   const [tab, setTab] = useState<TabId>('members');
   const [members, setMembers] = useState<SpaceMemberRow[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [membersSearch, setMembersSearch] = useState('');
+  const [membersSearchDebounced, setMembersSearchDebounced] = useState('');
+  const [membersPage, setMembersPage] = useState(1);
+  const [membersLimit] = useState(25);
+  const [membersTotal, setMembersTotal] = useState(0);
+  const [membersTotalPages, setMembersTotalPages] = useState(1);
   const [quick, setQuick] = useState({
     name: '',
     slug: '',
@@ -78,27 +84,50 @@ export function ChapterSpaceManageSheet({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setMembersSearchDebounced(membersSearch.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [membersSearch]);
+
   const loadMembers = useCallback(async () => {
     if (!chapter?.id || !accessToken) return;
     setMembersLoading(true);
     try {
-      const r = await fetch(`/api/developer/spaces/${chapter.id}/members`, {
+      const query = new URLSearchParams({
+        page: String(membersPage),
+        limit: String(membersLimit),
+      });
+      if (membersSearchDebounced.length > 0) {
+        query.set('q', membersSearchDebounced);
+      }
+      const r = await fetch(`/api/developer/spaces/${chapter.id}/members?${query.toString()}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!r.ok) {
         toast.error('Failed to load members');
         return;
       }
-      const j = (await r.json()) as { members?: SpaceMemberRow[] };
+      const j = (await r.json()) as {
+        members?: SpaceMemberRow[];
+        total?: number;
+        totalPages?: number;
+      };
       setMembers(j.members ?? []);
+      setMembersTotal(j.total ?? 0);
+      setMembersTotalPages(j.totalPages ?? 1);
     } finally {
       setMembersLoading(false);
     }
-  }, [chapter?.id, accessToken]);
+  }, [chapter?.id, accessToken, membersPage, membersLimit, membersSearchDebounced]);
 
   useEffect(() => {
     if (!open || !chapter) return;
     setTab('members');
+    setMembersPage(1);
+    setMembersSearch('');
+    setMembersSearchDebounced('');
+    setMembersTotal(0);
+    setMembersTotalPages(1);
     setQuick({
       name: chapter.name ?? '',
       slug: chapter.slug ?? '',
@@ -107,8 +136,16 @@ export function ChapterSpaceManageSheet({
       chapter_name: chapter.chapter_name ?? '',
       space_type: chapter.space_type ?? '',
     });
-    if (accessToken) void loadMembers();
-  }, [open, chapter, accessToken, loadMembers]);
+  }, [open, chapter]);
+
+  useEffect(() => {
+    if (tab !== 'members' || !open || !chapter || !accessToken) return;
+    void loadMembers();
+  }, [tab, open, chapter, accessToken, loadMembers]);
+
+  useEffect(() => {
+    setMembersPage(1);
+  }, [membersSearchDebounced]);
 
   const saveQuickEdit = async () => {
     if (!chapter?.id || !accessToken) return;
@@ -226,19 +263,30 @@ export function ChapterSpaceManageSheet({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-gray-600">
-                    {members.length} active membership{members.length === 1 ? '' : 's'}
+                    {membersTotal.toLocaleString()} active membership{membersTotal === 1 ? '' : 's'}
                   </p>
                   <Button type="button" variant="outline" size="sm" onClick={() => void loadMembers()}>
                     <RefreshCw className={`h-3.5 w-3.5 mr-1 ${membersLoading ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
                 </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    value={membersSearch}
+                    onChange={(e) => setMembersSearch(e.target.value)}
+                    placeholder="Search members by name, email, or user id…"
+                    className="pl-9"
+                  />
+                </div>
                 {membersLoading ? (
                   <div className="flex justify-center py-8 text-gray-500">
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
                 ) : members.length === 0 ? (
-                  <p className="text-sm text-gray-500">No active members yet.</p>
+                  <p className="text-sm text-gray-500">
+                    {membersSearchDebounced ? 'No members match this search.' : 'No active members yet.'}
+                  </p>
                 ) : (
                   <ul className="divide-y rounded-md border border-gray-200 text-sm">
                     {members.map((m) => (
@@ -258,6 +306,35 @@ export function ChapterSpaceManageSheet({
                     ))}
                   </ul>
                 )}
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-gray-500">
+                    Showing {membersTotal === 0 ? 0 : (membersPage - 1) * membersLimit + 1} to{' '}
+                    {Math.min(membersPage * membersLimit, membersTotal)} of {membersTotal.toLocaleString()}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={membersPage <= 1 || membersLoading}
+                      onClick={() => setMembersPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-xs text-gray-600 tabular-nums">
+                      Page {membersPage} / {membersTotalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={membersPage >= membersTotalPages || membersLoading}
+                      onClick={() => setMembersPage((p) => Math.min(membersTotalPages, p + 1))}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : null}
 
