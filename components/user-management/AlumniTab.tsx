@@ -105,7 +105,7 @@ export function AlumniTab() {
         </div>
         <Button 
           onClick={() => setShowBulkUpload(true)} 
-          className="flex items-center space-x-2"
+          className="flex items-center space-x-2 rounded-full"
         >
           <Upload className="h-4 w-4" />
           <span>Bulk Upload Alumni</span>
