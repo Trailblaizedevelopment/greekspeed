@@ -2,6 +2,8 @@
  * TRA-665: Import CSV seeds into Supabase (service role).
  *
  * Idempotent: skips schools/orgs/spaces rows that already exist (by name/domain or simulation seed key).
+ * Schools: maps CSV source_institution_type → institution_control enum; source_division / source_conference
+ * → athletics_*; updates existing rows by exact name match on each run.
  *
  * Usage:
  *   npx tsx scripts/import-data-seeds.ts [--dry-run] [--only=schools|orgs|spaces|all] [--spaces-limit=N]
@@ -36,6 +38,33 @@ type SpaceLlmSeedRow = { llm_data: unknown };
 type SchoolKeyRow = { name: string | null; domain: string | null };
 
 type OrgNameRow = { name: string | null };
+
+/** Matches Postgres enum `public.school_institution_control`. */
+type SchoolInstitutionControl = 'public' | 'private' | 'charter' | 'unknown';
+
+type SchoolSeedRow = {
+  name: string;
+  short_name: string | null;
+  location: string | null;
+  domain: string | null;
+  logo_url: string | null;
+  institution_control: SchoolInstitutionControl;
+  athletics_division: string | null;
+  athletics_conference: string | null;
+};
+
+function mapInstitutionControl(raw: string | undefined | null): SchoolInstitutionControl {
+  const n = (raw ?? '').trim().toLowerCase();
+  if (n === 'public') return 'public';
+  if (n === 'private') return 'private';
+  if (n === 'charter') return 'charter';
+  return 'unknown';
+}
+
+function trimOrNull(raw: string | undefined | null): string | null {
+  const t = (raw ?? '').trim();
+  return t ? t : null;
+}
 
 /** Avoid `ReturnType<typeof createClient>` — it resolves to `unknown` DB and a `never` schema. */
 type SeedImportSupabase = SupabaseClient<any, 'public', 'public', any, any>;
@@ -174,7 +203,7 @@ async function main() {
     const headers = rows[0]!.map((h) => h.trim());
     const objects = csvRowsToObjects(headers, rows.slice(1));
     const seenName = new Set<string>();
-    const candidates: { name: string; short_name: string | null; location: string | null; domain: string | null; logo_url: string | null }[] = [];
+    const candidates: SchoolSeedRow[] = [];
     for (const o of objects) {
       const name = (o.name ?? '').trim();
       if (!name || name === 'School Name') continue;
@@ -187,6 +216,9 @@ async function main() {
         location: (o.location ?? '').trim() || null,
         domain: (o.domain ?? '').trim() || null,
         logo_url: (o.logo_url ?? '').trim() || null,
+        institution_control: mapInstitutionControl(o.source_institution_type as string | undefined),
+        athletics_division: trimOrNull(o.source_division as string | undefined),
+        athletics_conference: trimOrNull(o.source_conference as string | undefined),
       });
     }
 
@@ -198,8 +230,13 @@ async function main() {
       return true;
     });
     const skipped = candidates.length - toInsert.length;
+    const alreadyPresent = candidates.filter((r) => {
+      if (existing.names.has(r.name.toLowerCase())) return true;
+      const d = (r.domain ?? '').trim().toLowerCase();
+      return !!(d && existing.domains.has(d));
+    });
     console.log(
-      `Schools: ${toInsert.length} to insert, ${skipped} skipped (already in DB)${dryRun ? ' [dry-run]' : ''} (source_* stripped)`
+      `Schools: ${toInsert.length} to insert, ${skipped} skipped (already in DB)${dryRun ? ' [dry-run]' : ''}; metadata from source_* → institution_control / athletics_*`
     );
     if (!dryRun) {
       const batch = 100;
@@ -213,6 +250,38 @@ async function main() {
             if (e2) console.error(`  skip ${row.name}:`, e2.message);
           }
         }
+      }
+
+      let updated = 0;
+      let updateErrors = 0;
+      const updateBatch = 25;
+      for (let i = 0; i < alreadyPresent.length; i += updateBatch) {
+        const slice = alreadyPresent.slice(i, i + updateBatch);
+        await Promise.all(
+          slice.map(async (row) => {
+            const payload = {
+              institution_control: row.institution_control,
+              athletics_division: row.athletics_division,
+              athletics_conference: row.athletics_conference,
+            };
+            const { data, error } = await supabase
+              .from('schools')
+              .update(payload)
+              .eq('name', row.name)
+              .select('id');
+            if (error) {
+              updateErrors++;
+              console.error(`  school metadata update ${row.name}:`, error.message);
+              return;
+            }
+            if (data && data.length > 0) updated += data.length;
+          })
+        );
+      }
+      if (alreadyPresent.length > 0) {
+        console.log(
+          `Schools metadata: ${updated} rows updated by name match (${alreadyPresent.length} CSV rows were already in DB; ${updateErrors} errors)`
+        );
       }
     }
   }

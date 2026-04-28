@@ -2,7 +2,7 @@
 
 **Linear epic:** [TRA-665](https://linear.app/trailblaize/issue/TRA-665/epic-greekspeed-seed-data-import-normalize-bulk-spaces-verified) — Phase 1 decisions, FK order, mapping, and **icon user** behavior are recorded in the **issue comment** (2026-04-27).
 
-**Developer-only (2026-04-27):** Space search and “ensure reference” APIs live under **`/api/developer/spaces/*`** and require **`profiles.is_developer`** + Bearer token. UI: **`/dashboard/developer/seed-spaces`**. They are **not** wired into member onboarding.
+**Developer-only (2026-04-27):** Space search, ensure reference, assign membership, space detail/members/PATCH live under **`/api/developer/spaces/*`** and require **`profiles.is_developer`** + Bearer token. **UI:** Developer Portal → **User Management → Chapters** — row **Members** action opens a side panel (members list, assign, quick PATCH). Legacy URL **`/dashboard/developer/seed-spaces`** redirects to **`/dashboard/user-management?tab=chapters`**. Not wired into member onboarding.
 
 This document describes the **generated artifacts**, how they map to Supabase tables, and a practical path to integrate them into the Trailblaize / Greekspeed codebase without risking production data.
 
@@ -15,6 +15,7 @@ This document describes the **generated artifacts**, how they map to Supabase ta
 | `space_type_taxonomy_reference.csv` | PRIORITY Section 7 | Reference labels for product taxonomy (not necessarily a 1:1 DB table) |
 | `reference_spaces_simulation_seed.csv` | FINAL “500-person simulation” email | **Importer target for `public.spaces`** (full reference per TRA-665); validate on dev/staging first — see unique indexes on `spaces` (`name`, `slug`, composite) in Linear comment |
 | `data_seeds_bundle.xlsx` | Same as above | ExcelJS workbook with one sheet per dataset for review and handoff |
+| `sources/TRAILBLAIZE_MASTER_REFERENCE_DATASET.md` | Master Reference email (Tony, 2026-04-22) | **Canonical verbatim** spec under `data/seeds/` (schools, Greek, sports, military, Section 7 org-type labels, appendix). Use for audits and future parser alignment. |
 
 Regenerate from local `.eml` paths:
 
@@ -32,7 +33,7 @@ Parser output columns: `name`, `short_name`, `location`, `domain`, `logo_url`, p
 
 - `source_subsection`, `source_conference`, `source_division`, `source_institution_type`
 
-On import, either **drop** the `source_*` columns or land them in a staging table / JSON metadata column if you want provenance in-app.
+**Importer (`import-data-seeds.ts`):** inserts/updates **`institution_control`** (enum: `public` \| `private` \| `charter` \| `unknown`) from `source_institution_type` (case-insensitive), and **`athletics_division`** / **`athletics_conference`** from `source_division` / `source_conference`. Existing rows are **updated by exact `name` match** each run so metadata stays in sync with CSV. `source_*` columns are not stored in Postgres.
 
 ### `public.national_organizations`
 
@@ -74,6 +75,9 @@ Order inside `--only=all`: **schools → national_organizations → spaces**. `s
 | `GET /api/developer/spaces/search?q=…&limit=…` | **Developer only** (`profiles.is_developer` + Bearer). Search `spaces` by name/slug/school; returns icon / first-member fields. **Service role** join on server. |
 | `POST /api/developer/spaces/ensure-reference` | **Developer only** — body `{ "name": string, "category"?: string }` — find by exact `name` or create simulation-style space; returns `{ space_id, created }`. |
 | `POST /api/developer/spaces/assign-membership` | **Developer only** — body `{ "user_id": uuid, "space_id": uuid, "role"?: "active_member" \| "alumni", "is_primary"?: boolean }` — **`upsertSpaceMembership`** (not `profiles.role`). If **`is_primary: true`**, also **`syncProfileHomeFromPrimaryMembership`**: clears other primary memberships, sets **`profiles.chapter_id`** + **`chapter`**. Response includes **`home_space`** (previous/new labels or sync error). |
+| `GET /api/developer/spaces/:spaceId` | **Developer only** — single **`spaces`** row (`select('*')`). |
+| `PATCH /api/developer/spaces/:spaceId` | **Developer only** — allowlisted fields (name, slug, school, `national_fraternity`, `chapter_name`, `space_type`, etc.). |
+| `GET /api/developer/spaces/:spaceId/members` | **Developer only** — active **`space_memberships`** for that space + minimal **`profiles`** (email, name, avatar). |
 
 Shared helper: **`lib/services/spaceFromSimulationService.ts`** (`findOrCreateSpaceFromSimulationLabel`).
 

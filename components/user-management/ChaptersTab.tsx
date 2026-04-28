@@ -1,33 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { 
-  Building2, 
-  Plus, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  Lock,
+import {
+  Building2,
+  Plus,
+  Eye,
+  Edit,
+  Trash2,
   MapPin,
   Users,
   Calendar,
-  GraduationCap,
-  Shield,
-  AlertTriangle,
-  X,
-  Palette
+  Palette,
+  UserPlus,
 } from 'lucide-react';
 import { ViewChapterModal } from './ViewChapterModal';
 import { DeleteChapterModal } from './DeleteChapterModal';
 import { EditChapterModal } from './EditChapterModal';
 import { CreateChapterForm } from './CreateChapterForm';
+import { ChapterSpaceManageSheet, type ChapterRow } from './ChapterSpaceManageSheet';
+import { useAuth } from '@/lib/supabase/auth-context';
 
-interface Chapter {
+export interface Chapter {
   id: string;
   name: string;
   description: string;
@@ -43,10 +41,22 @@ interface Chapter {
   chapter_status: string;
   created_at: string;
   updated_at: string;
+  space_type?: string | null;
+}
+
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
 }
 
 export function ChaptersTab() {
   const router = useRouter();
+  const { session } = useAuth();
+  const accessToken = session?.access_token;
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,26 +71,40 @@ export function ChaptersTab() {
   const [editChapter, setEditChapter] = useState<Chapter | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  const [manageSheetOpen, setManageSheetOpen] = useState(false);
+  const [manageChapter, setManageChapter] = useState<ChapterRow | null>(null);
+
   // Add pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalChapters, setTotalChapters] = useState(0);
   const [pageSize] = useState(100); // Show 100 chapters per page
 
-  useEffect(() => {
-    fetchChapters();
-  }, [currentPage]);
+  const debouncedSearch = useDebouncedValue(searchTerm.trim(), 400);
+  /** When search changes we reset to page 1; skip one fetch while `currentPage` is still stale. */
+  const pendingSearchPageResetRef = useRef(false);
 
-  const fetchChapters = async () => {
+  useEffect(() => {
+    pendingSearchPageResetRef.current = true;
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  const fetchChapters = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/developer/chapters?page=${currentPage}&limit=${pageSize}`);
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(pageSize),
+      });
+      if (debouncedSearch.length > 0) {
+        params.set('q', debouncedSearch);
+      }
+      const response = await fetch(`/api/developer/chapters?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setChapters(data.chapters || []);
         setTotalChapters(data.total || 0);
         setTotalPages(data.totalPages || 1);
-        // Fetched page chapters
       } else {
         console.error('Failed to fetch chapters');
       }
@@ -89,7 +113,15 @@ export function ChaptersTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch]);
+
+  useEffect(() => {
+    if (pendingSearchPageResetRef.current && currentPage !== 1) {
+      return;
+    }
+    pendingSearchPageResetRef.current = false;
+    void fetchChapters();
+  }, [fetchChapters, currentPage]);
 
   const handleViewChapter = (chapter: Chapter) => {
     setViewChapter(chapter);
@@ -125,15 +157,12 @@ export function ChaptersTab() {
       const result = await response.json();
       // Chapter deleted successfully
       
-      // Remove the chapter from the local state
-      setChapters(prevChapters => prevChapters.filter(chapter => chapter.id !== chapterToDelete.id));
-      
       // Close modal and show success message
       closeDeleteModal();
-      
-      // Show success message
+
       alert(`Chapter "${chapterToDelete.name}" has been deleted successfully.`);
-      
+
+      await fetchChapters();
     } catch (error) {
       console.error('Error deleting chapter:', error);
       alert(`Failed to delete chapter: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -152,12 +181,25 @@ export function ChaptersTab() {
     setEditChapter(null);
   };
 
-  const filteredChapters = chapters.filter(chapter =>
-    chapter.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    chapter.university.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    chapter.national_fraternity.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    chapter.chapter_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const openManageSheet = (chapter: Chapter) => {
+    setManageChapter({
+      id: chapter.id,
+      name: chapter.name,
+      description: chapter.description,
+      location: chapter.location,
+      member_count: chapter.member_count,
+      founded_year: chapter.founded_year,
+      university: chapter.university,
+      slug: chapter.slug,
+      national_fraternity: chapter.national_fraternity,
+      chapter_name: chapter.chapter_name,
+      school: chapter.school,
+      school_location: chapter.school_location,
+      chapter_status: chapter.chapter_status,
+      space_type: chapter.space_type ?? null,
+    });
+    setManageSheetOpen(true);
+  };
 
   if (loading) {
     return (
@@ -188,7 +230,7 @@ export function ChaptersTab() {
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <Input
-            placeholder="Search chapters by name, university, fraternity, or chapter name..."
+            placeholder="Search across all chapters (name, university, fraternity, slug, school…) — results paginate on the server"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
@@ -201,7 +243,9 @@ export function ChaptersTab() {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center space-x-2">
             <Building2 className="h-5 w-5" />
-            <span>All Chapters ({totalChapters.toLocaleString()})</span>
+            <span>
+              {debouncedSearch ? 'Matching chapters' : 'All chapters'} ({totalChapters.toLocaleString()})
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
@@ -221,7 +265,16 @@ export function ChaptersTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredChapters.map((chapter) => (
+                  {chapters.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-sm text-gray-500">
+                        {debouncedSearch
+                          ? `No chapters match “${debouncedSearch}”. Try a shorter or different search.`
+                          : 'No chapters found.'}
+                      </td>
+                    </tr>
+                  ) : null}
+                  {chapters.map((chapter) => (
                     <tr key={chapter.id} className="border-b hover:bg-gray-50">
                       <td className="p-3">
                         <div>
@@ -279,6 +332,16 @@ export function ChaptersTab() {
                             <Eye className="h-4 w-4" />
                           </Button>
                           
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openManageSheet(chapter)}
+                            className="hover:bg-accent-50 hover:text-brand-accent"
+                            title="Members & assign"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -320,7 +383,11 @@ export function ChaptersTab() {
             {/* Pagination Controls */}
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-gray-600">
-                <p>Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalChapters)} of {totalChapters.toLocaleString()} chapters</p>
+                <p>
+                  Showing {totalChapters === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{' '}
+                  {Math.min(currentPage * pageSize, totalChapters)} of {totalChapters.toLocaleString()}
+                  {debouncedSearch ? ` matching “${debouncedSearch}”` : ''} chapters
+                </p>
               </div>
               
               <div className="flex items-center space-x-2">
@@ -389,6 +456,21 @@ export function ChaptersTab() {
           onSuccess={fetchChapters}
         />
       )}
+
+      <ChapterSpaceManageSheet
+        open={manageSheetOpen}
+        onOpenChange={setManageSheetOpen}
+        chapter={manageChapter}
+        accessToken={accessToken}
+        onRequestFullEdit={(c) => {
+          const full = chapters.find((x) => x.id === c.id);
+          if (full) {
+            setManageSheetOpen(false);
+            handleEditChapter(full);
+          }
+        }}
+        onSpaceUpdated={() => void fetchChapters()}
+      />
     </div>
   );
 }

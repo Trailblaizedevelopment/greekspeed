@@ -6,6 +6,29 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+/** PostgREST `or` filter value: quote so spaces / reserved chars parse as one token. */
+function postgrestIlikePatternToken(qRaw: string): string | null {
+  const q = qRaw.replace(/%/g, '').replace(/,/g, '').replace(/"/g, '').trim().slice(0, 120);
+  if (!q) return null;
+  const pattern = `%${q}%`;
+  return `"${pattern.replace(/"/g, '""')}"`;
+}
+
+function buildSearchOrFilter(qRaw: string): string | null {
+  const token = postgrestIlikePatternToken(qRaw);
+  if (!token) return null;
+  // PostgREST `or` across text columns (`spaces` table)
+  return [
+    `name.ilike.${token}`,
+    `slug.ilike.${token}`,
+    `school.ilike.${token}`,
+    `university.ilike.${token}`,
+    `national_fraternity.ilike.${token}`,
+    `chapter_name.ilike.${token}`,
+    `description.ilike.${token}`,
+  ].join(',');
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Get query parameters for pagination
@@ -13,25 +36,32 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = (page - 1) * limit;
+    const qParam = (searchParams.get('q') || '').trim();
+    const orFilter = buildSearchOrFilter(qParam);
 
-    // Fetch chapters with pagination
-    const { data: chapters, error, count } = await supabase
-      .from('spaces')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    let query = supabase.from('spaces').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+
+    if (orFilter) {
+      query = query.or(orFilter);
+    }
+
+    const { data: chapters, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       console.error('Error fetching chapters:', error);
       return NextResponse.json({ error: 'Failed to fetch chapters' }, { status: 500 });
     }
 
-    return NextResponse.json({ 
+    const total = count || 0;
+
+    return NextResponse.json({
       chapters: chapters || [],
-      total: count || 0,
+      total,
       page,
       limit,
-      totalPages: Math.ceil((count || 0) / limit)
+      totalPages: Math.ceil(total / limit) || 1,
+      /** Echo back normalized query so the client can show “filtered” state */
+      q: qParam.replace(/%/g, '').replace(/,/g, '').trim().slice(0, 120) || null,
     });
   } catch (error) {
     console.error('Error in chapters API:', error);

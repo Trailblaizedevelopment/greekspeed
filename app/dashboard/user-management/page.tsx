@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { DeveloperPortal } from '@/components/features/dashboard/dashboards/DeveloperPortal';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,14 @@ import { ViewChapterModal } from '@/components/user-management/ViewChapterModal'
 export default function UserManagementPage() {
   const { profile, isDeveloper } = useProfile();
   const [activeTab, setActiveTab] = useState('users');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t === 'chapters' || t === 'users' || t === 'alumni') {
+      setActiveTab(t);
+    }
+  }, []);
 
   if (!isDeveloper) {
     return (
