@@ -16,6 +16,28 @@ interface Chapter {
   is_primary?: boolean;
 }
 
+const DEVELOPER_RECENT_LIMIT = 200;
+const DEVELOPER_SEARCH_LIMIT = 100;
+const SEARCH_DEBOUNCE_MS = 400;
+
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
+function mapSpaceRowToChapter(row: Record<string, unknown>): Chapter {
+  return {
+    id: String(row.id),
+    name: typeof row.name === 'string' ? row.name : '',
+    school: typeof row.school === 'string' ? row.school : undefined,
+    location: typeof row.location === 'string' ? row.location : undefined,
+  };
+}
+
 export function ChapterSwitcher() {
   const { profile, isDeveloper } = useProfile();
   const { session } = useAuth();
@@ -29,13 +51,18 @@ export function ChapterSwitcher() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [developerRecentChapters, setDeveloperRecentChapters] = useState<Chapter[]>([]);
+  const [developerSearchChapters, setDeveloperSearchChapters] = useState<Chapter[]>([]);
+  const [developerSearchLoading, setDeveloperSearchLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchTrim = useDebouncedValue(searchQuery.trim(), SEARCH_DEBOUNCE_MS);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const developerRecentRef = useRef<Chapter[]>([]);
 
   const isGovernance = profile?.role === 'governance';
   const showSwitcher = isDeveloper || isGovernance || hasMultipleMemberships;
@@ -101,22 +128,22 @@ export function ChapterSwitcher() {
             }))
           );
         } else if (isDeveloper) {
-          const response = await fetch('/api/developer/chapters?page=1&limit=100', {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
+          const response = await fetch(
+            `/api/developer/chapters?page=1&limit=${DEVELOPER_RECENT_LIMIT}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            }
+          );
           if (!response.ok) throw new Error('Failed to fetch chapters');
           const data = await response.json();
-          const list = data.chapters || [];
-          setChapters(list);
-          setMemberSpaces(
-            list.map((c: { id: string; name: string }) => ({
-              id: c.id,
-              name: c.name,
-            }))
-          );
+          const raw = (data.chapters || []) as Record<string, unknown>[];
+          const list = raw.map(mapSpaceRowToChapter);
+          setDeveloperRecentChapters(list);
+          setDeveloperSearchChapters([]);
+          setMemberSpaces(list.map((c) => ({ id: c.id, name: c.name })));
         }
       } catch (error) {
         console.error('ChapterSwitcher: Error fetching chapters:', error);
@@ -127,6 +154,66 @@ export function ChapterSwitcher() {
 
     fetchChapters();
   }, [showSwitcher, isGovernance, isDeveloper, hasMultipleMemberships, session?.access_token, setMemberSpaces]);
+
+  useEffect(() => {
+    developerRecentRef.current = developerRecentChapters;
+  }, [developerRecentChapters]);
+
+  const isDeveloperOnly = isDeveloper && !isGovernance;
+  const isDeveloperSearchMode = isDeveloperOnly && debouncedSearchTrim.length > 0;
+
+  // Developer: server-side search across all spaces (service client + q on /api/developer/chapters).
+  useEffect(() => {
+    if (!isDeveloperOnly || !session?.access_token) return;
+
+    if (!debouncedSearchTrim) {
+      setDeveloperSearchLoading(false);
+      setDeveloperSearchChapters([]);
+      const recent = developerRecentRef.current;
+      if (recent.length > 0) {
+        setMemberSpaces(recent.map((c) => ({ id: c.id, name: c.name })));
+      }
+      return;
+    }
+
+    const ac = new AbortController();
+    setDeveloperSearchLoading(true);
+
+    const run = async () => {
+      try {
+        const params = new URLSearchParams({
+          page: '1',
+          limit: String(DEVELOPER_SEARCH_LIMIT),
+          q: debouncedSearchTrim,
+        });
+        const response = await fetch(`/api/developer/chapters?${params.toString()}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          signal: ac.signal,
+        });
+        if (!response.ok) throw new Error('Search failed');
+        const data = await response.json();
+        const raw = (data.chapters || []) as Record<string, unknown>[];
+        const list = raw.map(mapSpaceRowToChapter);
+        if (ac.signal.aborted) return;
+        setDeveloperSearchChapters(list);
+        setMemberSpaces(list.map((c) => ({ id: c.id, name: c.name })));
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return;
+        console.error('ChapterSwitcher: developer space search failed:', e);
+        if (!ac.signal.aborted) {
+          setDeveloperSearchChapters([]);
+        }
+      } finally {
+        if (!ac.signal.aborted) setDeveloperSearchLoading(false);
+      }
+    };
+
+    void run();
+    return () => ac.abort();
+  }, [isDeveloperOnly, debouncedSearchTrim, session?.access_token, setMemberSpaces]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -173,27 +260,45 @@ export function ChapterSwitcher() {
   // Early return AFTER all hooks
   if (!showSwitcher) return null;
 
+  const rawChapterList: Chapter[] = isDeveloperOnly
+    ? isDeveloperSearchMode
+      ? developerSearchChapters
+      : developerRecentChapters
+    : chapters;
+
   // For governance / multi-member: show user's active (home) chapter first, then others
   const orderedChapters =
     (isGovernance || hasMultipleMemberships) && profile?.chapter_id
       ? [
-          ...chapters.filter((c) => c.id === profile.chapter_id),
-          ...chapters.filter((c) => c.id !== profile.chapter_id),
+          ...rawChapterList.filter((c) => c.id === profile.chapter_id),
+          ...rawChapterList.filter((c) => c.id !== profile.chapter_id),
         ]
-      : chapters;
+      : rawChapterList;
 
-  // Filter chapters by search query
-  const filteredChapters = orderedChapters.filter((chapter) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      chapter.name?.toLowerCase().includes(query) ||
-      chapter.school?.toLowerCase().includes(query) ||
-      (chapter as Chapter & { location?: string }).location?.toLowerCase().includes(query)
-    );
-  });
+  // Client-side filter for governance / multi-member; developer search is server-driven.
+  const filteredChapters = isDeveloperOnly
+    ? orderedChapters
+    : orderedChapters.filter((chapter) => {
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          chapter.name?.toLowerCase().includes(query) ||
+          chapter.school?.toLowerCase().includes(query) ||
+          (chapter as Chapter & { location?: string }).location?.toLowerCase().includes(query)
+        );
+      });
 
-  const selectedChapter = orderedChapters.find((c) => c.id === activeChapterId);
+  const developerLabelLookup = isDeveloperOnly
+    ? Array.from(
+        new Map(
+          [...developerRecentChapters, ...developerSearchChapters].map((c) => [c.id, c])
+        ).values()
+      )
+    : [];
+
+  const selectedChapter =
+    orderedChapters.find((c) => c.id === activeChapterId) ??
+    (isDeveloperOnly ? developerLabelLookup.find((c) => c.id === activeChapterId) : undefined);
   const displayLabel = selectedChapter
     ? selectedChapter.name
     : hasMultipleMemberships && !isDeveloper && !isGovernance
@@ -274,8 +379,8 @@ export function ChapterSwitcher() {
             className="fixed z-[99999] rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden"
             style={getDropdownPosition()}
           >
-            {/* Search input — only show when there are many chapters */}
-            {chapters.length > 5 && (
+            {/* Search: always for developers (server-side); otherwise when list is large */}
+            {(isDeveloperOnly || isGovernance || chapters.length > 5) && (
               <div className="p-2 border-b border-gray-100">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -284,7 +389,11 @@ export function ChapterSwitcher() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search chapters..."
+                    placeholder={
+                      isDeveloperOnly
+                        ? 'Search all spaces (server)…'
+                        : 'Search chapters…'
+                    }
                     className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
                   />
                   {searchQuery && (
@@ -319,13 +428,19 @@ export function ChapterSwitcher() {
 
             {/* Chapter list */}
             <div className="max-h-[280px] overflow-y-auto py-1">
-              {loading ? (
+              {(!isDeveloperOnly && loading) ||
+              (isDeveloperOnly && !isDeveloperSearchMode && loading) ||
+              (isDeveloperSearchMode && developerSearchLoading) ? (
                 <div className="px-3 py-4 text-center text-sm text-gray-500">
-                  Loading chapters...
+                  {isDeveloperSearchMode && developerSearchLoading
+                    ? 'Searching spaces…'
+                    : 'Loading chapters…'}
                 </div>
               ) : filteredChapters.length === 0 ? (
                 <div className="px-3 py-4 text-center text-sm text-gray-500">
-                  No chapters found
+                  {isDeveloperSearchMode
+                    ? 'No matching spaces. Try another name, slug, school, or chapter field.'
+                    : 'No chapters found'}
                 </div>
               ) : (
                 filteredChapters.map((chapter) => (
