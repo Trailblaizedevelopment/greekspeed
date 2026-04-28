@@ -16,13 +16,13 @@ export async function GET(request: NextRequest) {
 
   let query = auth.service
     .from('national_organizations')
-    .select('id,name,type')
+    .select('id,name,short_name,type')
     .order('name', { ascending: true })
     .limit(limit);
 
   const token = postgrestIlikeQuotedPattern(q);
   if (token) {
-    query = query.or(`name.ilike.${token}`);
+    query = query.or(`name.ilike.${token},short_name.ilike.${token}`);
   }
 
   const { data, error } = await query;
