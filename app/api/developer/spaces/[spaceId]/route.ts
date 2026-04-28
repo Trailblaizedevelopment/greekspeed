@@ -19,6 +19,8 @@ const patchSchema = z
     founded_year: z.number().int().min(1800).max(2100).optional().nullable(),
     events: z.unknown().optional().nullable(),
     achievements: z.unknown().optional().nullable(),
+    school_id: z.string().uuid().optional().nullable(),
+    national_organization_id: z.string().uuid().optional().nullable(),
   })
   .strict();
 

@@ -42,6 +42,8 @@ export interface Chapter {
   created_at: string;
   updated_at: string;
   space_type?: string | null;
+  school_id?: string | null;
+  national_organization_id?: string | null;
 }
 
 function useDebouncedValue<T>(value: T, ms: number): T {
@@ -99,7 +101,9 @@ export function ChaptersTab() {
       if (debouncedSearch.length > 0) {
         params.set('q', debouncedSearch);
       }
-      const response = await fetch(`/api/developer/chapters?${params.toString()}`);
+      const headers: HeadersInit = {};
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+      const response = await fetch(`/api/developer/chapters?${params.toString()}`, { headers });
       if (response.ok) {
         const data = await response.json();
         setChapters(data.chapters || []);
@@ -113,7 +117,7 @@ export function ChaptersTab() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearch]);
+  }, [currentPage, pageSize, debouncedSearch, accessToken]);
 
   useEffect(() => {
     if (pendingSearchPageResetRef.current && currentPage !== 1) {
@@ -145,8 +149,11 @@ export function ChaptersTab() {
     try {
       setDeletingChapterId(chapterToDelete.id);
       
+      const headers: HeadersInit = {};
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       const response = await fetch(`/api/developer/chapters?chapterId=${chapterToDelete.id}`, {
         method: 'DELETE',
+        headers,
       });
 
       if (!response.ok) {
@@ -432,9 +439,10 @@ export function ChaptersTab() {
 
       {/* Create Chapter Form */}
       {showCreateForm && (
-        <CreateChapterForm 
-          onClose={() => setShowCreateForm(false)} 
-          onSuccess={fetchChapters} 
+        <CreateChapterForm
+          accessToken={accessToken}
+          onClose={() => setShowCreateForm(false)}
+          onSuccess={fetchChapters}
         />
       )}
 
@@ -453,6 +461,7 @@ export function ChaptersTab() {
           isOpen={isEditModalOpen}
           onClose={closeEditModal}
           chapter={editChapter}
+          accessToken={accessToken}
           onSuccess={fetchChapters}
         />
       )}

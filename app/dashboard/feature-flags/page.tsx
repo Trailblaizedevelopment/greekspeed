@@ -46,8 +46,10 @@ export default function FeatureFlagsPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch chapters from developer API
-      const response = await fetch('/api/developer/chapters');
+      // Fetch chapters from developer API (Bearer + developer profile required)
+      const response = await fetch('/api/developer/chapters', {
+        headers: getAuthHeaders(),
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch chapters');
       }
