@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Drawer } from 'vaul';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SpaceMembershipAssignPanel } from '@/components/user-management/SpaceMembershipAssignPanel';
-import { Loader2, Users, UserPlus, Pencil, RefreshCw } from 'lucide-react';
+import { Loader2, Users, UserPlus, Pencil, RefreshCw, X } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { cn } from '@/lib/utils';
 
 export type ChapterRow = {
   id: string;
@@ -56,6 +57,7 @@ export function ChapterSpaceManageSheet({
   onRequestFullEdit,
   onSpaceUpdated,
 }: ChapterSpaceManageSheetProps) {
+  const [isMobile, setIsMobile] = useState(false);
   const [tab, setTab] = useState<TabId>('members');
   const [members, setMembers] = useState<SpaceMemberRow[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -68,6 +70,13 @@ export function ChapterSpaceManageSheet({
     space_type: '',
   });
   const [saveLoading, setSaveLoading] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const loadMembers = useCallback(async () => {
     if (!chapter?.id || !accessToken) return;
@@ -136,19 +145,39 @@ export function ChapterSpaceManageSheet({
   if (!chapter) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-lg flex flex-col p-0 gap-0 h-full max-h-screen overflow-hidden"
-      >
-        <div className="flex flex-col h-full min-h-0">
-          <SheetHeader className="px-4 py-3 border-b shrink-0 text-left space-y-1">
-            <SheetTitle className="pr-8">Space / chapter</SheetTitle>
-            <p className="text-sm font-medium text-gray-900 truncate">{chapter.name}</p>
-            <p className="text-xs font-mono text-gray-500 break-all">{chapter.id}</p>
-          </SheetHeader>
+    <Drawer.Root open={open} onOpenChange={onOpenChange} direction="bottom" modal dismissible>
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 z-[9999] bg-black/40 transition-opacity" />
+        <Drawer.Content
+          className={cn(
+            'bg-white flex flex-col z-[10000] fixed bottom-0 left-0 right-0 shadow-2xl border border-gray-200 outline-none',
+            isMobile ? 'max-h-[85dvh] rounded-t-[20px]' : 'max-h-[80vh] max-w-lg mx-auto rounded-t-[20px]'
+          )}
+        >
+          {isMobile ? (
+            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-zinc-300 mt-3 mb-1" aria-hidden />
+          ) : null}
 
-          <div className="flex border-b shrink-0 px-2 gap-1">
+          <div className="flex flex-col h-full min-h-0 max-h-[inherit]">
+            <div className="flex items-start justify-between gap-3 px-4 pt-2 sm:pt-4 pb-3 border-b border-gray-100 shrink-0">
+              <div className="flex-1 min-w-0 text-left space-y-1 pr-2">
+                <Drawer.Title className="text-lg font-semibold text-gray-900">Space / chapter</Drawer.Title>
+                <Drawer.Description className="text-sm font-medium text-gray-900 truncate">
+                  {chapter.name}
+                </Drawer.Description>
+                <p className="text-xs font-mono text-gray-500 break-all">{chapter.id}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors shrink-0"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex border-b shrink-0 px-2 gap-1">
             <button
               type="button"
               className={`px-3 py-2 text-sm rounded-t-md ${
@@ -185,9 +214,14 @@ export function ChapterSpaceManageSheet({
                 Quick edit
               </span>
             </button>
-          </div>
+            </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+            <div
+              className={cn(
+                'flex-1 min-h-0 overflow-y-auto p-4 space-y-4',
+                isMobile && 'pb-[calc(1rem+env(safe-area-inset-bottom))]'
+              )}
+            >
             {tab === 'members' ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -287,9 +321,10 @@ export function ChapterSpaceManageSheet({
                 </div>
               </div>
             ) : null}
+            </div>
           </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   );
 }
