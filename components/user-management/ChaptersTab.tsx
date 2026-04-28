@@ -226,7 +226,7 @@ export function ChaptersTab() {
         </div>
         <Button 
           onClick={() => setShowCreateForm(true)} 
-          className="flex items-center space-x-2"
+          className="flex items-center space-x-2 rounded-full"
         >
           <Plus className="h-4 w-4" />
           <span>Create Organization</span>
