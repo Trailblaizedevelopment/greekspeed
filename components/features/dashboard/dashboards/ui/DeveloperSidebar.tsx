@@ -6,7 +6,12 @@ import { LayoutDashboard, Users, Flag, Palette, Bell, ChevronRight, X } from 'lu
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
-export type DeveloperView = 'overview' | 'user-management' | 'feature-flags' | 'branding' | 'notifications';
+export type DeveloperView =
+  | 'overview'
+  | 'user-management'
+  | 'feature-flags'
+  | 'branding'
+  | 'notifications';
 
 interface DeveloperSidebarProps {
   activeView: DeveloperView;

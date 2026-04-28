@@ -201,7 +201,7 @@ export function UsersTab({
           <h2 className="text-2xl font-bold">User Management</h2>
           <p className="text-gray-600">Create and manage user accounts</p>
         </div>
-        <Button onClick={() => setShowCreateForm(true)} className="flex items-center space-x-2">
+        <Button onClick={() => setShowCreateForm(true)} className="flex items-center space-x-2 rounded-full">
           <Plus className="h-4 w-4" />
           <span>Create User</span>
         </Button>

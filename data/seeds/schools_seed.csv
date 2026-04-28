@@ -113,8 +113,8 @@ University of Hawaii,,"Honolulu, HI",,,Group of 5 â Mountain West Conferenc
 University of New Mexico,,"Albuquerque, NM",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
 San Diego State University (SDSU),,"San Diego, CA",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
 San Jose State University,,"San Jose, CA",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
-"UNLV (University of Nevada, Las Vegas)",,"Las Vegas, NV",,,Group of 5 â Mountain West Conference (12 schools),Mountain,West,D1-FBS
-Public,,"Utah State University, Logan",,,Group of 5 â Mountain West Conference (12 schools),UT,Mountain West,D1-FBS
+"UNLV (University of Nevada, Las Vegas)",,"Las Vegas, NV",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
+Utah State University,,"Logan, UT",,,Group of 5 â Mountain West Conference (12 schools),Mountain West,D1-FBS,Public
 Appalachian State University,,"Boone, NC",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
 Arkansas State University,,"Jonesboro, AR",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
 Coastal Carolina University,,"Conway, SC",,,Group of 5 â Sun Belt Conference (14 schools),Sun Belt,D1-FBS,Public
@@ -152,8 +152,9 @@ Tufts University,,"Medford, MA",,,"Top 50 Private Universities (non-Power 4, non
 Case Western Reserve University,,"Cleveland, OH",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
 Brandeis University,,"Waltham, MA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",UAA,D3,Private
 Villanova University,,"Villanova, PA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1-FCS,Private
-Georgetown University,,"Washington, DC",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,D1 (no,football)
-Private,,"Marquette University, Milwaukee",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WI,Big East,D1 (no football)
+Georgetown University,,"Washington, DC",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,"D1 (no football)",Private
+Marquette University,,"Milwaukee, WI",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Big East,"D1 (no football)",Private
+American University,,"Washington, DC",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Patriot League,"D1 (no football)",Private
 University of Denver,,"Denver, CO",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",Summit League,D1,Private
 Gonzaga University,,"Spokane, WA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
 Santa Clara University,,"Santa Clara, CA",,,"Top 50 Private Universities (non-Power 4, non-Ivy)",WCC,D1,Private
@@ -331,29 +332,3 @@ Savannah State,,"Savannah, GA",,,Notable D1 Schools (Mid-Major / Other Conferenc
 Marquette University,,"Milwaukee, WI",,,Notable D1 Schools (Mid-Major / Other Conferences),Big East,D1,Private
 Boise State,,"Boise, ID",,,Notable D1 Schools (Mid-Major / Other Conferences),Mountain West,D1-FBS,Public
 Nevada Las Vegas (UNLV),,"Las Vegas, NV",,,Notable D1 Schools (Mid-Major / Other Conferences),Mountain West,D1-FBS,Public
-Big3 Basketball,,"3-on-3 Pro, 12 teams",,,Notable D1 Schools (Mid-Major / Other Conferences),â,#,Type Label
-Description,,"---, ---",,,Notable D1 Schools (Mid-Major / Other Conferences),---,1,University / College
-4-year accredited institution,,"2, Community College",,,Notable D1 Schools (Mid-Major / Other Conferences),2-year institution,3,High School
-Secondary school (public or private),,"4, IFC Fraternity",,,Notable D1 Schools (Mid-Major / Other Conferences),NIC member fraternity,5,Panhellenic Sorority
-NPC member sorority,,"6, NPHC Organization",,,Notable D1 Schools (Mid-Major / Other Conferences),Divine Nine fraternity or sorority,7,Multicultural Greek Organization
-MGC member organization,,"8, Professional Fraternity / Sorority",,,Notable D1 Schools (Mid-Major / Other Conferences),"Business, law, engineering,","service, etc.",9
-Local Fraternity / Sorority,,"Non-affiliated Greek organization, 10",,,Notable D1 Schools (Mid-Major / Other Conferences),NCAA Athletic Team,Varsity sport at NCAA member school,11
-Club Sport,,"Recreational/competitive club team, 12",,,Notable D1 Schools (Mid-Major / Other Conferences),Intramural Sport,Intra-school competition league,13
-Professional Sports Team,,"NFL/NBA/MLB/NHL/MLS/NWSL or minor league, 14",,,Notable D1 Schools (Mid-Major / Other Conferences),Military Branch,One of the 6 U.S. military branches,15
-Military Unit / Base,,"Specific installation, command, or unit, 16",,,Notable D1 Schools (Mid-Major / Other Conferences),ROTC Program,Army/Navy/Air Force ROTC,17
-Professional Association,,"Industry org (IEEE, AMA, ABA, etc.), 18",,,Notable D1 Schools (Mid-Major / Other Conferences),Honor Society,Academic honor/recognition organization,19
-Business School Club,,"Org under a business/b-school umbrella, 20",,,Notable D1 Schools (Mid-Major / Other Conferences),Student Government,SGA or equivalent,21
-Student Organization,,"General campus club/org (catch-all), 22",,,Notable D1 Schools (Mid-Major / Other Conferences),Alumni Association,Formal alumni body of a school/org,23
-Country Club,,"Private social/athletic club, 24",,,Notable D1 Schools (Mid-Major / Other Conferences),Athletic / Fitness Program,"Gym, CrossFit, league, etc.",25
-Investor / Founder Network,,"VC network, angel group, founder community, 26",,,Notable D1 Schools (Mid-Major / Other Conferences),Philanthropic / Advisory Board,"Board, foundation, nonprofit advisory",27
-Young Professionals Organization,,"YPO, Rotary Young, Professionals, city-specific",,,Notable D1 Schools (Mid-Major / Other Conferences),28,Religious Organization,"Campus ministry, faith community, church"
-29,,"Cultural Organization, International/cultural student org",,,Notable D1 Schools (Mid-Major / Other Conferences),30,Graduate / Professional School,"MBA, law, med, or other grad program"
-31,,"Study Abroad Program, Program or destination-based cohort",,,Notable D1 Schools (Mid-Major / Other Conferences),32,Residence Hall / Housing,"Dorm, Greek house, living-learning community"
-33,,"Performing Arts, Theater, band, orchestra, dance, choir",,,Notable D1 Schools (Mid-Major / Other Conferences),34,Media / Publication,"Campus newspaper, magazine, radio, TV"
-35,,"Political Organization, College Dems/Republicans, advocacy groups",,,Notable D1 Schools (Mid-Major / Other Conferences),36,Debate / Academic Competition,"Mock trial, debate, Model UN"
-37,,"Other, Catch-all for unlisted org types",,,Notable D1 Schools (Mid-Major / Other Conferences),Section,Source,URL
-Universities (D1),,"NCAA Schools Directory, https://www.ncaa.org/schools",,,Notable D1 Schools (Mid-Major / Other Conferences),Public High Schools,NCES CCD,https://nces.ed.gov/ccd/
-Private High Schools,,"NCES PSS, https://nces.ed.gov/surveys/pss/",,,Notable D1 Schools (Mid-Major / Other Conferences),NIC Fraternities,NIC Website,https://www.northamericaninterfraternity.org/
-NPC Sororities,,"NPC Website, https://www.npcwomen.org/",,,Notable D1 Schools (Mid-Major / Other Conferences),NPHC Orgs,NPHC Website,https://www.nphchq.org/
-Sports Teams,,"SportsDB API, https://www.thesportsdb.com/api.php",,,Notable D1 Schools (Mid-Major / Other Conferences),Military Installations,Military OneSource,https://installations.militaryonesource.mil/
-Greek Chapters,,"Greekrank / OmegaFi, For chapter-level data",,,Notable D1 Schools (Mid-Major / Other Conferences),(school + org combos),NCES Data API,Urban Institute

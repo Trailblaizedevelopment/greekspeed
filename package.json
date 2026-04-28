@@ -15,6 +15,7 @@
     "test:event-check-in-token": "tsx scripts/verify-eventCheckInUrlToken.ts",
     "test:announcement-metadata": "tsx scripts/test-announcement-metadata.ts",
     "parse-seeds": "tsx scripts/parse-seed-emails.ts",
+    "import-seeds": "tsx scripts/import-data-seeds.ts",
     "backfill:alumni-current-place": "tsx scripts/backfill-alumni-current-place.ts"
   },
   "dependencies": {

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Fetch memberships from space_memberships + join spaces
     const { data: memberships, error: membershipError } = await supabase
       .from('space_memberships')
-      .select('space_id, role, status, is_primary')
+      .select('space_id, role, status, is_primary, is_space_icon')
       .eq('user_id', user.id)
       .neq('status', 'inactive');
 
@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
             school: space.school ?? null,
             slug: space.slug ?? null,
             is_primary: m.is_primary,
+            is_space_icon: m.is_space_icon ?? false,
             membership_status: m.status,
             membership_role: m.role,
           });
@@ -89,6 +90,7 @@ export async function GET(request: NextRequest) {
             school: space.school ?? null,
             slug: space.slug ?? null,
             is_primary: true,
+            is_space_icon: false,
             membership_status: profile.role === 'alumni' ? 'alumni' : 'active',
             membership_role: profile.role ?? 'active_member',
           });
