@@ -14,4 +14,13 @@ export function isEduEmail(email: string): boolean {
   return domain === 'edu' || domain.endsWith('.edu');
 }
 
+/**
+ * Self-serve registration (sign-up, OAuth create, public join) blocks .edu by default.
+ * Set `NEXT_PUBLIC_ALLOW_EDU_SIGNUP=true` to allow campus emails (Handshake-style open access).
+ */
+export function isEduEmailBlockedForSelfServeSignup(email: string): boolean {
+  if (process.env.NEXT_PUBLIC_ALLOW_EDU_SIGNUP === 'true') return false;
+  return isEduEmail(email);
+}
+
 export { EDU_SIGNUP_ERROR };

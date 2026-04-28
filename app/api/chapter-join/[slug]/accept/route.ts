@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
-import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
+import { isEduEmailBlockedForSelfServeSignup, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { deriveWorkStateCodeFromLocationText } from '@/lib/alumni/workStateCode';
 
@@ -49,7 +49,7 @@ export async function POST(
       return NextResponse.json({ error: 'Valid join role is required (active_member or alumni)' }, { status: 400 });
     }
 
-    if (isEduEmail(email)) {
+    if (isEduEmailBlockedForSelfServeSignup(email)) {
       return NextResponse.json({ error: EDU_SIGNUP_ERROR }, { status: 400 });
     }
 

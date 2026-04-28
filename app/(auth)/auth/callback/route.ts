@@ -4,7 +4,7 @@ import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernam
 import { validateInvitationToken, recordInvitationUsage } from '@/lib/utils/invitationUtils';
 import { cookies } from 'next/headers';
 import { getSafeRedirect } from '@/lib/utils/safeRedirect';
-import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
+import { isEduEmailBlockedForSelfServeSignup, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import {
   OAUTH_POST_LOGIN_REDIRECT_COOKIE,
   OAUTH_SIGNUP_ROLE_COOKIE,
@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Block .edu emails for new signups (existing users can still log in)
-      if (!existingProfile && isEduEmail(user.email || '')) {
+      if (!existingProfile && isEduEmailBlockedForSelfServeSignup(user.email || '')) {
         console.warn('Blocked .edu signup via OAuth:', user.email);
         await supabase.auth.signOut();
         const eduError = encodeURIComponent(EDU_SIGNUP_ERROR);
