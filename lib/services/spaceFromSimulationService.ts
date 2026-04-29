@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { buildSimulationSpaceRow } from '@/lib/dataSeeds/spaceSeedMapping';
+import { DEFAULT_FEATURE_FLAGS } from '@/types/featureFlags';
 import {
   uploadChapterLogoFromDataUrl,
   upsertPrimaryLogoBrandingForSpace,
@@ -96,6 +97,7 @@ export async function findOrCreateSpaceFromSimulationLabel(
     school: row.school,
     space_type: row.space_type,
     llm_data: row.llm_data,
+    feature_flags: { ...DEFAULT_FEATURE_FLAGS, financial_tools_enabled: false },
   };
 
   const sid = params.school_id?.trim();

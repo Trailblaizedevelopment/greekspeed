@@ -18,6 +18,8 @@ export interface MemberSpace {
   name: string;
   school?: string | null;
   slug?: string | null;
+  /** From chapter_branding.primary_logo_url when present */
+  primary_logo_url?: string | null;
   is_primary: boolean;
   /** Present when sourced from space_memberships; false for profile.chapter_id fallback */
   is_space_icon?: boolean;

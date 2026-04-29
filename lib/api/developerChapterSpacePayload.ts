@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { DEFAULT_FEATURE_FLAGS } from '@/types/featureFlags';
 
 /** PostgREST `or` / `ilike` token: quoted so spaces parse as one value. */
 export function postgrestIlikeQuotedPattern(qRaw: string): string | null {
@@ -161,6 +162,7 @@ export function buildSpaceInsertRow(
     achievements: core.achievements ?? null,
     llm_enriched: core.llm_enriched ?? false,
     llm_data: core.llm_data ?? null,
+    feature_flags: { ...DEFAULT_FEATURE_FLAGS, financial_tools_enabled: false },
   };
 }
 

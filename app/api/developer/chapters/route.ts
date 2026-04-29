@@ -12,6 +12,7 @@ import {
   uploadChapterLogoFromDataUrl,
   upsertPrimaryLogoBrandingForSpace,
 } from '@/lib/services/spaceChapterLogoService';
+import { fetchPrimaryLogoUrlByChapterIds } from '@/lib/services/chapterBrandingBatchService';
 
 function buildSearchOrFilter(qRaw: string): string | null {
   const token = postgrestIlikeQuotedPattern(qRaw);
@@ -77,8 +78,18 @@ export async function GET(request: NextRequest) {
 
     const total = count || 0;
 
+    const chapterList = chapters ?? [];
+    const logoMap = await fetchPrimaryLogoUrlByChapterIds(
+      auth.service,
+      chapterList.map((c) => String(c.id))
+    );
+    const chaptersWithLogos = chapterList.map((c) => ({
+      ...c,
+      primary_logo_url: logoMap.get(String(c.id)) ?? null,
+    }));
+
     return NextResponse.json({
-      chapters: chapters || [],
+      chapters: chaptersWithLogos,
       total,
       page,
       limit,

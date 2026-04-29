@@ -14,6 +14,7 @@ interface Chapter {
   school?: string;
   location?: string;
   is_primary?: boolean;
+  primary_logo_url?: string | null;
 }
 
 const DEVELOPER_RECENT_LIMIT = 200;
@@ -30,12 +31,39 @@ function useDebouncedValue<T>(value: T, ms: number): T {
 }
 
 function mapSpaceRowToChapter(row: Record<string, unknown>): Chapter {
+  const logo = row.primary_logo_url;
   return {
     id: String(row.id),
     name: typeof row.name === 'string' ? row.name : '',
     school: typeof row.school === 'string' ? row.school : undefined,
     location: typeof row.location === 'string' ? row.location : undefined,
+    primary_logo_url:
+      typeof logo === 'string' && logo.trim() ? logo : logo === null ? null : undefined,
   };
+}
+
+function ChapterLogoMark({
+  url,
+  iconClassName,
+  imgClassName,
+}: {
+  url?: string | null;
+  iconClassName: string;
+  imgClassName: string;
+}) {
+  const [broken, setBroken] = useState(false);
+  if (!url?.trim() || broken) {
+    return <Building2 className={iconClassName} aria-hidden />;
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      className={imgClassName}
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
 }
 
 export function ChapterSwitcher() {
@@ -86,12 +114,21 @@ export function ChapterSwitcher() {
           setHasMultipleMemberships(true);
           const raw = data.spaces || [];
           setChapters(
-            raw.map((s: { id: string; name: string; school?: string; is_primary?: boolean }) => ({
-              id: s.id,
-              name: s.name,
-              school: s.school,
-              is_primary: s.is_primary,
-            }))
+            raw.map(
+              (s: {
+                id: string;
+                name: string;
+                school?: string;
+                is_primary?: boolean;
+                primary_logo_url?: string | null;
+              }) => ({
+                id: s.id,
+                name: s.name,
+                school: s.school,
+                is_primary: s.is_primary,
+                primary_logo_url: s.primary_logo_url ?? undefined,
+              })
+            )
           );
           setMemberSpaces(raw.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })));
         } else {
@@ -360,7 +397,11 @@ export function ChapterSwitcher() {
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
         )}
       >
-        <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+        <ChapterLogoMark
+          url={selectedChapter?.primary_logo_url}
+          iconClassName="h-3.5 w-3.5 flex-shrink-0 text-current"
+          imgClassName="h-5 w-5 flex-shrink-0 rounded object-contain bg-white/80 ring-1 ring-black/5"
+        />
         <span className="hidden md:inline truncate md:max-w-[120px] lg:max-w-[160px] text-left">
           {displayLabel}
         </span>
@@ -449,13 +490,18 @@ export function ChapterSwitcher() {
                     key={chapter.id}
                     onClick={() => handleSelect(chapter.id)}
                     className={cn(
-                      'w-full flex items-start justify-start text-left px-3 py-2.5 text-sm transition-colors',
+                      'w-full flex items-start gap-2.5 text-left px-3 py-2.5 text-sm transition-colors',
                       activeChapterId === chapter.id
                         ? 'bg-brand-primary/5 text-brand-primary font-medium'
                         : 'text-gray-700 hover:bg-gray-50'
                     )}
                   >
-                    <div className="flex min-w-0 w-full flex-col items-stretch gap-0.5 text-left">
+                    <ChapterLogoMark
+                      url={chapter.primary_logo_url}
+                      iconClassName="mt-0.5 h-7 w-7 flex-shrink-0 text-gray-400"
+                      imgClassName="mt-0.5 h-7 w-7 flex-shrink-0 rounded-md object-contain bg-gray-50 ring-1 ring-gray-100"
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col items-stretch gap-0.5 text-left">
                       <span className="block truncate font-medium leading-snug">
                         {chapter.name}
                         {chapter.is_primary && hasMultipleMemberships && (
