@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 import { buildSimulationSpaceRow } from '@/lib/dataSeeds/spaceSeedMapping';
 
 async function loadSpaceUniquenessSets(supabase: SupabaseClient): Promise<{
@@ -52,6 +53,9 @@ export async function findOrCreateSpaceFromSimulationLabel(
     category?: string;
     profileWeight?: string;
     source?: string;
+    /** Optional directory FKs when inserting a new shell space. */
+    school_id?: string | null;
+    national_organization_id?: string | null;
   }
 ): Promise<{ ok: true; id: string; created: boolean } | { ok: false; error: string }> {
   const raw = params.rawName.trim();
@@ -76,7 +80,7 @@ export async function findOrCreateSpaceFromSimulationLabel(
     usedComposites,
   });
 
-  const insertPayload = {
+  const insertPayload: Record<string, unknown> = {
     name: row.name,
     slug: row.slug,
     national_fraternity: row.national_fraternity,
@@ -85,6 +89,15 @@ export async function findOrCreateSpaceFromSimulationLabel(
     space_type: row.space_type,
     llm_data: row.llm_data,
   };
+
+  const sid = params.school_id?.trim();
+  if (sid && z.string().uuid().safeParse(sid).success) {
+    insertPayload.school_id = sid;
+  }
+  const oid = params.national_organization_id?.trim();
+  if (oid && z.string().uuid().safeParse(oid).success) {
+    insertPayload.national_organization_id = oid;
+  }
 
   const { data: inserted, error } = await supabase.from('spaces').insert(insertPayload).select('id').single();
 
