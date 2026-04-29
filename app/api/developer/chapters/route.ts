@@ -8,6 +8,10 @@ import {
   buildSpaceUpdateRow,
 } from '@/lib/api/developerChapterSpacePayload';
 import { activateShellSpaceIfInactive, upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
+import {
+  uploadChapterLogoFromDataUrl,
+  upsertPrimaryLogoBrandingForSpace,
+} from '@/lib/services/spaceChapterLogoService';
 
 function buildSearchOrFilter(qRaw: string): string | null {
   const token = postgrestIlikeQuotedPattern(qRaw);
@@ -122,11 +126,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const spaceId = newChapter.id as string;
+    const imageData = parsed.data.space_image_data_url?.trim();
+    if (imageData) {
+      const logoUrl = await uploadChapterLogoFromDataUrl(auth.service, spaceId, imageData);
+      if (logoUrl) {
+        const brandRes = await upsertPrimaryLogoBrandingForSpace(auth.service, {
+          spaceId,
+          logoPublicUrl: logoUrl,
+          spaceDisplayName: (newChapter as { name?: string }).name ?? parsed.data.name,
+          actorUserId: auth.userId,
+        });
+        if (!brandRes.ok) {
+          console.warn('create chapter: initial branding logo:', brandRes.error);
+        }
+      }
+    }
+
     const iconUserId = parsed.data.space_icon_user_id;
     if (iconUserId) {
       const membership = await upsertSpaceMembership(auth.service, {
         userId: iconUserId,
-        spaceId: newChapter.id as string,
+        spaceId,
         role: 'active_member',
         status: 'active',
         isPrimary: false,

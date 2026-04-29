@@ -31,6 +31,8 @@ const chapterCoreSchema = z.object({
   llm_data: z.unknown().optional().nullable(),
   /** After space insert: upsert membership for this user as exclusive Space Icon (active_member). */
   space_icon_user_id: z.string().uuid().optional(),
+  /** Optional JPEG/PNG/GIF data URL — uploaded to chapter-logos and set as primary branding logo. */
+  space_image_data_url: z.string().max(14_000_000).optional(),
 });
 
 export type ParsedChapterCore = z.infer<typeof chapterCoreSchema>;

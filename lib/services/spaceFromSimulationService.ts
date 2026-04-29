@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { buildSimulationSpaceRow } from '@/lib/dataSeeds/spaceSeedMapping';
+import {
+  uploadChapterLogoFromDataUrl,
+  upsertPrimaryLogoBrandingForSpace,
+} from '@/lib/services/spaceChapterLogoService';
 
 async function loadSpaceUniquenessSets(supabase: SupabaseClient): Promise<{
   usedSlugs: Set<string>;
@@ -56,6 +60,10 @@ export async function findOrCreateSpaceFromSimulationLabel(
     /** Optional directory FKs when inserting a new shell space. */
     school_id?: string | null;
     national_organization_id?: string | null;
+    /** Optional JPEG/PNG/GIF data URL — stored as chapter primary logo after insert (new rows only). */
+    initial_logo_data_url?: string | null;
+    /** Profile id for `chapter_branding` audit columns when seeding a logo. */
+    branding_actor_user_id?: string | null;
   }
 ): Promise<{ ok: true; id: string; created: boolean } | { ok: false; error: string }> {
   const raw = params.rawName.trim();
@@ -104,5 +112,23 @@ export async function findOrCreateSpaceFromSimulationLabel(
   if (error) {
     return { ok: false, error: error.message };
   }
-  return { ok: true, id: inserted.id, created: true };
+
+  const spaceId = inserted.id as string;
+  const logoData = params.initial_logo_data_url?.trim();
+  if (logoData) {
+    const publicUrl = await uploadChapterLogoFromDataUrl(supabase, spaceId, logoData);
+    if (publicUrl) {
+      const brand = await upsertPrimaryLogoBrandingForSpace(supabase, {
+        spaceId,
+        logoPublicUrl: publicUrl,
+        spaceDisplayName: row.name,
+        actorUserId: params.branding_actor_user_id ?? null,
+      });
+      if (!brand.ok) {
+        console.warn('findOrCreateSpaceFromSimulationLabel: branding logo upsert:', brand.error);
+      }
+    }
+  }
+
+  return { ok: true, id: spaceId, created: true };
 }

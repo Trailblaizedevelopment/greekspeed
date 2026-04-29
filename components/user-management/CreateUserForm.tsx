@@ -25,6 +25,7 @@ import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 import { LocationPicker } from '@/components/features/location/LocationPicker';
 import { formatUsPhoneInput, normalizeUsPhoneForStorage } from '@/lib/utils/formatUsPhone';
+import { fileToImageDataUrl } from '@/lib/utils/readImageFileAsDataUrl';
 import {
   DeveloperReferenceSearchField,
   type DeveloperReferenceSelection,
@@ -52,6 +53,8 @@ type ExtraSpaceRow =
       asSpaceIcon: boolean;
       schoolLink: DeveloperReferenceSelection | null;
       orgLink: DeveloperReferenceSelection | null;
+      /** Optional data URL sent as new_space.image_data_url for shell branding logo. */
+      spaceImageDataUrl: string | null;
     };
 
 export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper = false }: CreateUserFormProps) {
@@ -94,6 +97,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   /** Optional directory links when quick-creating the home shell space (Space Icon → new). */
   const [newShellSchoolLink, setNewShellSchoolLink] = useState<DeveloperReferenceSelection | null>(null);
   const [newShellOrgLink, setNewShellOrgLink] = useState<DeveloperReferenceSelection | null>(null);
+  const [newShellSpaceImageDataUrl, setNewShellSpaceImageDataUrl] = useState<string | null>(null);
   const [currentPlace, setCurrentPlace] = useState<CanonicalPlaceConfirmed | null>(null);
   const wizardStepRef = useRef<1 | 2>(1);
   wizardStepRef.current = wizardStep;
@@ -210,6 +214,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
               ...(cat ? { category: cat } : {}),
               ...(school_id ? { school_id } : {}),
               ...(national_organization_id ? { national_organization_id } : {}),
+              ...(row.spaceImageDataUrl ? { image_data_url: row.spaceImageDataUrl } : {}),
             },
             is_space_icon: row.asSpaceIcon,
           };
@@ -245,6 +250,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           ...(categoryNorm ? { category: categoryNorm } : {}),
           ...(shellSchoolId ? { school_id: shellSchoolId } : {}),
           ...(shellOrgId ? { national_organization_id: shellOrgId } : {}),
+          ...(newShellSpaceImageDataUrl ? { image_data_url: newShellSpaceImageDataUrl } : {}),
         };
       } else {
         body.chapter = formData.chapter?.trim() || null;
@@ -279,6 +285,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setExtraSpaceRows([]);
       setNewShellSchoolLink(null);
       setNewShellOrgLink(null);
+      setNewShellSpaceImageDataUrl(null);
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -352,6 +359,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setExtraSpaceRows([]);
       setNewShellSchoolLink(null);
       setNewShellOrgLink(null);
+      setNewShellSpaceImageDataUrl(null);
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -588,6 +596,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                   if (!on) {
                     setNewShellSchoolLink(null);
                     setNewShellOrgLink(null);
+                    setNewShellSpaceImageDataUrl(null);
                   }
                   setFormData((prev) => ({
                     ...prev,
@@ -623,6 +632,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                   onClick={() => {
                     setNewShellSchoolLink(null);
                     setNewShellOrgLink(null);
+                    setNewShellSpaceImageDataUrl(null);
                     setFormData((prev) => ({ ...prev, spaceIconAttachMode: 'existing' }));
                   }}
                 >
@@ -714,6 +724,51 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       }
                       disabled={loading}
                     />
+                  </div>
+                  <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
+                    <Label className="text-sm">Space image (optional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Primary logo for this space in chapter branding (JPEG, PNG, or GIF, max 5 MB). Applied when the
+                      shell is first created.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/gif"
+                        className="max-w-xs cursor-pointer text-sm file:mr-2"
+                        disabled={loading}
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!f) return;
+                          const r = await fileToImageDataUrl(f);
+                          if (!r.ok) {
+                            alert(r.error);
+                            return;
+                          }
+                          setNewShellSpaceImageDataUrl(r.dataUrl);
+                        }}
+                      />
+                      {newShellSpaceImageDataUrl ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={newShellSpaceImageDataUrl}
+                            alt=""
+                            className="h-14 w-14 rounded-md border object-cover"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setNewShellSpaceImageDataUrl(null)}
+                            disabled={loading}
+                          >
+                            Remove image
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               )}
@@ -894,6 +949,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                                   asSpaceIcon: false,
                                   schoolLink: null,
                                   orgLink: null,
+                                  spaceImageDataUrl: null,
                                 }
                               : r
                           )
@@ -997,6 +1053,64 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                           }
                           disabled={loading}
                         />
+                      </div>
+                      <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
+                        <Label className="text-sm">Space image (optional)</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Primary logo when this shell is first created (JPEG, PNG, or GIF, max 5 MB).
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Input
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/gif"
+                            className="max-w-xs cursor-pointer text-sm file:mr-2"
+                            disabled={loading}
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              e.target.value = '';
+                              if (!f) return;
+                              const r = await fileToImageDataUrl(f);
+                              if (!r.ok) {
+                                alert(r.error);
+                                return;
+                              }
+                              setExtraSpaceRows((prev) =>
+                                prev.map((x) =>
+                                  x.id === row.id && x.kind === 'new'
+                                    ? { ...x, spaceImageDataUrl: r.dataUrl }
+                                    : x
+                                )
+                              );
+                            }}
+                          />
+                          {row.kind === 'new' && row.spaceImageDataUrl ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={row.spaceImageDataUrl}
+                                alt=""
+                                className="h-14 w-14 rounded-md border object-cover"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setExtraSpaceRows((prev) =>
+                                    prev.map((x) =>
+                                      x.id === row.id && x.kind === 'new'
+                                        ? { ...x, spaceImageDataUrl: null }
+                                        : x
+                                    )
+                                  )
+                                }
+                                disabled={loading}
+                              >
+                                Remove image
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1166,6 +1280,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     setExtraSpaceRows([]);
     setNewShellSchoolLink(null);
     setNewShellOrgLink(null);
+    setNewShellSpaceImageDataUrl(null);
     setBio('');
     setPhone('');
     setCurrentPlace(null);
