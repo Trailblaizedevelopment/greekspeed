@@ -262,7 +262,7 @@ export function DeveloperReferenceSearchField({
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Type to search…"
+                    placeholder="Type to search..."
                     className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
                     autoFocus
                   />
@@ -280,6 +280,26 @@ export function DeveloperReferenceSearchField({
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {loading ? (
                   <div className="px-3 py-4 text-sm text-gray-500">Loading…</div>
+                ) : query.trim().length < 2 ? (
+                  <div className="px-3 py-4 text-center text-sm text-gray-600">
+                    {kind === 'schools' ? (
+                      <>
+                        <p className="font-medium text-gray-800">Look up your school</p>
+                        <p className="mt-1.5 text-xs leading-relaxed">
+                          Search your school. Results load from your
+                          directory as you type.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-gray-800">Look up your organization</p>
+                        <p className="mt-1.5 text-xs leading-relaxed">
+                          Search national fraternities, sororities, and
+                          umbrella organizations.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 ) : hits.length === 0 ? (
                   <div className="px-3 py-4 text-sm text-gray-500 text-center">No matches</div>
                 ) : (

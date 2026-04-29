@@ -451,8 +451,8 @@ export function ChapterSpaceManageSheet({
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="qe-ch">Local designation</Label>
-                    <FieldHint text="spaces.chapter_name — local designation (for example Greek letters or a short branch label) shown next to the full name." />
+                    <Label htmlFor="qe-ch">Chapter Name (Short)</Label>
+                    <FieldHint text="spaces.chapter_name — short label for the chapter or branch (for example Greek letters), shown next to the full name." />
                   </div>
                   <Input
                     id="qe-ch"
