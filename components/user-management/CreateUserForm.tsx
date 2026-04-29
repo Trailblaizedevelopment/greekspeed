@@ -80,6 +80,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const [showCropper, setShowCropper] = useState(false);
   const [extraIconRows, setExtraIconRows] = useState<ExtraIconRow[]>([]);
   const [currentPlace, setCurrentPlace] = useState<CanonicalPlaceConfirmed | null>(null);
+  const wizardStepRef = useRef<1 | 2>(1);
+  wizardStepRef.current = wizardStep;
 
   const showSpaceSection =
     !isDeveloper ||
@@ -125,13 +127,15 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (useWizard && wizardStep === 1) {
+    if (useWizard && wizardStepRef.current === 1) {
       return;
     }
     await submitCreateUser();
   };
 
-  const goToSpaceStep = () => {
+  const goToSpaceStep = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     if (!formData.email?.trim() || !formData.firstName?.trim() || !formData.lastName?.trim()) {
       alert('Email, first name, and last name are required.');
       return;
@@ -140,6 +144,10 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   };
 
   const submitCreateUser = async () => {
+    if (useWizard && wizardStepRef.current === 1) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -1074,7 +1082,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       {useWizard && wizardStep === 1 ? (
         <Button
           type="button"
-          onClick={goToSpaceStep}
+          onClick={(e) => goToSpaceStep(e)}
           className={cn(
             isMobile ? 'flex-1' : 'rounded-full',
             isMobile &&
@@ -1121,6 +1129,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       />
     ) : null;
 
+  /** Wizard step 1 must not live inside `<form>`: Enter in inputs triggers implicit submit in some browsers. */
+  const wrapBodyInForm = !useWizard || wizardStep === 2;
+
   // Main form - Mobile: Bottom drawer with fixed header/footer, Desktop: Centered modal
   if (isMobile) {
     return typeof window !== 'undefined' ? (
@@ -1155,21 +1166,33 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       </p>
                     ) : null}
                   </div>
-                  <Button variant="ghost" size="sm" onClick={handleCancel} className="h-8 w-8 p-0">
+                  <Button type="button" variant="ghost" size="sm" onClick={handleCancel} className="h-8 w-8 p-0">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleFormSubmit}>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
-                  <div className="space-y-4">{formFields}</div>
-                </div>
+              {wrapBodyInForm ? (
+                <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleFormSubmit}>
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                    <div className="space-y-4">{formFields}</div>
+                  </div>
 
-                <div className="flex flex-shrink-0 space-x-2 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
-                  {actionButtons}
+                  <div className="flex flex-shrink-0 space-x-2 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+                    {actionButtons}
+                  </div>
+                </form>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                    <div className="space-y-4">{formFields}</div>
+                  </div>
+
+                  <div className="flex flex-shrink-0 space-x-2 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+                    {actionButtons}
+                  </div>
                 </div>
-              </form>
+              )}
             </div>
           </div>,
           document.body
@@ -1217,18 +1240,30 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                 )}
               </CardHeader>
 
-              <form
-                className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                onSubmit={handleFormSubmit}
-              >
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                  <div className="space-y-4">{formFields}</div>
-                </div>
+              {wrapBodyInForm ? (
+                <form
+                  className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                  onSubmit={handleFormSubmit}
+                >
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                    <div className="space-y-4">{formFields}</div>
+                  </div>
 
-                <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/95 px-6 py-4">
-                  {actionButtons}
+                  <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/95 px-6 py-4">
+                    {actionButtons}
+                  </div>
+                </form>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                    <div className="space-y-4">{formFields}</div>
+                  </div>
+
+                  <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/95 px-6 py-4">
+                    {actionButtons}
+                  </div>
                 </div>
-              </form>
+              )}
             </Card>
           </div>
         </div>,
