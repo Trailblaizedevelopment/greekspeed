@@ -10,6 +10,7 @@ import {
   syncProfileHomeFromPrimaryMembership,
   upsertSpaceMembership,
 } from '@/lib/services/spaceMembershipService';
+import { findOrCreateSpaceFromSimulationLabel } from '@/lib/services/spaceFromSimulationService';
 
 function profileRoleToSpaceMembership(profileRole: string): {
   role: string;
@@ -91,14 +92,63 @@ export async function POST(request: NextRequest) {
     /** Exclusive Space Icon for this chapter (only when chapter is a space UUID). */
     const is_space_icon_requested = body.is_space_icon === true;
 
-    // Validate required fields
-    if (!email || !firstName || !lastName || !chapter) {
-      return NextResponse.json({ 
-        error: 'Email, firstName, lastName, and chapter are required' 
-      }, { status: 400 });
+    const isDeveloper = profile?.is_developer === true;
+
+    const trimmedChapter = typeof chapter === 'string' ? chapter.trim() : '';
+    const newSpaceRaw = body.newSpace;
+    const newSpacePayload =
+      newSpaceRaw &&
+      typeof newSpaceRaw === 'object' &&
+      !Array.isArray(newSpaceRaw) &&
+      typeof (newSpaceRaw as { name?: unknown }).name === 'string'
+        ? {
+            name: String((newSpaceRaw as { name: string }).name).trim(),
+            category:
+              typeof (newSpaceRaw as { category?: unknown }).category === 'string'
+                ? String((newSpaceRaw as { category: string }).category).trim() || undefined
+                : undefined,
+          }
+        : null;
+
+    // Validate required fields (chapter optional for developers except governance / space-icon paths)
+    if (!email || !firstName || !lastName) {
+      return NextResponse.json(
+        { error: 'Email, firstName, and lastName are required' },
+        { status: 400 }
+      );
     }
 
-    const isDeveloper = profile?.is_developer === true;
+    if (!isDeveloper && !trimmedChapter) {
+      return NextResponse.json({ error: 'Chapter is required' }, { status: 400 });
+    }
+
+    if (isDeveloper && role === 'governance' && !trimmedChapter) {
+      return NextResponse.json(
+        { error: 'Chapter is required for governance users' },
+        { status: 400 }
+      );
+    }
+
+    if (is_space_icon_requested) {
+      const hasNewSpaceName = !!(newSpacePayload && newSpacePayload.name.length > 0);
+      const hasExistingUuid =
+        !!trimmedChapter && z.string().uuid().safeParse(trimmedChapter).success;
+      if (hasNewSpaceName && hasExistingUuid) {
+        return NextResponse.json(
+          { error: 'Provide either an existing space or a new space name for Space Icon, not both' },
+          { status: 400 }
+        );
+      }
+      if (!hasNewSpaceName && !hasExistingUuid) {
+        return NextResponse.json(
+          {
+            error:
+              'Space Icon requires either a selected existing space or a new space name (create space)',
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // Only developers can assign governance role or is_developer flag
     if (role === 'governance' || is_developer) {
@@ -133,28 +183,42 @@ export async function POST(request: NextRequest) {
       chapter_role = sanitizeTitle(chapter_role || 'member') || 'member';
     }
 
-    // Resolve chapter ID to chapter name (supabase from auth has service role)
-    let chapterName = chapter;
-    let chapterId = chapter;
-    
-    // If chapter is a UUID, resolve it to the chapter name
-    if (chapter.length === 36 && chapter.includes('-')) {
+    // Resolve home space: optional for developers (except governance / space-icon rules above).
+    let chapterName: string | null = null;
+    let chapterId: string | null = null;
+
+    if (is_space_icon_requested && newSpacePayload?.name) {
+      const created = await findOrCreateSpaceFromSimulationLabel(supabase, {
+        rawName: newSpacePayload.name,
+        category: newSpacePayload.category,
+        source: 'api_developer_create_user',
+      });
+      if (!created.ok) {
+        return NextResponse.json({ error: created.error }, { status: 400 });
+      }
+      chapterId = created.id;
+      const { data: spRow } = await supabase.from('spaces').select('name').eq('id', chapterId).single();
+      chapterName = spRow?.name ?? newSpacePayload.name;
+    } else if (trimmedChapter.length === 36 && trimmedChapter.includes('-')) {
       const { data: chapterData, error: chapterError } = await supabase
         .from('spaces')
         .select('id, name')
-        .eq('id', chapter)
+        .eq('id', trimmedChapter)
         .single();
-      
+
       if (chapterError || !chapterData) {
-        console.error('❌ Chapter not found:', chapter);
-        return NextResponse.json({ 
-          error: `Chapter not found: ${chapter}` 
-        }, { status: 400 });
+        console.error('❌ Chapter not found:', trimmedChapter);
+        return NextResponse.json(
+          { error: `Chapter not found: ${trimmedChapter}` },
+          { status: 400 }
+        );
       }
-      
+
       chapterName = chapterData.name;
       chapterId = chapterData.id;
-      // Resolved chapter
+    } else if (trimmedChapter) {
+      chapterName = trimmedChapter;
+      chapterId = trimmedChapter;
     }
 
     // Generate a secure temporary password
@@ -169,7 +233,7 @@ export async function POST(request: NextRequest) {
         full_name: `${firstName} ${lastName}`,
         first_name: firstName,
         last_name: lastName,
-        chapter: chapterName, // Store the chapter name, not UUID
+        chapter: chapterName ?? '',
         role: role
       }
     });
@@ -200,8 +264,8 @@ export async function POST(request: NextRequest) {
         last_name: lastName,
         username: username,
         profile_slug: profileSlug,
-        chapter: chapterName, // Store the chapter name, not UUID
-        chapter_id: chapterId, // Store the chapter ID separately
+        chapter: chapterName,
+        chapter_id: chapterId,
         role: role,
         chapter_role: chapter_role,
         member_status: member_status,
@@ -250,8 +314,8 @@ export async function POST(request: NextRequest) {
             last_name: lastName,
             username: username,
             profile_slug: profileSlug,
-            chapter: chapterName, // Store the chapter name, not UUID
-            chapter_id: chapterId, // Store the chapter ID separately
+            chapter: chapterName,
+            chapter_id: chapterId,
             role: role,
             chapter_role: chapter_role,
             member_status: member_status,
@@ -346,7 +410,7 @@ export async function POST(request: NextRequest) {
         id: newUserAuth.user.id,
         email: newUserAuth.user.email,
         full_name: `${firstName} ${lastName}`,
-        chapter: chapterName, // Return the chapter name, not UUID
+        chapter: chapterName ?? '',
         role: role
       },
       tempPassword: tempPassword,
