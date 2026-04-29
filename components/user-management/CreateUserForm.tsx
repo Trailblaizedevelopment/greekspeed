@@ -596,7 +596,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       }}
     >
       <Card
-        className="relative z-[10000] flex h-full max-h-[min(90vh,820px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl shadow-xl"
+        className="relative z-[10000] flex w-full max-w-2xl max-h-[min(90vh,820px)] flex-col overflow-hidden rounded-xl shadow-xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <CardHeader className="shrink-0 border-b border-gray-200 pb-4">
@@ -616,8 +616,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           <p className="mt-2 text-sm text-gray-500">Only the middle section scrolls.</p>
         </CardHeader>
 
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-          <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+        <form className="flex flex-col" onSubmit={handleSubmit}>
+          <div className="relative max-h-[min(calc(100dvh-15rem),43rem)] overflow-y-auto overscroll-contain px-6 py-4">
             <div className="space-y-4">{formFields}</div>
           </div>
 
