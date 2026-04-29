@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,11 @@ import {
   type DeveloperReferenceSelection,
 } from './DeveloperReferenceSearchField';
 import { FieldHint } from './FieldHint';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import {
+  SPACE_TYPE_SEARCHABLE_OPTIONS,
+  normalizeSpaceTypeInput,
+} from '@/lib/spaceTypeTaxonomy';
 
 interface Chapter {
   id: string;
@@ -34,6 +39,7 @@ interface Chapter {
   updated_at: string;
   school_id?: string | null;
   national_organization_id?: string | null;
+  space_type?: string | null;
 }
 
 interface EditChapterModalProps {
@@ -46,6 +52,7 @@ interface EditChapterModalProps {
 
 export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSuccess }: EditChapterModalProps) {
   const [mounted, setMounted] = useState(false);
+  const portalHostRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -60,6 +67,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
     school_location: '',
     chapter_status: 'active',
     slug: '',
+    space_type: '',
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -86,6 +94,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
         school_location: chapter.school_location || '',
         chapter_status: chapter.chapter_status || 'active',
         slug: chapter.slug || '',
+        space_type: chapter.space_type?.trim() ?? '',
       });
       if (chapter.school_id) {
         setSchoolLink({
@@ -179,6 +188,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
         ...formData,
         member_count: parseInt(formData.member_count, 10),
         founded_year: parseInt(formData.founded_year, 10),
+        space_type: normalizeSpaceTypeInput(formData.space_type),
         school_id: schoolLink?.kind === 'school' ? schoolLink.id : null,
         national_organization_id:
           orgLink?.kind === 'national_organization' ? orgLink.id : null,
@@ -220,6 +230,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
 
   return createPortal(
     <div
+      ref={portalHostRef}
       className="fixed inset-0 z-[100150] flex items-center justify-center bg-black/50 p-4"
       role="presentation"
       onMouseDown={(e) => {
@@ -335,6 +346,23 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
                 />
                 {errors.chapter_name && <p className="text-sm text-red-500">{errors.chapter_name}</p>}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="space_type">Organization type</Label>
+                <FieldHint text="Canonical category (stored as a stable slug on the space). Pick a preset or type your own if it is not listed." />
+              </div>
+              <SearchableSelect
+                value={formData.space_type}
+                onValueChange={(v) => handleInputChange('space_type', v)}
+                options={SPACE_TYPE_SEARCHABLE_OPTIONS}
+                placeholder="Select or type organization type…"
+                searchPlaceholder="Search types…"
+                allowCustom
+                customMaxLength={200}
+                portalContainerRef={portalHostRef}
+              />
             </div>
 
             {/* National organization & university — manual entry only when not set via directory */}

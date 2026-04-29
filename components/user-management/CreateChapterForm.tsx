@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,11 @@ import {
 } from './DeveloperReferenceSearchField';
 import { DeveloperUserSearchPickField, type DeveloperUserPick } from './DeveloperUserSearchPickField';
 import { FieldHint } from './FieldHint';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import {
+  SPACE_TYPE_SEARCHABLE_OPTIONS,
+  normalizeSpaceTypeInput,
+} from '@/lib/spaceTypeTaxonomy';
 
 interface CreateChapterFormProps {
   accessToken: string | undefined;
@@ -25,6 +30,7 @@ interface CreateChapterFormProps {
 
 export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateChapterFormProps) {
   const [mounted, setMounted] = useState(false);
+  const portalHostRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -38,6 +44,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
     school: '',
     school_location: '',
     chapter_status: 'active',
+    space_type: '',
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -105,6 +112,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
         llm_data: null,
         events: null,
         achievements: null,
+        space_type: normalizeSpaceTypeInput(formData.space_type),
         school_id: schoolLink?.kind === 'school' ? schoolLink.id : null,
         national_organization_id:
           orgLink?.kind === 'national_organization' ? orgLink.id : null,
@@ -146,6 +154,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
 
   return createPortal(
     <div
+      ref={portalHostRef}
       className="fixed inset-0 z-[100150] flex items-center justify-center bg-black/50 p-4"
       role="presentation"
       onMouseDown={(e) => {
@@ -238,6 +247,24 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
                   accessToken={accessToken}
                   value={spaceIconUser}
                   onChange={setSpaceIconUser}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="space_type">Organization type</Label>
+                  <FieldHint text="Canonical category (stored as a stable slug on the space). Pick a preset or type your own if it is not listed." />
+                </div>
+                <SearchableSelect
+                  value={formData.space_type}
+                  onValueChange={(v) => handleInputChange('space_type', v)}
+                  options={SPACE_TYPE_SEARCHABLE_OPTIONS}
+                  placeholder="Select or type organization type…"
+                  searchPlaceholder="Search types…"
+                  allowCustom
+                  customMaxLength={200}
+                  className="mt-0"
+                  portalContainerRef={portalHostRef}
                 />
               </div>
 

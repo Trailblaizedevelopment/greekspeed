@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Drawer } from 'vaul';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getSpaceTypeLabel } from '@/lib/spaceTypeTaxonomy';
 import { Loader2, Building2, MapPin, GraduationCap, Landmark, Globe2, Hash, X } from 'lucide-react';
 
 type LinkedSchool = {
@@ -205,7 +206,14 @@ export function ViewChapterSheet({ open, onOpenChange, chapter, accessToken }: V
                   <div className="grid gap-3 sm:grid-cols-2">
                     <DetailBlock label="Chapter designation" value={optionalStr(space.chapter_name) ?? undefined} />
                     <DetailBlock label="Slug" value={optionalStr(space.slug) ?? undefined} mono />
-                    <DetailBlock label="Space type" value={optionalStr(space.space_type) ?? undefined} />
+                    <DetailBlock
+                      label="Space type"
+                      value={
+                        optionalStr(space.space_type)
+                          ? getSpaceTypeLabel(optionalStr(space.space_type) ?? '')
+                          : undefined
+                      }
+                    />
                   </div>
                 </section>
 

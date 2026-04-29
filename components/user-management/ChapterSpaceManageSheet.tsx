@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Drawer } from 'vaul';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,11 @@ import { FieldHint } from '@/components/user-management/FieldHint';
 import { Loader2, Users, UserPlus, Pencil, RefreshCw, Search, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import {
+  SPACE_TYPE_SEARCHABLE_OPTIONS,
+  normalizeSpaceTypeInput,
+} from '@/lib/spaceTypeTaxonomy';
 
 function preventSpaceManageDrawerPortaledUi(event: { preventDefault: () => void; target: EventTarget | null }) {
   const target = event.target;
@@ -86,6 +91,7 @@ export function ChapterSpaceManageSheet({
   });
   const [saveLoading, setSaveLoading] = useState(false);
   const [spaceIconSavingId, setSpaceIconSavingId] = useState<string | null>(null);
+  const quickEditScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
@@ -215,7 +221,7 @@ export function ChapterSpaceManageSheet({
           slug: quick.slug.trim() || undefined,
           school: quick.school.trim() || undefined,
           chapter_name: quick.chapter_name.trim() || undefined,
-          space_type: quick.space_type.trim() || undefined,
+          space_type: normalizeSpaceTypeInput(quick.space_type),
         }),
       });
       const j: unknown = await r.json().catch(() => ({}));
@@ -308,8 +314,9 @@ export function ChapterSpaceManageSheet({
             </div>
 
             <div
+              ref={quickEditScrollRef}
               className={cn(
-                'flex-1 min-h-0 overflow-y-auto p-4 space-y-4',
+                'relative flex-1 min-h-0 overflow-y-auto p-4 space-y-4',
                 isMobile && 'pb-[calc(1rem+env(safe-area-inset-bottom))]'
               )}
             >
@@ -462,13 +469,18 @@ export function ChapterSpaceManageSheet({
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="qe-st">Space type</Label>
-                    <FieldHint text="spaces.space_type — internal grouping key (for example seed category). Plain text on the row, not a foreign key." />
+                    <Label htmlFor="qe-st">Organization type</Label>
+                    <FieldHint text="spaces.space_type — preset slug from the org taxonomy, or a custom value. Not a foreign key." />
                   </div>
-                  <Input
-                    id="qe-st"
+                  <SearchableSelect
                     value={quick.space_type}
-                    onChange={(e) => setQuick((q) => ({ ...q, space_type: e.target.value }))}
+                    onValueChange={(v) => setQuick((q) => ({ ...q, space_type: v }))}
+                    options={SPACE_TYPE_SEARCHABLE_OPTIONS}
+                    placeholder="Select or type organization type…"
+                    searchPlaceholder="Search types…"
+                    allowCustom
+                    customMaxLength={200}
+                    portalContainerRef={quickEditScrollRef}
                   />
                 </div>
                 <div className="flex flex-wrap gap-2 pt-2">
