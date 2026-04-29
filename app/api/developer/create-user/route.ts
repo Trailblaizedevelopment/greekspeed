@@ -96,6 +96,8 @@ type NewSpacePayloadSlice = {
   category?: string;
   school_id?: string;
   national_organization_id?: string;
+  /** JPEG/PNG/GIF data URL for chapter primary logo (new shell rows only). */
+  image_data_url?: string;
 };
 
 type AdditionalSpaceMembershipEntry = {
@@ -108,6 +110,14 @@ function optionalUuidField(raw: unknown): string | undefined {
   if (typeof raw !== 'string') return undefined;
   const t = raw.trim();
   return z.string().uuid().safeParse(t).success ? t : undefined;
+}
+
+function optionalSpaceImageDataUrl(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const t = raw.trim();
+  if (!t || t.length > 14_000_000) return undefined;
+  if (!/^data:image\/(jpeg|jpg|png|gif);base64,/i.test(t)) return undefined;
+  return t;
 }
 
 function parseOneAdditionalMembershipItem(
@@ -127,12 +137,14 @@ function parseOneAdditionalMembershipItem(
     const category = typeof n.category === 'string' && n.category.trim() ? n.category.trim() : undefined;
     const school_id = optionalUuidField(n.school_id);
     const national_organization_id = optionalUuidField(n.national_organization_id);
+    const image_data_url = optionalSpaceImageDataUrl(n.image_data_url);
     return {
       new_space: {
         name,
         category,
         ...(school_id ? { school_id } : {}),
         ...(national_organization_id ? { national_organization_id } : {}),
+        ...(image_data_url ? { image_data_url } : {}),
       },
       is_space_icon,
     };
@@ -259,9 +271,11 @@ export async function POST(request: NextRequest) {
               const r = newSpaceRaw as Record<string, unknown>;
               const school_id = optionalUuidField(r.school_id);
               const national_organization_id = optionalUuidField(r.national_organization_id);
+              const image_data_url = optionalSpaceImageDataUrl(r.image_data_url);
               return {
                 ...(school_id ? { school_id } : {}),
                 ...(national_organization_id ? { national_organization_id } : {}),
+                ...(image_data_url ? { image_data_url } : {}),
               };
             })(),
           }
@@ -351,6 +365,8 @@ export async function POST(request: NextRequest) {
         source: 'api_developer_create_user',
         school_id: newSpacePayload.school_id ?? null,
         national_organization_id: newSpacePayload.national_organization_id ?? null,
+        initial_logo_data_url: newSpacePayload.image_data_url ?? null,
+        branding_actor_user_id: user.id,
       });
       if (!created.ok) {
         return NextResponse.json({ error: created.error }, { status: 400 });
@@ -598,6 +614,8 @@ export async function POST(request: NextRequest) {
             source: 'api_developer_create_user_additional_space',
             school_id: entry.new_space.school_id ?? null,
             national_organization_id: entry.new_space.national_organization_id ?? null,
+            initial_logo_data_url: entry.new_space.image_data_url ?? null,
+            branding_actor_user_id: user.id,
           });
           if (!created.ok) {
             return NextResponse.json(

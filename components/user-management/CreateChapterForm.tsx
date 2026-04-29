@@ -21,6 +21,7 @@ import {
   SPACE_TYPE_SEARCHABLE_OPTIONS,
   normalizeSpaceTypeInput,
 } from '@/lib/spaceTypeTaxonomy';
+import { fileToImageDataUrl } from '@/lib/utils/readImageFileAsDataUrl';
 
 interface CreateChapterFormProps {
   accessToken: string | undefined;
@@ -51,6 +52,8 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
   const [schoolLink, setSchoolLink] = useState<DeveloperReferenceSelection | null>(null);
   const [orgLink, setOrgLink] = useState<DeveloperReferenceSelection | null>(null);
   const [spaceIconUser, setSpaceIconUser] = useState<DeveloperUserPick | null>(null);
+  /** Optional data URL → POST as space_image_data_url for chapter primary logo. */
+  const [spaceImageDataUrl, setSpaceImageDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -117,6 +120,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
         national_organization_id:
           orgLink?.kind === 'national_organization' ? orgLink.id : null,
         ...(spaceIconUser ? { space_icon_user_id: spaceIconUser.id } : {}),
+        ...(spaceImageDataUrl ? { space_image_data_url: spaceImageDataUrl } : {}),
       };
 
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -248,6 +252,54 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
                   value={spaceIconUser}
                   onChange={setSpaceIconUser}
                 />
+              </div>
+
+              <div className="rounded-lg border border-dashed border-gray-300 bg-white/80 p-4 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-sm font-medium text-gray-900">Space image (optional)</Label>
+                  <FieldHint text="Stored as the space's primary chapter logo (JPEG, PNG, or GIF, max 5 MB)." />
+                </div>
+                <p className="text-xs text-gray-600">
+                  Upload a logo or photo for this space. It appears in branding after the space is created.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif"
+                    className="max-w-xs cursor-pointer text-sm file:mr-2"
+                    disabled={loading}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!f) return;
+                      const r = await fileToImageDataUrl(f);
+                      if (!r.ok) {
+                        alert(r.error);
+                        return;
+                      }
+                      setSpaceImageDataUrl(r.dataUrl);
+                    }}
+                  />
+                  {spaceImageDataUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={spaceImageDataUrl}
+                        alt=""
+                        className="h-16 w-16 rounded-md border object-cover"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSpaceImageDataUrl(null)}
+                        disabled={loading}
+                      >
+                        Remove image
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
               </div>
 
               <div className="space-y-2">
