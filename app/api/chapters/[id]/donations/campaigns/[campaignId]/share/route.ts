@@ -64,7 +64,9 @@ export async function POST(
               ? 400
               : result.code === 'CONTACT_NOT_MATCHED'
                 ? 409
-                : 400;
+                : result.code === 'CROWDED_CONTACT_CREATE_FAILED'
+                  ? 502
+                  : 400;
       return NextResponse.json({ error: result.error, code: result.code }, { status });
     }
 

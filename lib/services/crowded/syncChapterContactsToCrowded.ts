@@ -21,7 +21,7 @@ function splitFullName(full: string | null | undefined): { first: string; last: 
   return { first: parts[0] ?? '', last: parts[parts.length - 1] ?? '' };
 }
 
-function profileToCrowdedNames(row: {
+export function profileToCrowdedNames(row: {
   first_name: string | null;
   last_name: string | null;
   full_name: string | null;
@@ -114,7 +114,7 @@ export async function syncChapterContactsToCrowded(params: {
     .from('profiles')
     .select('id, chapter_id, email, first_name, last_name, full_name, phone')
     .eq('chapter_id', params.trailblaizeChapterId)
-    .in('role', ['admin', 'active_member']);
+    .in('role', ['admin', 'active_member', 'alumni']);
 
   const ids = params.memberIds?.map((id) => id.trim()).filter(Boolean) ?? [];
   if (ids.length > 0) {

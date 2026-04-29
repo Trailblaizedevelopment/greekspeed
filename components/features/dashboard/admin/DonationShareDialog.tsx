@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useDonationShareCandidates, useShareDonationMutation } from '@/lib/hooks/useDonationCampaignShare';
@@ -62,8 +63,8 @@ export function DonationShareDialog({
   }, [open]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const list = candidatesQuery.data ?? [];
+    const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
       (c) =>
@@ -98,11 +99,17 @@ export function DonationShareDialog({
 
   const selectedCount = selected.size;
   const selectedList = useMemo(() => {
-    const map = new Map((candidatesQuery.data ?? []).map((c) => [c.profileId, c]));
+    const list = candidatesQuery.data ?? [];
+    const map = new Map(list.map((c) => [c.profileId, c]));
     return Array.from(selected)
       .map((id) => map.get(id))
       .filter(Boolean) as DonationShareCandidate[];
   }, [candidatesQuery.data, selected]);
+
+  const selectedPendingCrowded = useMemo(
+    () => selectedList.some((c) => c.pendingCrowdedContact),
+    [selectedList]
+  );
 
   const handlePrimaryPick = () => {
     if (selectedCount === 0) {
@@ -141,7 +148,7 @@ export function DonationShareDialog({
             </DialogTitle>
             <DialogDescription className="text-sm text-gray-500">
               {step === 'pick'
-                ? `Choose chapter members who already have a Crowded contact for “${campaignTitle}”.`
+                ? `Choose members to share “${campaignTitle}” with. Active members and admins need a Crowded contact; eligible alumni (email, E.164 phone, name on profile) appear here and get a Crowded contact when you confirm, if one does not exist yet.`
                 : `Send payment link to ${selectedCount} contact${selectedCount === 1 ? '' : 's'}?`}
             </DialogDescription>
           </DialogHeader>
@@ -202,10 +209,15 @@ export function DonationShareDialog({
                   <p className="px-6 py-8 text-center text-sm text-red-600">
                     {candidatesQuery.error.message}
                   </p>
+                ) : (candidatesQuery.data?.length ?? 0) === 0 ? (
+                  <p className="px-6 py-10 text-center text-sm text-gray-500">
+                    No one is available to share with yet. Link Crowded for active members and admins, or add
+                    alumni with a valid email, a mobile number Crowded can use (E.164), and first/last or full
+                    name on their profile.
+                  </p>
                 ) : filtered.length === 0 ? (
                   <p className="px-6 py-10 text-center text-sm text-gray-500">
-                    No chapter members with a matching Crowded contact. Sync contacts to Crowded or fix
-                    profile emails, then try again.
+                    No contacts match your search.
                   </p>
                 ) : (
                   <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
@@ -235,11 +247,23 @@ export function DonationShareDialog({
                               {initialsFor(c)}
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium text-gray-900">
-                                {c.displayName}
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span className="truncate text-sm font-medium text-gray-900">
+                                  {c.displayName}
+                                </span>
+                                {c.isAlumni ? (
+                                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide">
+                                    Alumni
+                                  </Badge>
+                                ) : null}
                               </span>
                               {c.email ? (
                                 <span className="block truncate text-xs text-gray-500">{c.email}</span>
+                              ) : null}
+                              {c.pendingCrowdedContact ? (
+                                <span className="mt-0.5 block text-[11px] text-amber-700">
+                                  Crowded contact will be created when you confirm.
+                                </span>
                               ) : null}
                             </span>
                           </label>
@@ -275,7 +299,11 @@ export function DonationShareDialog({
               <h3 className="text-lg font-semibold text-gray-900">Confirmation</h3>
               <p className="mt-2 max-w-sm text-sm text-gray-600">
                 Link {selectedCount} member{selectedCount === 1 ? '' : 's'} to this donation in Trailblaize
-                (Crowded contact ids stored). Payment emails can be wired in a follow-up.
+                (Crowded contact ids stored).
+                {selectedPendingCrowded
+                  ? ' New Crowded contacts will be created first for any selected alumni who do not have one yet.'
+                  : null}{' '}
+                Payment emails can be wired in a follow-up.
               </p>
               <ul className="mt-4 max-h-28 w-full max-w-sm overflow-y-auto text-left text-xs text-gray-500">
                 {selectedList.slice(0, 8).map((c) => (

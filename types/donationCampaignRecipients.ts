@@ -7,13 +7,20 @@ export interface DonationCampaignRecipient {
   created_at: string;
 }
 
-/** Member matched to Crowded — eligible for share picker. */
+/** Member or eligible alumni for the donation share picker. */
 export interface DonationShareCandidate {
   profileId: string;
-  contactId: string;
+  /** Crowded contact UUID when linked; `null` when eligible alumni pending create-on-share. */
+  contactId: string | null;
   email: string | null;
   displayName: string;
   avatarUrl: string | null;
+  /** `true` when `profiles.role` is `alumni`. */
+  isAlumni: boolean;
+  /**
+   * Alumni with email + E.164 phone + name, but no Crowded row yet — contact is created when treasurer confirms share.
+   */
+  pendingCrowdedContact: boolean;
 }
 
 /** Recipient row with profile fields for treasurer UI. */

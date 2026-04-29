@@ -1,14 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrowdedClient } from '@/lib/services/crowded/crowded-client';
+import { CrowdedApiError } from '@/lib/services/crowded/crowded-client';
 import {
   matchCrowdedContactForProfile,
   type CrowdedPayProfileForContactMatch,
 } from '@/lib/services/crowded/matchCrowdedContactByProfile';
-import type { CrowdedContact } from '@/types/crowded';
+import {
+  normalizeProfilePhoneForCrowded,
+  profileToCrowdedNames,
+} from '@/lib/services/crowded/syncChapterContactsToCrowded';
+import type { CrowdedBulkCreateContactItem, CrowdedContact } from '@/types/crowded';
 import type {
   DonationCampaignRecipientRow,
   DonationShareCandidate,
 } from '@/types/donationCampaignRecipients';
+import { isProfileEligibleForAlumniCrowdedContact } from '@/lib/services/donations/alumniCrowdedContactEligibility';
 
 const CONTACT_PAGE_SIZE = 100;
 
@@ -50,6 +56,72 @@ function displayNameFromProfile(p: {
   return full || 'Member';
 }
 
+function profileRowToMatchPayload(m: {
+  email: unknown;
+  first_name: unknown;
+  last_name: unknown;
+  full_name: unknown;
+}): CrowdedPayProfileForContactMatch {
+  return {
+    email: m.email as string | null,
+    first_name: m.first_name as string | null,
+    last_name: m.last_name as string | null,
+    full_name: m.full_name as string | null,
+  };
+}
+
+/**
+ * Creates a Crowded contact for an eligible alumni profile and returns refreshed contacts list.
+ */
+async function createCrowdedContactForEligibleAlumni(params: {
+  crowded: CrowdedClient;
+  crowdedChapterId: string;
+  profile: {
+    id: string;
+    email: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+    phone: string | null;
+    role: string | null;
+  };
+}): Promise<{ ok: true; contacts: CrowdedContact[] } | { ok: false; error: string }> {
+  if (!isProfileEligibleForAlumniCrowdedContact(params.profile)) {
+    return {
+      ok: false,
+      error:
+        'Alumni must have a valid email, E.164-capable phone on their profile, and first/last or full name before creating a Crowded contact.',
+    };
+  }
+  const names = profileToCrowdedNames(params.profile);
+  if (!names) {
+    return { ok: false, error: 'Could not derive Crowded first/last name from profile.' };
+  }
+  const item: CrowdedBulkCreateContactItem = {
+    firstName: names.firstName,
+    lastName: names.lastName,
+    email: String(params.profile.email).trim(),
+  };
+  const mobile = normalizeProfilePhoneForCrowded(params.profile.phone);
+  if (mobile) item.mobile = mobile;
+
+  try {
+    await params.crowded.bulkCreateContacts(params.crowdedChapterId, { data: [item] });
+  } catch (e) {
+    if (e instanceof CrowdedApiError) {
+      const detail =
+        Array.isArray(e.details) && e.details.length
+          ? ` — ${e.details.map(String).join('; ')}`
+          : '';
+      return { ok: false, error: `Crowded could not create contact: ${e.message}${detail}` };
+    }
+    return { ok: false, error: e instanceof Error ? e.message : 'Crowded contact create failed' };
+  }
+
+  const contacts = await listAllCrowdedContacts(params.crowded, params.crowdedChapterId);
+  return { ok: true, contacts };
+}
+
 export async function getDonationCampaignForChapter(
   supabase: SupabaseClient,
   donationCampaignId: string,
@@ -67,7 +139,8 @@ export async function getDonationCampaignForChapter(
 }
 
 /**
- * Chapter members who already have a resolvable Crowded contact (same rules as dues checkout).
+ * Share picker: chapter admins/actives with a Crowded match, plus **eligible alumni**
+ * (email + E.164 phone + name). Alumni without a Crowded row appear with `pendingCrowdedContact: true`.
  */
 export async function listDonationShareCandidates(params: {
   supabase: SupabaseClient;
@@ -89,7 +162,7 @@ export async function listDonationShareCandidates(params: {
 
   const { data: members, error: membersError } = await params.supabase
     .from('profiles')
-    .select('id, email, first_name, last_name, full_name, avatar_url')
+    .select('id, email, first_name, last_name, full_name, avatar_url, role, phone')
     .eq('chapter_id', params.trailblaizeChapterId)
     .in('role', ['admin', 'active_member'])
     .order('full_name');
@@ -101,13 +174,7 @@ export async function listDonationShareCandidates(params: {
   const candidates: DonationShareCandidate[] = [];
 
   for (const m of members ?? []) {
-    const profile: CrowdedPayProfileForContactMatch = {
-      email: m.email as string | null,
-      first_name: m.first_name as string | null,
-      last_name: m.last_name as string | null,
-      full_name: m.full_name as string | null,
-    };
-    const match = matchCrowdedContactForProfile(contacts, profile);
+    const match = matchCrowdedContactForProfile(contacts, profileRowToMatchPayload(m));
     if (!match.ok) continue;
 
     candidates.push({
@@ -120,8 +187,63 @@ export async function listDonationShareCandidates(params: {
         full_name: m.full_name as string | null,
       }),
       avatarUrl: (m.avatar_url as string | null) ?? null,
+      isAlumni: false,
+      pendingCrowdedContact: false,
     });
   }
+
+  const { data: alumniRows, error: alumniErr } = await params.supabase
+    .from('profiles')
+    .select('id, email, first_name, last_name, full_name, avatar_url, role, phone')
+    .eq('chapter_id', params.trailblaizeChapterId)
+    .eq('role', 'alumni')
+    .order('full_name');
+
+  if (alumniErr) {
+    return { ok: false, error: alumniErr.message || 'Failed to load alumni' };
+  }
+
+  const seenAlumniEmails = new Set<string>();
+  for (const m of alumniRows ?? []) {
+    if (
+      !isProfileEligibleForAlumniCrowdedContact({
+        role: m.role as string | null,
+        email: m.email as string | null,
+        phone: (m.phone as string | null) ?? null,
+        first_name: m.first_name as string | null,
+        last_name: m.last_name as string | null,
+        full_name: m.full_name as string | null,
+      })
+    ) {
+      continue;
+    }
+
+    const emailNorm =
+      typeof m.email === 'string' ? m.email.trim().toLowerCase() : '';
+    if (emailNorm) {
+      if (seenAlumniEmails.has(emailNorm)) continue;
+      seenAlumniEmails.add(emailNorm);
+    }
+
+    const matchPayload = profileRowToMatchPayload(m);
+    const match = matchCrowdedContactForProfile(contacts, matchPayload);
+
+    candidates.push({
+      profileId: m.id as string,
+      contactId: match.ok ? match.contactId : null,
+      email: (m.email as string | null) ?? null,
+      displayName: displayNameFromProfile({
+        first_name: m.first_name as string | null,
+        last_name: m.last_name as string | null,
+        full_name: m.full_name as string | null,
+      }),
+      avatarUrl: (m.avatar_url as string | null) ?? null,
+      isAlumni: true,
+      pendingCrowdedContact: !match.ok,
+    });
+  }
+
+  candidates.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
 
   return { ok: true, candidates };
 }
@@ -224,11 +346,11 @@ export async function addDonationCampaignRecipients(params: {
     return { ok: false, error: 'No members selected', code: 'EMPTY_SELECTION' };
   }
 
-  const contacts = await listAllCrowdedContacts(params.crowded, params.crowdedChapterId);
+  let contacts = await listAllCrowdedContacts(params.crowded, params.crowdedChapterId);
 
   const { data: profiles, error: profErr } = await params.supabase
     .from('profiles')
-    .select('id, chapter_id, email, first_name, last_name, full_name')
+    .select('id, chapter_id, email, first_name, last_name, full_name, phone, role')
     .eq('chapter_id', params.trailblaizeChapterId)
     .in('id', ids);
 
@@ -243,20 +365,58 @@ export async function addDonationCampaignRecipients(params: {
   const rows: { donation_campaign_id: string; profile_id: string; crowded_contact_id: string }[] = [];
 
   for (const p of profiles) {
-    const match = matchCrowdedContactForProfile(contacts, {
-      email: p.email as string | null,
-      first_name: p.first_name as string | null,
-      last_name: p.last_name as string | null,
-      full_name: p.full_name as string | null,
-    });
+    const role = (p.role as string | null)?.trim() ?? '';
+    const matchPayload = profileRowToMatchPayload(p);
+    let match = matchCrowdedContactForProfile(contacts, matchPayload);
+
+    if (!match.ok) {
+      if (
+        role === 'alumni' &&
+        isProfileEligibleForAlumniCrowdedContact({
+          role: p.role as string | null,
+          email: p.email as string | null,
+          phone: (p.phone as string | null) ?? null,
+          first_name: p.first_name as string | null,
+          last_name: p.last_name as string | null,
+          full_name: p.full_name as string | null,
+        })
+      ) {
+        const created = await createCrowdedContactForEligibleAlumni({
+          crowded: params.crowded,
+          crowdedChapterId: params.crowdedChapterId,
+          profile: {
+            id: p.id as string,
+            email: p.email as string | null,
+            first_name: p.first_name as string | null,
+            last_name: p.last_name as string | null,
+            full_name: p.full_name as string | null,
+            phone: (p.phone as string | null) ?? null,
+            role: p.role as string | null,
+          },
+        });
+        if (!created.ok) {
+          return {
+            ok: false,
+            error: created.error,
+            code: 'CROWDED_CONTACT_CREATE_FAILED',
+          };
+        }
+        contacts = created.contacts;
+        match = matchCrowdedContactForProfile(contacts, matchPayload);
+      }
+    }
+
     if (!match.ok) {
       return {
         ok: false,
         error:
-          'One or more selected members do not have a Crowded contact (sync contacts or fix profile email).',
+          role === 'alumni'
+            ? 'Could not link this alumni member to Crowded after creating a contact. Check Crowded for duplicate email/mobile or try contact sync.'
+            : 'One or more selected members do not have a Crowded contact (sync contacts or fix profile email).',
         code: 'CONTACT_NOT_MATCHED',
       };
     }
+
     rows.push({
       donation_campaign_id: params.donationCampaignId,
       profile_id: p.id as string,
