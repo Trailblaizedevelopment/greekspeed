@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/supabase/auth-context';
@@ -28,8 +28,13 @@ function persistOAuthSignupRoleAlumni() {
   document.cookie = `${OAUTH_SIGNUP_ROLE_COOKIE}=alumni; Path=/; Max-Age=${OAUTH_POST_LOGIN_REDIRECT_MAX_AGE_SEC}; SameSite=Lax${secure}`;
 }
 import { useChapters } from '@/lib/hooks/useChapters';
-import { Chapter } from '@/types/chapter';
 import { Checkbox } from '@/components/ui/checkbox';
+import { SchoolSearchCombobox } from '@/components/schools/SchoolSearchCombobox';
+import { NationalOrgSearchCombobox } from '@/components/directory/NationalOrgSearchCombobox';
+import type { SchoolDirectoryPick } from '@/lib/utils/chapterSchoolMatch';
+import { chapterMatchesSchoolDirectory } from '@/lib/utils/chapterSchoolMatch';
+import type { NationalOrgDirectoryPick } from '@/lib/utils/chapterNationalOrgMatch';
+import { chapterMatchesNationalOrgDirectory } from '@/lib/utils/chapterNationalOrgMatch';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
@@ -46,7 +51,7 @@ export default function SignUpPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const { signUp, user, loading: authLoading } = useAuth();
+  const { signUp, user, loading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
   const isMobile = useIsMobile();
   const [minOverlayTimeElapsed, setMinOverlayTimeElapsed] = useState(false);
@@ -58,9 +63,32 @@ export default function SignUpPage() {
   }, []);
   const [linkedInLoading, setLinkedInLoading] = useState(false);
   const [linkedInIconError, setLinkedInIconError] = useState(false);
-  
+
+  /** Email path: 1 = account basics, 2 = school/org filters + chapter (mirrors OAuth onboarding). */
+  const [emailWizardStep, setEmailWizardStep] = useState<1 | 2>(1);
+  const [schoolDirectoryFilter, setSchoolDirectoryFilter] = useState<SchoolDirectoryPick | null>(null);
+  const [nationalOrgDirectoryFilter, setNationalOrgDirectoryFilter] =
+    useState<NationalOrgDirectoryPick | null>(null);
+
   // Use the chapters hook to fetch dynamic data
   const { chapters, loading: chaptersLoading, error: chaptersError } = useChapters();
+
+  const chaptersForDirectory = useMemo(() => {
+    let list = chapters;
+    if (schoolDirectoryFilter) {
+      list = list.filter((c) => chapterMatchesSchoolDirectory(c, schoolDirectoryFilter));
+    }
+    if (nationalOrgDirectoryFilter) {
+      list = list.filter((c) => chapterMatchesNationalOrgDirectory(c, nationalOrgDirectoryFilter));
+    }
+    return list;
+  }, [chapters, schoolDirectoryFilter, nationalOrgDirectoryFilter]);
+
+  useEffect(() => {
+    if ((!schoolDirectoryFilter && !nationalOrgDirectoryFilter) || !chapter) return;
+    const stillListed = chaptersForDirectory.some((c) => c.name === chapter);
+    if (!stillListed) setChapter('');
+  }, [schoolDirectoryFilter, nationalOrgDirectoryFilter, chaptersForDirectory, chapter]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -86,8 +114,31 @@ export default function SignUpPage() {
     }
   }, [user, authLoading, router]);
 
+  const resetEmailWizard = () => {
+    setEmailWizardStep(1);
+    setSchoolDirectoryFilter(null);
+    setNationalOrgDirectoryFilter(null);
+  };
+
+  const handleEmailWizardNext = () => {
+    setError('');
+    const isValidPhone = phoneNumber && phoneNumber.replace(/\D/g, '').length === 10;
+    if (!email || !password || !firstName || !lastName || !phoneNumber || !isValidPhone) {
+      setError(
+        phoneNumber && !isValidPhone ? 'Please enter a complete 10-digit phone number' : 'Please fill in all required fields'
+      );
+      return;
+    }
+    if (isEduEmailBlockedForSelfServeSignup(email)) {
+      setError(EDU_SIGNUP_ERROR);
+      return;
+    }
+    setEmailWizardStep(2);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (emailWizardStep !== 2) return;
     setLoading(true);
     setError('');
     setSuccess('');
@@ -185,6 +236,7 @@ export default function SignUpPage() {
   };
 
   const handleEmailSignUp = () => {
+    resetEmailWizard();
     setShowEmailForm(true);
   };
 
@@ -329,7 +381,10 @@ export default function SignUpPage() {
                 {/* Back Button - Compact */}
                 <button
                   type="button"
-                  onClick={() => setShowEmailForm(false)}
+                  onClick={() => {
+                    resetEmailWizard();
+                    setShowEmailForm(false);
+                  }}
                   className="flex items-center text-xs text-gray-600 hover:text-gray-800 mb-2 transition-colors"
                 >
                   <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,134 +417,170 @@ export default function SignUpPage() {
                   </div>
                 </div>
 
-                {/* Rest of the form - keep existing form code */}
-                <form onSubmit={handleSubmit} className="space-y-1.5">
-                      {/* Name Fields - Compact */}
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div className="space-y-1">
-                          <Label htmlFor="firstName" className="text-xs font-medium text-gray-700">First Name</Label>
-                          <Input
-                            id="firstName"
-                            type="text"
-                            placeholder="First Name"
-                            value={firstName}
-                            onChange={(e) => setFirstName(e.target.value)}
-                            required
-                            disabled={loading}
-                            className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="lastName" className="text-xs font-medium text-gray-700">Last Name</Label>
-                          <Input
-                            id="lastName"
-                            type="text"
-                            placeholder="Last Name"
-                            value={lastName}
-                            onChange={(e) => setLastName(e.target.value)}
-                            required
-                            disabled={loading}
-                            className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Email Field - Compact */}
+                {emailWizardStep === 1 ? (
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <div className="space-y-1">
-                        <Label htmlFor="email" className="text-xs font-medium text-gray-700">Email</Label>
+                        <Label htmlFor="firstName" className="text-xs font-medium text-gray-700">First Name</Label>
                         <Input
-                          id="email"
-                          type="email"
-                          placeholder="Enter your email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
+                          id="firstName"
+                          type="text"
+                          placeholder="First Name"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
                           required
                           disabled={loading}
                           className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
                         />
                       </div>
-
-                      {/* Password Field - Compact */}
                       <div className="space-y-1">
-                        <Label htmlFor="password" className="text-xs font-medium text-gray-700">Password</Label>
+                        <Label htmlFor="lastName" className="text-xs font-medium text-gray-700">Last Name</Label>
                         <Input
-                          id="password"
-                          type="password"
-                          placeholder="Create a password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
+                          id="lastName"
+                          type="text"
+                          placeholder="Last Name"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
                           required
                           disabled={loading}
                           className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
                         />
                       </div>
-
-                      {/* Phone Number Field - Compact */}
-                      <div className="space-y-1">
-                        <Label htmlFor="phone" className="text-xs font-medium text-gray-700">
-                          Phone Number *
-                        </Label>
-                        <Input
-                          id="phone"
-                          type="tel"
-                          placeholder="(555) 123-4567"
-                          value={phoneNumber}
-                          onChange={handlePhoneChange}
-                          disabled={loading}
-                          className={`h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm ${
-                            phoneNumber && !isValidPhoneNumber(phoneNumber) 
-                              ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                              : ''
-                          }`}
-                          maxLength={14}
-                          pattern="\(\d{3}\) \d{3}-\d{4}"
-                          inputMode="numeric"
-                        />
-                        <p className="text-xs text-gray-500">
-                          Get timely chapter updates and invites by text.
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="email" className="text-xs font-medium text-gray-700">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        disabled={loading}
+                        className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="password" className="text-xs font-medium text-gray-700">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Create a password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        disabled={loading}
+                        className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="phone" className="text-xs font-medium text-gray-700">
+                        Phone Number *
+                      </Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="(555) 123-4567"
+                        value={phoneNumber}
+                        onChange={handlePhoneChange}
+                        disabled={loading}
+                        className={`h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm ${
+                          phoneNumber && !isValidPhoneNumber(phoneNumber)
+                            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                            : ''
+                        }`}
+                        maxLength={14}
+                        pattern="\(\d{3}\) \d{3}-\d{4}"
+                        inputMode="numeric"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Get timely chapter updates and invites by text.
+                      </p>
+                      {phoneNumber && !isValidPhoneNumber(phoneNumber) && (
+                        <p className="text-xs text-red-500">
+                          Please enter a complete 10-digit phone number
                         </p>
-                        {phoneNumber && !isValidPhoneNumber(phoneNumber) && (
-                          <p className="text-xs text-red-500">
-                            Please enter a complete 10-digit phone number
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-start space-x-2">
+                        <Checkbox
+                          id="sms-consent"
+                          checked={smsConsent}
+                          onCheckedChange={(checked) => setSmsConsent(checked === true)}
+                          className="mt-0.5"
+                          disabled={loading}
+                        />
+                        <div className="grid gap-1 leading-none">
+                          <Label
+                            htmlFor="sms-consent"
+                            className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            Sign me up for SMS so I get immediate chapter updates & notifcations.
+                          </Label>
+                          <p className="text-xs text-gray-500">
+                            Message frequency may vary. Standard Message and Data Rates may apply.
                           </p>
-                        )}
-                      </div>
-
-                      {/* SMS Consent Checkbox - Updated for compliance */}
-                      <div className="space-y-1">
-                        <div className="flex items-start space-x-2">
-                          <Checkbox
-                            id="sms-consent"
-                            checked={smsConsent}
-                            onCheckedChange={(checked) => setSmsConsent(checked === true)}
-                            className="mt-0.5"
-                            disabled={loading}
-                          />
-                          <div className="grid gap-1 leading-none">
-                            <Label
-                              htmlFor="sms-consent"
-                              className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              Sign me up for SMS so I get immediate chapter updates & notifcations.
-                            </Label>
-                            <p className="text-xs text-gray-500">
-                              Message frequency may vary. Standard Message and Data Rates may apply.
-                            </p>
-                          </div>
                         </div>
                       </div>
-
-                      {/* Chapter Selection - Compact */}
+                    </div>
+                    {error && (
+                      <div className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg p-2">{error}</div>
+                    )}
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        className="w-full h-7 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white font-medium text-sm shadow-sm hover:shadow-md transition-all duration-200"
+                        disabled={loading}
+                        onClick={handleEmailWizardNext}
+                      >
+                        Next: school & chapter
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('');
+                        setEmailWizardStep(1);
+                      }}
+                      className="flex items-center text-xs text-gray-600 hover:text-gray-800 transition-colors"
+                    >
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to account info
+                    </button>
+                    <p className="text-xs text-gray-600">
+                      Optional: pick your school and national organization to narrow the list, then choose your chapter.
+                    </p>
+                    <SchoolSearchCombobox
+                      id="sign-up-email-school"
+                      label="Your school (optional)"
+                      description="Search the directory to filter chapters on this campus."
+                      getAuthHeaders={getAuthHeaders}
+                      value={schoolDirectoryFilter}
+                      onChange={setSchoolDirectoryFilter}
+                      disabled={chaptersLoading || loading}
+                    />
+                    <NationalOrgSearchCombobox
+                      id="sign-up-email-national-org"
+                      label="Your organization (optional)"
+                      description="Filter chapters by national fraternity, sorority, or umbrella org."
+                      value={nationalOrgDirectoryFilter}
+                      onChange={setNationalOrgDirectoryFilter}
+                      disabled={chaptersLoading || loading}
+                    />
+                    <form onSubmit={handleSubmit} className="space-y-1.5">
                       <div className="space-y-1">
-                        <Label htmlFor="chapter" className="text-xs font-medium text-gray-700">Chapter</Label>
-                        <Select 
-                          value={chapter} 
-                          onValueChange={setChapter}
-                        >
+                        <Label htmlFor="chapter" className="text-xs font-medium text-gray-700">Chapter *</Label>
+                        <Select value={chapter} onValueChange={setChapter}>
                           <SelectItem value="">
                             {chaptersLoading ? 'Loading chapters...' : 'Select your chapter'}
                           </SelectItem>
-                          {chapters.map((chapterData) => (
+                          {chaptersForDirectory.map((chapterData) => (
                             <SelectItem key={chapterData.id} value={chapterData.name}>
                               {chapterData.name}
                             </SelectItem>
@@ -498,30 +589,30 @@ export default function SignUpPage() {
                         {chaptersError && (
                           <p className="text-red-500 text-xs">Failed to load chapters. Please refresh the page.</p>
                         )}
-                        {chapters.length === 0 && !chaptersLoading && (
-                          <p className="text-yellow-500 text-xs">No chapters available. Please contact support.</p>
+                        {chaptersForDirectory.length === 0 && !chaptersLoading && (
+                          <p className="text-yellow-500 text-xs">
+                            No chapters match these filters. Clear school/org filters or try different ones.
+                          </p>
                         )}
                       </div>
-
-                      {/* Error and Success Messages - Compact */}
                       {error && (
                         <div className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg p-2">{error}</div>
                       )}
                       {success && (
                         <div className="text-green-500 text-xs bg-green-50 border border-green-200 rounded-lg p-2">{success}</div>
                       )}
-
-                      {/* Submit Button */}
                       <div className="mt-2 lg:mt-1">
-                        <Button 
-                          type="submit" 
-                          className="w-full h-7 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white font-medium text-sm shadow-sm hover:shadow-md transition-all duration-200" 
+                        <Button
+                          type="submit"
+                          className="w-full h-7 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white font-medium text-sm shadow-sm hover:shadow-md transition-all duration-200"
                           disabled={loading}
                         >
                           {loading ? 'Creating account...' : 'Create Alumni Account'}
                         </Button>
                       </div>
                     </form>
+                  </div>
+                )}
 
                     {/* Terms and Sign In */}
                     <div className="mt-2">
@@ -648,7 +739,10 @@ export default function SignUpPage() {
                       {/* Back Button - Compact */}
                       <button
                         type="button"
-                        onClick={() => setShowEmailForm(false)}
+                        onClick={() => {
+                          resetEmailWizard();
+                          setShowEmailForm(false);
+                        }}
                         className="flex items-center text-xs text-gray-600 hover:text-gray-800 mb-2 transition-colors"
                       >
                         <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -674,165 +768,202 @@ export default function SignUpPage() {
                         </div>
                       </div>
 
-                      <form onSubmit={handleSubmit} className="space-y-1.5 lg:space-y-3">
-                        {/* Name Fields - Compact */}
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <div className="space-y-1">
-                            <Label htmlFor="firstName" className="text-xs font-medium text-gray-700">First Name</Label>
-                            <Input
-                              id="firstName"
-                              type="text"
-                              placeholder="First Name"
-                              value={firstName}
-                              onChange={(e) => setFirstName(e.target.value)}
-                              required
-                              disabled={loading}
-                              className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="lastName" className="text-xs font-medium text-gray-700">Last Name</Label>
-                            <Input
-                              id="lastName"
-                              type="text"
-                              placeholder="Last Name"
-                              value={lastName}
-                              onChange={(e) => setLastName(e.target.value)}
-                              required
-                              disabled={loading}
-                              className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Email Field - Compact */}
-                        <div className="space-y-1">
-                          <Label htmlFor="email" className="text-xs font-medium text-gray-700">Email</Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            placeholder="Enter your email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            disabled={loading}
-                            className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
-                          />
-                        </div>
-
-                        {/* Password Field - Compact */}
-                        <div className="space-y-1">
-                          <Label htmlFor="password" className="text-xs font-medium text-gray-700">Password</Label>
-                          <Input
-                            id="password"
-                            type="password"
-                            placeholder="Create a password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            disabled={loading}
-                            className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
-                          />
-                        </div>
-
-                        {/* Phone Number Field - Compact */}
-                        <div className="space-y-1">
-                          <Label htmlFor="phone" className="text-xs font-medium text-gray-700">
-                            Phone Number *
-                          </Label>
-                          <Input
-                            id="phone"
-                            type="tel"
-                            placeholder="(555) 123-4567"
-                            value={phoneNumber}
-                            onChange={handlePhoneChange}
-                            disabled={loading}
-                            className={`h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm ${
-                              phoneNumber && !isValidPhoneNumber(phoneNumber) 
-                                ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                                : ''
-                            }`}
-                            maxLength={14}
-                            pattern="\(\d{3}\) \d{3}-\d{4}"
-                            inputMode="numeric"
-                          />
-                          <p className="text-xs text-gray-500">
-                            Get timely chapter updates and invites by text
-                          </p>
-                          {phoneNumber && !isValidPhoneNumber(phoneNumber) && (
-                            <p className="text-xs text-red-500">
-                              Please enter a complete 10-digit phone number
-                            </p>
-                          )}
-                        </div>
-
-                        {/* SMS Consent Checkbox - Updated for compliance */}
-                        <div className="space-y-1">
-                          <div className="flex items-start space-x-2">
-                            <Checkbox
-                              id="sms-consent"
-                              checked={smsConsent}
-                              onCheckedChange={(checked) => setSmsConsent(checked === true)}
-                              className="mt-0.5"
-                              disabled={loading}
-                            />
-                            <div className="grid gap-1 leading-none">
-                              <Label
-                                htmlFor="sms-consent"
-                                className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                Sign me up for SMS so I get immediate chapter updates & notifcations.
-                              </Label>
-                              <p className="text-xs text-gray-500">
-                                Message frequency may vary. Standard Message and Data Rates may apply. Reply STOP to opt out. Reply HELP for help. Consent is not a condition of purchase. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.
-                              </p>
+                      {emailWizardStep === 1 ? (
+                        <div className="space-y-1.5 lg:space-y-3">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <div className="space-y-1">
+                              <Label htmlFor="firstName" className="text-xs font-medium text-gray-700">First Name</Label>
+                              <Input
+                                id="firstName"
+                                type="text"
+                                placeholder="First Name"
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                                required
+                                disabled={loading}
+                                className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="lastName" className="text-xs font-medium text-gray-700">Last Name</Label>
+                              <Input
+                                id="lastName"
+                                type="text"
+                                placeholder="Last Name"
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                                required
+                                disabled={loading}
+                                className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
+                              />
                             </div>
                           </div>
-                        </div>
-
-                        {/* Chapter Selection - Compact */}
-                        <div className="space-y-1">
-                          <Label htmlFor="chapter" className="text-xs font-medium text-gray-700">Chapter</Label>
-                          <Select 
-                            value={chapter} 
-                            onValueChange={setChapter}
-                          >
-                            <SelectItem value="">
-                              {chaptersLoading ? 'Loading chapters...' : 'Select your chapter'}
-                            </SelectItem>
-                            {chapters.map((chapterData) => (
-                              <SelectItem key={chapterData.id} value={chapterData.name}>
-                                {chapterData.name}
-                              </SelectItem>
-                            ))}
-                          </Select>
-                          {chaptersError && (
-                            <p className="text-red-500 text-xs">Failed to load chapters. Please refresh the page.</p>
+                          <div className="space-y-1">
+                            <Label htmlFor="email" className="text-xs font-medium text-gray-700">Email</Label>
+                            <Input
+                              id="email"
+                              type="email"
+                              placeholder="Enter your email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              required
+                              disabled={loading}
+                              className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="password" className="text-xs font-medium text-gray-700">Password</Label>
+                            <Input
+                              id="password"
+                              type="password"
+                              placeholder="Create a password"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              required
+                              disabled={loading}
+                              className="h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="phone" className="text-xs font-medium text-gray-700">
+                              Phone Number *
+                            </Label>
+                            <Input
+                              id="phone"
+                              type="tel"
+                              placeholder="(555) 123-4567"
+                              value={phoneNumber}
+                              onChange={handlePhoneChange}
+                              disabled={loading}
+                              className={`h-7 border-gray-300 focus:border-brand-primary focus:ring-brand-primary text-sm ${
+                                phoneNumber && !isValidPhoneNumber(phoneNumber)
+                                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                                  : ''
+                              }`}
+                              maxLength={14}
+                              pattern="\(\d{3}\) \d{3}-\d{4}"
+                              inputMode="numeric"
+                            />
+                            <p className="text-xs text-gray-500">
+                              Get timely chapter updates and invites by text
+                            </p>
+                            {phoneNumber && !isValidPhoneNumber(phoneNumber) && (
+                              <p className="text-xs text-red-500">
+                                Please enter a complete 10-digit phone number
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-start space-x-2">
+                              <Checkbox
+                                id="sms-consent"
+                                checked={smsConsent}
+                                onCheckedChange={(checked) => setSmsConsent(checked === true)}
+                                className="mt-0.5"
+                                disabled={loading}
+                              />
+                              <div className="grid gap-1 leading-none">
+                                <Label
+                                  htmlFor="sms-consent"
+                                  className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  Sign me up for SMS so I get immediate chapter updates & notifcations.
+                                </Label>
+                                <p className="text-xs text-gray-500">
+                                  Message frequency may vary. Standard Message and Data Rates may apply. Reply STOP to opt out. Reply HELP for help. Consent is not a condition of purchase. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          {error && (
+                            <div className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg p-2">{error}</div>
                           )}
-                          {chapters.length === 0 && !chaptersLoading && (
-                            <p className="text-yellow-500 text-xs">No chapters available. Please contact support.</p>
-                          )}
+                          <div className="mt-2 lg:mt-1">
+                            <Button
+                              type="button"
+                              className="w-full h-7 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white font-medium text-sm shadow-sm hover:shadow-md transition-all duration-200"
+                              disabled={loading}
+                              onClick={handleEmailWizardNext}
+                            >
+                              Next: school & chapter
+                            </Button>
+                          </div>
                         </div>
-
-                        {/* Error and Success Messages - Compact */}
-                        {error && (
-                          <div className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg p-2">{error}</div>
-                        )}
-                        {success && (
-                          <div className="text-green-500 text-xs bg-green-50 border border-green-200 rounded-lg p-2">{success}</div>
-                        )}
-
-                        {/* Submit Button */}
-                        <div className="mt-2 lg:mt-1">
-                          <Button 
-                            type="submit" 
-                            className="w-full h-7 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white font-medium text-sm shadow-sm hover:shadow-md transition-all duration-200" 
-                            disabled={loading}
+                      ) : (
+                        <div className="space-y-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setError('');
+                              setEmailWizardStep(1);
+                            }}
+                            className="flex items-center text-xs text-gray-600 hover:text-gray-800 transition-colors"
                           >
-                            {loading ? 'Creating account...' : 'Create Alumni Account'}
-                          </Button>
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Back to account info
+                          </button>
+                          <p className="text-xs text-gray-600">
+                            Optional: pick your school and national organization to narrow the list, then choose your chapter.
+                          </p>
+                          <SchoolSearchCombobox
+                            id="sign-up-email-school-desktop"
+                            label="Your school (optional)"
+                            description="Search the directory to filter chapters on this campus."
+                            getAuthHeaders={getAuthHeaders}
+                            value={schoolDirectoryFilter}
+                            onChange={setSchoolDirectoryFilter}
+                            disabled={chaptersLoading || loading}
+                          />
+                          <NationalOrgSearchCombobox
+                            id="sign-up-email-national-org-desktop"
+                            label="Your organization (optional)"
+                            description="Filter chapters by national fraternity, sorority, or umbrella org."
+                            value={nationalOrgDirectoryFilter}
+                            onChange={setNationalOrgDirectoryFilter}
+                            disabled={chaptersLoading || loading}
+                          />
+                          <form onSubmit={handleSubmit} className="space-y-1.5 lg:space-y-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="chapter" className="text-xs font-medium text-gray-700">Chapter *</Label>
+                              <Select value={chapter} onValueChange={setChapter}>
+                                <SelectItem value="">
+                                  {chaptersLoading ? 'Loading chapters...' : 'Select your chapter'}
+                                </SelectItem>
+                                {chaptersForDirectory.map((chapterData) => (
+                                  <SelectItem key={chapterData.id} value={chapterData.name}>
+                                    {chapterData.name}
+                                  </SelectItem>
+                                ))}
+                              </Select>
+                              {chaptersError && (
+                                <p className="text-red-500 text-xs">Failed to load chapters. Please refresh the page.</p>
+                              )}
+                              {chaptersForDirectory.length === 0 && !chaptersLoading && (
+                                <p className="text-yellow-500 text-xs">
+                                  No chapters match these filters. Clear school/org filters or try different ones.
+                                </p>
+                              )}
+                            </div>
+                            {error && (
+                              <div className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg p-2">{error}</div>
+                            )}
+                            {success && (
+                              <div className="text-green-500 text-xs bg-green-50 border border-green-200 rounded-lg p-2">{success}</div>
+                            )}
+                            <div className="mt-2 lg:mt-1">
+                              <Button
+                                type="submit"
+                                className="w-full h-7 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white font-medium text-sm shadow-sm hover:shadow-md transition-all duration-200"
+                                disabled={loading}
+                              >
+                                {loading ? 'Creating account...' : 'Create Alumni Account'}
+                              </Button>
+                            </div>
+                          </form>
                         </div>
-                      </form>
+                      )}
 
                       {/* Terms and Sign In */}
                       <div className="mt-2">
