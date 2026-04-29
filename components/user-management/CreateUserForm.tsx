@@ -38,9 +38,9 @@ interface CreateUserFormProps {
   isDeveloper?: boolean;
 }
 
-type ExtraIconRow =
-  | { id: string; kind: 'existing'; spaceId: string; label: string }
-  | { id: string; kind: 'new'; name: string; category: string };
+type ExtraSpaceRow =
+  | { id: string; kind: 'existing'; spaceId: string; label: string; asSpaceIcon: boolean }
+  | { id: string; kind: 'new'; name: string; category: string; asSpaceIcon: boolean };
 
 export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper = false }: CreateUserFormProps) {
   const { getAuthHeaders } = useAuth();
@@ -78,7 +78,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [showCropper, setShowCropper] = useState(false);
-  const [extraIconRows, setExtraIconRows] = useState<ExtraIconRow[]>([]);
+  const [extraSpaceRows, setExtraSpaceRows] = useState<ExtraSpaceRow[]>([]);
   const [currentPlace, setCurrentPlace] = useState<CanonicalPlaceConfirmed | null>(null);
   const wizardStepRef = useRef<1 | 2>(1);
   wizardStepRef.current = wizardStep;
@@ -170,20 +170,20 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         }
       }
 
-      for (const row of extraIconRows) {
+      for (const row of extraSpaceRows) {
         if (row.kind === 'existing' && !row.spaceId.trim()) {
-          throw new Error('Each additional Space Icon row must have a selected space, or remove the row.');
+          throw new Error('Each additional space row must have a selected space, or remove the row.');
         }
         if (row.kind === 'new' && !row.name.trim()) {
-          throw new Error('Each “new space” icon row needs a display name, or remove the row.');
+          throw new Error('Each “new space” row needs a display name, or remove the row.');
         }
       }
 
-      const additional_icon_memberships = extraIconRows
+      const additional_space_memberships = extraSpaceRows
         .map((row) => {
           if (row.kind === 'existing') {
             if (!row.spaceId.trim()) return null;
-            return { space_id: row.spaceId.trim() };
+            return { space_id: row.spaceId.trim(), is_space_icon: row.asSpaceIcon };
           }
           const cat = normalizeSpaceTypeInput(row.category);
           return {
@@ -191,6 +191,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
               name: row.name.trim(),
               ...(cat ? { category: cat } : {}),
             },
+            is_space_icon: row.asSpaceIcon,
           };
         })
         .filter(Boolean);
@@ -208,8 +209,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         ...(phoneStored ? { phone: phoneStored } : {}),
         ...(currentPlace ? { current_place: currentPlace } : {}),
         ...(avatarDataUrl ? { avatar_data_url: avatarDataUrl } : {}),
-        ...(additional_icon_memberships.length > 0
-          ? { additional_icon_memberships }
+        ...(additional_space_memberships.length > 0
+          ? { additional_space_memberships }
           : {}),
       };
 
@@ -250,7 +251,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setTempPassword(data.tempPassword);
       setSuccess(true);
       setWizardStep(1);
-      setExtraIconRows([]);
+      setExtraSpaceRows([]);
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -321,7 +322,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     const handleCloseSuccess = () => {
       setSuccess(false);
       setWizardStep(1);
-      setExtraIconRows([]);
+      setExtraSpaceRows([]);
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -743,19 +744,25 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         </div>
       ) : null}
 
-      {showSpaceSection && isDeveloper && formData.setAsSpaceIcon && (
+      {showSpaceSection && isDeveloper && (!useWizard || wizardStep === 2) && (
         <div className="space-y-3 rounded-md border border-dashed border-gray-300 bg-white/80 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium text-gray-900">Additional Space Icon memberships</p>
+            <p className="text-sm font-medium text-gray-900">Additional spaces (optional)</p>
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="gap-1"
               onClick={() =>
-                setExtraIconRows((prev) => [
+                setExtraSpaceRows((prev) => [
                   ...prev,
-                  { id: crypto.randomUUID(), kind: 'existing', spaceId: '', label: '' },
+                  {
+                    id: crypto.randomUUID(),
+                    kind: 'existing',
+                    spaceId: '',
+                    label: '',
+                    asSpaceIcon: false,
+                  },
                 ])
               }
             >
@@ -764,27 +771,27 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Home space (above) stays primary. Each row adds this user as Space Icon on another space (existing UUID or
-            new shell). Duplicates with home are skipped on the server.
+            Add non-primary memberships in more spaces. Home space (when set) stays primary; duplicate of home is
+            skipped. Optionally mark a row as Space Icon for that space.
           </p>
-          {extraIconRows.length === 0 ? (
+          {extraSpaceRows.length === 0 ? (
             <p className="text-xs text-gray-500">None — optional.</p>
           ) : (
             <div className="space-y-3">
-              {extraIconRows.map((row, idx) => (
+              {extraSpaceRows.map((row, idx) => (
                 <div
                   key={row.id}
                   className="space-y-2 rounded-md border border-gray-200 bg-gray-50/80 p-3"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-gray-600">Extra icon #{idx + 1}</span>
+                    <span className="text-xs font-medium text-gray-600">Extra space #{idx + 1}</span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="h-8 gap-1 text-destructive"
                       onClick={() =>
-                        setExtraIconRows((prev) => prev.filter((r) => r.id !== row.id))
+                        setExtraSpaceRows((prev) => prev.filter((r) => r.id !== row.id))
                       }
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -797,9 +804,11 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       size="sm"
                       variant={row.kind === 'existing' ? 'default' : 'outline'}
                       onClick={() =>
-                        setExtraIconRows((prev) =>
+                        setExtraSpaceRows((prev) =>
                           prev.map((r) =>
-                            r.id === row.id ? { ...r, kind: 'existing', spaceId: '', label: '' } : r
+                            r.id === row.id
+                              ? { ...r, kind: 'existing', spaceId: '', label: '', asSpaceIcon: false }
+                              : r
                           )
                         )
                       }
@@ -811,9 +820,11 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       size="sm"
                       variant={row.kind === 'new' ? 'default' : 'outline'}
                       onClick={() =>
-                        setExtraIconRows((prev) =>
+                        setExtraSpaceRows((prev) =>
                           prev.map((r) =>
-                            r.id === row.id ? { ...r, kind: 'new', name: '', category: '' } : r
+                            r.id === row.id
+                              ? { ...r, kind: 'new', name: '', category: '', asSpaceIcon: false }
+                              : r
                           )
                         )
                       }
@@ -829,7 +840,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                         value={row.spaceId}
                         selectedLabel={row.label}
                         onValueChange={(spaceId, spaceName) => {
-                          setExtraIconRows((prev) =>
+                          setExtraSpaceRows((prev) =>
                             prev.map((r) =>
                               r.id === row.id && r.kind === 'existing'
                                 ? { ...r, spaceId, label: spaceName }
@@ -848,7 +859,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                           id={`extra-new-name-${row.id}`}
                           value={row.name}
                           onChange={(e) =>
-                            setExtraIconRows((prev) =>
+                            setExtraSpaceRows((prev) =>
                               prev.map((r) =>
                                 r.id === row.id && r.kind === 'new'
                                   ? { ...r, name: e.target.value }
@@ -865,7 +876,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                         <SearchableSelect
                           value={row.category}
                           onValueChange={(v) =>
-                            setExtraIconRows((prev) =>
+                            setExtraSpaceRows((prev) =>
                               prev.map((r) =>
                                 r.id === row.id && r.kind === 'new' ? { ...r, category: v } : r
                               )
@@ -882,6 +893,25 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       </div>
                     </div>
                   )}
+                  <div className="flex items-start gap-2 pt-1">
+                    <Checkbox
+                      id={`extra-as-icon-${row.id}`}
+                      checked={row.asSpaceIcon}
+                      onCheckedChange={(checked) =>
+                        setExtraSpaceRows((prev) =>
+                          prev.map((r) =>
+                            r.id === row.id ? { ...r, asSpaceIcon: Boolean(checked) } : r
+                          )
+                        )
+                      }
+                    />
+                    <Label
+                      htmlFor={`extra-as-icon-${row.id}`}
+                      className="cursor-pointer text-xs font-normal leading-snug text-gray-700"
+                    >
+                      Space Icon for this space (optional; exclusive per space on the server)
+                    </Label>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1026,7 +1056,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
 
   const resetWizardLocalState = () => {
     setWizardStep(1);
-    setExtraIconRows([]);
+    setExtraSpaceRows([]);
     setBio('');
     setPhone('');
     setCurrentPlace(null);

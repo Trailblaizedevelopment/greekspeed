@@ -91,29 +91,54 @@ function parseOptionalCurrentPlace(
   return { ok: true, place: parsed.data };
 }
 
-type AdditionalIconEntry =
-  | { space_id: string }
-  | { new_space: { name: string; category?: string } };
+type AdditionalSpaceMembershipEntry = {
+  space_id?: string;
+  new_space?: { name: string; category?: string };
+  is_space_icon: boolean;
+};
 
-function parseAdditionalIconMemberships(body: Record<string, unknown>): AdditionalIconEntry[] {
-  const raw = body.additional_icon_memberships;
-  if (!Array.isArray(raw)) return [];
-  const out: AdditionalIconEntry[] = [];
-  for (const item of raw) {
+function parseOneAdditionalMembershipItem(
+  o: Record<string, unknown>,
+  defaultSpaceIcon: boolean
+): AdditionalSpaceMembershipEntry | null {
+  const is_space_icon =
+    typeof o.is_space_icon === 'boolean' ? o.is_space_icon : defaultSpaceIcon;
+  if (typeof o.space_id === 'string' && z.string().uuid().safeParse(o.space_id.trim()).success) {
+    return { space_id: o.space_id.trim(), is_space_icon };
+  }
+  const ns = o.new_space;
+  if (ns && typeof ns === 'object' && !Array.isArray(ns)) {
+    const n = ns as Record<string, unknown>;
+    const name = typeof n.name === 'string' ? n.name.trim() : '';
+    if (!name) return null;
+    const category = typeof n.category === 'string' && n.category.trim() ? n.category.trim() : undefined;
+    return { new_space: { name, category }, is_space_icon };
+  }
+  return null;
+}
+
+/** Developer-only: extra space rows; `additional_space_memberships` defaults icon false per row. Legacy `additional_icon_memberships` defaults icon true. */
+function parseAdditionalSpaceMemberships(
+  body: Record<string, unknown>,
+  callerIsDeveloper: boolean
+): AdditionalSpaceMembershipEntry[] {
+  if (!callerIsDeveloper) return [];
+  const out: AdditionalSpaceMembershipEntry[] = [];
+  const modern = body.additional_space_memberships;
+  if (Array.isArray(modern)) {
+    for (const item of modern) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const parsed = parseOneAdditionalMembershipItem(item as Record<string, unknown>, false);
+      if (parsed) out.push(parsed);
+    }
+    return out;
+  }
+  const legacy = body.additional_icon_memberships;
+  if (!Array.isArray(legacy)) return [];
+  for (const item of legacy) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const o = item as Record<string, unknown>;
-    if (typeof o.space_id === 'string' && z.string().uuid().safeParse(o.space_id.trim()).success) {
-      out.push({ space_id: o.space_id.trim() });
-      continue;
-    }
-    const ns = o.new_space;
-    if (ns && typeof ns === 'object' && !Array.isArray(ns)) {
-      const n = ns as Record<string, unknown>;
-      const name = typeof n.name === 'string' ? n.name.trim() : '';
-      if (!name) continue;
-      const category = typeof n.category === 'string' && n.category.trim() ? n.category.trim() : undefined;
-      out.push({ new_space: { name, category } });
-    }
+    const parsed = parseOneAdditionalMembershipItem(item as Record<string, unknown>, true);
+    if (parsed) out.push(parsed);
   }
   return out;
 }
@@ -179,7 +204,6 @@ export async function POST(request: NextRequest) {
     const phone = sanitizePhone(bodyRecord.phone);
     const avatarRaw = bodyRecord.avatar_data_url;
     const avatarDataUrl: string | null = typeof avatarRaw === 'string' ? avatarRaw : null;
-    const additionalIconMemberships = parseAdditionalIconMemberships(bodyRecord);
     const currentPlaceParse = parseOptionalCurrentPlace(bodyRecord.current_place);
     if (!currentPlaceParse.ok) {
       return NextResponse.json({ error: currentPlaceParse.error }, { status: 400 });
@@ -193,6 +217,7 @@ export async function POST(request: NextRequest) {
     const is_space_icon_requested = body.is_space_icon === true;
 
     const isDeveloper = profile?.is_developer === true;
+    const additionalSpaceMemberships = parseAdditionalSpaceMemberships(bodyRecord, isDeveloper);
 
     const trimmedChapter = typeof chapter === 'string' ? chapter.trim() : '';
     const newSpaceRaw = body.newSpace;
@@ -319,19 +344,6 @@ export async function POST(request: NextRequest) {
     } else if (trimmedChapter) {
       chapterName = trimmedChapter;
       chapterId = trimmedChapter;
-    }
-
-    if (additionalIconMemberships.length > 0) {
-      const homeUuidOk = chapterId && z.string().uuid().safeParse(String(chapterId)).success;
-      if (!homeUuidOk) {
-        return NextResponse.json(
-          {
-            error:
-              'Home space must be a valid space (choose an existing space UUID) before adding additional Space Icon spaces.',
-          },
-          { status: 400 }
-        );
-      }
     }
 
     // Generate a secure temporary password
@@ -498,11 +510,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // TRA-665: Ensure space_memberships row + optional exclusive icon (when chapter_id is a UUID).
+    const { role: membershipRole, status: membershipStatus } = profileRoleToSpaceMembership(role);
     const spaceIdParsed = z.string().uuid().safeParse(String(chapterId));
+    const homeUuid = spaceIdParsed.success ? spaceIdParsed.data : null;
+
+    // TRA-665: Primary space membership + optional home Space Icon (when chapter_id is a UUID).
     if (spaceIdParsed.success) {
       const spaceUuid = spaceIdParsed.data;
-      const { role: membershipRole, status: membershipStatus } = profileRoleToSpaceMembership(role);
 
       const mem = await upsertSpaceMembership(supabase, {
         userId: newUserAuth.user.id,
@@ -535,49 +549,50 @@ export async function POST(request: NextRequest) {
       if (!home.ok) {
         console.warn('⚠️ create-user syncProfileHomeFromPrimaryMembership:', home.error);
       }
+    }
 
-      if (additionalIconMemberships.length > 0) {
-        for (const entry of additionalIconMemberships) {
-          let sid: string | null = null;
-          if ('space_id' in entry) {
-            sid = entry.space_id;
-          } else {
-            const created = await findOrCreateSpaceFromSimulationLabel(supabase, {
-              rawName: entry.new_space.name,
-              category: entry.new_space.category,
-              source: 'api_developer_create_user_additional_icon',
-            });
-            if (!created.ok) {
-              return NextResponse.json(
-                { error: `Additional Space Icon space failed: ${created.error}` },
-                { status: 400 }
-              );
-            }
-            sid = created.id;
-          }
-          if (!sid || sid === spaceUuid) continue;
-
-          const m2 = await upsertSpaceMembership(supabase, {
-            userId: newUserAuth.user.id,
-            spaceId: sid,
-            role: membershipRole,
-            status: membershipStatus,
-            isPrimary: false,
-            isSpaceIcon: true,
+    // Additional space memberships (member and/or Space Icon per row), with or without a primary UUID home.
+    if (additionalSpaceMemberships.length > 0) {
+      for (const entry of additionalSpaceMemberships) {
+        let sid: string | null = null;
+        if (entry.space_id) {
+          sid = entry.space_id;
+        } else if (entry.new_space) {
+          const created = await findOrCreateSpaceFromSimulationLabel(supabase, {
+            rawName: entry.new_space.name,
+            category: entry.new_space.category,
+            source: 'api_developer_create_user_additional_space',
           });
-          if (!m2.ok) {
+          if (!created.ok) {
             return NextResponse.json(
-              {
-                error: `User created but an additional space membership failed: ${m2.error ?? 'unknown error'}`,
-              },
-              { status: 500 }
+              { error: `Additional space failed: ${created.error}` },
+              { status: 400 }
             );
           }
+          sid = created.id;
+        }
+        if (!sid || (homeUuid && sid === homeUuid)) continue;
 
-          const act2 = await activateShellSpaceIfInactive(supabase, sid);
-          if (!act2.ok) {
-            console.warn('⚠️ create-user activateShellSpaceIfInactive (additional):', act2.error);
-          }
+        const m2 = await upsertSpaceMembership(supabase, {
+          userId: newUserAuth.user.id,
+          spaceId: sid,
+          role: membershipRole,
+          status: membershipStatus,
+          isPrimary: false,
+          isSpaceIcon: entry.is_space_icon ? true : undefined,
+        });
+        if (!m2.ok) {
+          return NextResponse.json(
+            {
+              error: `User created but an additional space membership failed: ${m2.error ?? 'unknown error'}`,
+            },
+            { status: 500 }
+          );
+        }
+
+        const act2 = await activateShellSpaceIfInactive(supabase, sid);
+        if (!act2.ok) {
+          console.warn('⚠️ create-user activateShellSpaceIfInactive (additional):', act2.error);
         }
       }
     }
