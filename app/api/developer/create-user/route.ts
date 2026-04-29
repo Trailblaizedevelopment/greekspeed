@@ -11,6 +11,14 @@ import {
   upsertSpaceMembership,
 } from '@/lib/services/spaceMembershipService';
 import { findOrCreateSpaceFromSimulationLabel } from '@/lib/services/spaceFromSimulationService';
+import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { normalizeUsPhoneForStorage } from '@/lib/utils/formatUsPhone';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
+import {
+  formatCanonicalPlaceDisplayForApp,
+  parseCanonicalPlaceConfirmed,
+} from '@/types/canonicalPlace';
 
 function profileRoleToSpaceMembership(profileRole: string): {
   role: string;
@@ -61,6 +69,108 @@ async function authenticateRequest(request: NextRequest) {
   }
 }
 
+function sanitizeBio(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const t = raw.trim().slice(0, BIO_MAX_LENGTH);
+  return t.length > 0 ? t : null;
+}
+
+function sanitizePhone(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  return normalizeUsPhoneForStorage(raw);
+}
+
+function parseOptionalCurrentPlace(
+  raw: unknown
+): { ok: true; place: CanonicalPlaceConfirmed | null } | { ok: false; error: string } {
+  if (raw === undefined || raw === null) return { ok: true, place: null };
+  const parsed = parseCanonicalPlaceConfirmed(raw);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid current_place: use Mapbox-confirmed place from location picker' };
+  }
+  return { ok: true, place: parsed.data };
+}
+
+type AdditionalSpaceMembershipEntry = {
+  space_id?: string;
+  new_space?: { name: string; category?: string };
+  is_space_icon: boolean;
+};
+
+function parseOneAdditionalMembershipItem(
+  o: Record<string, unknown>,
+  defaultSpaceIcon: boolean
+): AdditionalSpaceMembershipEntry | null {
+  const is_space_icon =
+    typeof o.is_space_icon === 'boolean' ? o.is_space_icon : defaultSpaceIcon;
+  if (typeof o.space_id === 'string' && z.string().uuid().safeParse(o.space_id.trim()).success) {
+    return { space_id: o.space_id.trim(), is_space_icon };
+  }
+  const ns = o.new_space;
+  if (ns && typeof ns === 'object' && !Array.isArray(ns)) {
+    const n = ns as Record<string, unknown>;
+    const name = typeof n.name === 'string' ? n.name.trim() : '';
+    if (!name) return null;
+    const category = typeof n.category === 'string' && n.category.trim() ? n.category.trim() : undefined;
+    return { new_space: { name, category }, is_space_icon };
+  }
+  return null;
+}
+
+/** Developer-only: extra space rows; `additional_space_memberships` defaults icon false per row. Legacy `additional_icon_memberships` defaults icon true. */
+function parseAdditionalSpaceMemberships(
+  body: Record<string, unknown>,
+  callerIsDeveloper: boolean
+): AdditionalSpaceMembershipEntry[] {
+  if (!callerIsDeveloper) return [];
+  const out: AdditionalSpaceMembershipEntry[] = [];
+  const modern = body.additional_space_memberships;
+  if (Array.isArray(modern)) {
+    for (const item of modern) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const parsed = parseOneAdditionalMembershipItem(item as Record<string, unknown>, false);
+      if (parsed) out.push(parsed);
+    }
+    return out;
+  }
+  const legacy = body.additional_icon_memberships;
+  if (!Array.isArray(legacy)) return [];
+  for (const item of legacy) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const parsed = parseOneAdditionalMembershipItem(item as Record<string, unknown>, true);
+    if (parsed) out.push(parsed);
+  }
+  return out;
+}
+
+async function uploadAvatarFromDataUrl(
+  service: SupabaseClient,
+  userId: string,
+  dataUrl: string
+): Promise<string | null> {
+  const trimmed = dataUrl.trim().replace(/\s/g, '');
+  const m = /^data:(image\/(?:jpeg|jpg|png|gif));base64,(.+)$/i.exec(trimmed);
+  if (!m) return null;
+  let mime = m[1]!.toLowerCase();
+  if (mime === 'image/jpg') mime = 'image/jpeg';
+  const buf = Buffer.from(m[2]!, 'base64');
+  if (buf.length > 5 * 1024 * 1024) return null;
+  let ext = 'jpg';
+  if (mime.includes('png')) ext = 'png';
+  if (mime.includes('gif')) ext = 'gif';
+  const path = `${userId}-${Date.now()}.${ext}`;
+  const { error } = await service.storage.from('user-avatar').upload(path, buf, {
+    contentType: mime,
+    upsert: false,
+  });
+  if (error) {
+    console.error('create-user avatar upload:', error.message);
+    return null;
+  }
+  const { data } = service.storage.from('user-avatar').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await authenticateRequest(request);
@@ -89,10 +199,25 @@ export async function POST(request: NextRequest) {
       governance_chapter_ids = [] as string[],
     } = body;
 
-    /** Exclusive Space Icon for this chapter (only when chapter is a space UUID). */
+    const bodyRecord = body as Record<string, unknown>;
+    const bio = sanitizeBio(bodyRecord.bio);
+    const phone = sanitizePhone(bodyRecord.phone);
+    const avatarRaw = bodyRecord.avatar_data_url;
+    const avatarDataUrl: string | null = typeof avatarRaw === 'string' ? avatarRaw : null;
+    const currentPlaceParse = parseOptionalCurrentPlace(bodyRecord.current_place);
+    if (!currentPlaceParse.ok) {
+      return NextResponse.json({ error: currentPlaceParse.error }, { status: 400 });
+    }
+    const currentPlacePersisted = currentPlaceParse.place;
+    const locationLine = currentPlacePersisted
+      ? formatCanonicalPlaceDisplayForApp(currentPlacePersisted)
+      : null;
+
+    /** Exclusive Space Icon on the home membership (when home is a space UUID). */
     const is_space_icon_requested = body.is_space_icon === true;
 
     const isDeveloper = profile?.is_developer === true;
+    const additionalSpaceMemberships = parseAdditionalSpaceMemberships(bodyRecord, isDeveloper);
 
     const trimmedChapter = typeof chapter === 'string' ? chapter.trim() : '';
     const newSpaceRaw = body.newSpace;
@@ -135,7 +260,7 @@ export async function POST(request: NextRequest) {
         !!trimmedChapter && z.string().uuid().safeParse(trimmedChapter).success;
       if (hasNewSpaceName && hasExistingUuid) {
         return NextResponse.json(
-          { error: 'Provide either an existing space or a new space name for Space Icon, not both' },
+          { error: 'Provide either an existing home space or a new home space name for Space Icon, not both' },
           { status: 400 }
         );
       }
@@ -143,7 +268,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Space Icon requires either a selected existing space or a new space name (create space)',
+              'Space Icon on home requires either a selected existing home space or a new home space name',
           },
           { status: 400 }
         );
@@ -270,6 +395,10 @@ export async function POST(request: NextRequest) {
         chapter_role: chapter_role,
         member_status: member_status,
         is_developer: is_developer,
+        bio,
+        phone,
+        current_place: currentPlacePersisted,
+        location: locationLine,
         // REMOVE developer_permissions - column no longer exists
         access_level: is_developer ? 'admin' : 'standard',
         onboarding_completed: true,
@@ -320,6 +449,10 @@ export async function POST(request: NextRequest) {
             chapter_role: chapter_role,
             member_status: member_status,
             is_developer: is_developer,
+            bio,
+            phone,
+            current_place: currentPlacePersisted,
+            location: locationLine,
             // REMOVE developer_permissions - column no longer exists
             access_level: is_developer ? 'admin' : 'standard',
             onboarding_completed: true,                        
@@ -352,6 +485,19 @@ export async function POST(request: NextRequest) {
       // New profile created
     }
 
+    if (avatarDataUrl && avatarDataUrl.length > 64) {
+      const uploaded = await uploadAvatarFromDataUrl(supabase, newUserAuth.user.id, avatarDataUrl);
+      if (uploaded) {
+        const { error: avErr } = await supabase
+          .from('profiles')
+          .update({ avatar_url: uploaded, updated_at: new Date().toISOString() })
+          .eq('id', newUserAuth.user.id);
+        if (avErr) {
+          console.warn('⚠️ create-user avatar_url update:', avErr.message);
+        }
+      }
+    }
+
     // If role is governance, insert managed chapters into governance_chapters
     if (role === 'governance' && governanceChapterIds.length > 0) {
       const rows = governanceChapterIds.map((cid) => ({
@@ -364,11 +510,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // TRA-665: Ensure space_memberships row + optional exclusive icon (when chapter_id is a UUID).
+    const { role: membershipRole, status: membershipStatus } = profileRoleToSpaceMembership(role);
     const spaceIdParsed = z.string().uuid().safeParse(String(chapterId));
+    const homeUuid = spaceIdParsed.success ? spaceIdParsed.data : null;
+
+    // TRA-665: Primary space membership + optional home Space Icon (when chapter_id is a UUID).
     if (spaceIdParsed.success) {
       const spaceUuid = spaceIdParsed.data;
-      const { role: membershipRole, status: membershipStatus } = profileRoleToSpaceMembership(role);
 
       const mem = await upsertSpaceMembership(supabase, {
         userId: newUserAuth.user.id,
@@ -403,6 +551,52 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Additional space memberships (member and/or Space Icon per row), with or without a primary UUID home.
+    if (additionalSpaceMemberships.length > 0) {
+      for (const entry of additionalSpaceMemberships) {
+        let sid: string | null = null;
+        if (entry.space_id) {
+          sid = entry.space_id;
+        } else if (entry.new_space) {
+          const created = await findOrCreateSpaceFromSimulationLabel(supabase, {
+            rawName: entry.new_space.name,
+            category: entry.new_space.category,
+            source: 'api_developer_create_user_additional_space',
+          });
+          if (!created.ok) {
+            return NextResponse.json(
+              { error: `Additional space failed: ${created.error}` },
+              { status: 400 }
+            );
+          }
+          sid = created.id;
+        }
+        if (!sid || (homeUuid && sid === homeUuid)) continue;
+
+        const m2 = await upsertSpaceMembership(supabase, {
+          userId: newUserAuth.user.id,
+          spaceId: sid,
+          role: membershipRole,
+          status: membershipStatus,
+          isPrimary: false,
+          isSpaceIcon: entry.is_space_icon ? true : undefined,
+        });
+        if (!m2.ok) {
+          return NextResponse.json(
+            {
+              error: `User created but an additional space membership failed: ${m2.error ?? 'unknown error'}`,
+            },
+            { status: 500 }
+          );
+        }
+
+        const act2 = await activateShellSpaceIfInactive(supabase, sid);
+        if (!act2.ok) {
+          console.warn('⚠️ create-user activateShellSpaceIfInactive (additional):', act2.error);
+        }
+      }
+    }
+
     return NextResponse.json({ 
       success: true,
       message: 'User created successfully', 
@@ -411,7 +605,8 @@ export async function POST(request: NextRequest) {
         email: newUserAuth.user.email,
         full_name: `${firstName} ${lastName}`,
         chapter: chapterName ?? '',
-        role: role
+        role: role,
+        location: locationLine ?? '',
       },
       tempPassword: tempPassword,
       instructions: [
