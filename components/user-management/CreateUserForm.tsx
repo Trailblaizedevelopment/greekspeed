@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,11 @@ import { DeveloperPermission } from '@/types/profile';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 import { cn } from '@/lib/utils';
 import { DeveloperSpaceSelectCombobox } from '@/components/user-management/DeveloperSpaceSelectCombobox';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import {
+  normalizeSpaceTypeInput,
+  SPACE_TYPE_SEARCHABLE_OPTIONS,
+} from '@/lib/spaceTypeTaxonomy';
 
 interface CreateUserFormProps {
   onClose: () => void;
@@ -31,6 +36,8 @@ interface CreateUserFormProps {
 
 export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper = false }: CreateUserFormProps) {
   const { getAuthHeaders } = useAuth();
+  /** Portals SearchableSelect inside this modal so dropdown/search stay usable (z-index + focus). */
+  const spaceTypeSelectPortalRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -42,6 +49,10 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     governance_chapter_ids: [] as string[],
     /** Developer: set user as exclusive Space Icon for the selected space (requires space UUID). */
     setAsSpaceIcon: false,
+    /** When Space Icon is on (developer): pick existing space vs create shell space. */
+    spaceIconAttachMode: 'existing' as 'existing' | 'new',
+    newSpaceName: '',
+    newSpaceCategory: '',
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -93,20 +104,45 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!formData.email || !formData.firstName || !formData.lastName || !formData.chapter) {
-        throw new Error('Email, firstName, lastName, and chapter are required');
+      if (!formData.email || !formData.firstName || !formData.lastName) {
+        throw new Error('Email, firstName, and lastName are required');
+      }
+
+      if (!isDeveloper || chapterContext) {
+        if (!formData.chapter?.trim()) {
+          throw new Error('Chapter is required');
+        }
+      } else if (formData.role === 'governance' && !formData.chapter?.trim()) {
+        throw new Error('Chapter is required for governance users');
+      } else if (formData.setAsSpaceIcon) {
+        if (formData.spaceIconAttachMode === 'existing' && !formData.chapter?.trim()) {
+          throw new Error('Select an existing space for Space Icon, or choose “Create new space”');
+        }
+        if (formData.spaceIconAttachMode === 'new' && !formData.newSpaceName.trim()) {
+          throw new Error('Enter a display name for the new space');
+        }
       }
 
       const body: Record<string, unknown> = {
         email: formData.email,
         firstName: formData.firstName,
         lastName: formData.lastName,
-        chapter: formData.chapter,
         role: formData.role,
         chapter_role: formData.chapter_role,
         is_developer: formData.is_developer,
       };
+
+      if (isDeveloper && formData.setAsSpaceIcon && formData.spaceIconAttachMode === 'new') {
+        body.chapter = null;
+        const categoryNorm = normalizeSpaceTypeInput(formData.newSpaceCategory);
+        body.newSpace = {
+          name: formData.newSpaceName.trim(),
+          ...(categoryNorm ? { category: categoryNorm } : {}),
+        };
+      } else {
+        body.chapter = formData.chapter?.trim() || null;
+      }
+
       if (formData.role === 'governance' && formData.governance_chapter_ids.length > 0) {
         body.governance_chapter_ids = formData.governance_chapter_ids;
       }
@@ -152,7 +188,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           <h3 className="font-medium text-green-800 mb-2">User Details:</h3>
           <p><strong>Name:</strong> {createdUser.full_name}</p>
           <p><strong>Email:</strong> {createdUser.email}</p>
-          <p><strong>Chapter:</strong> {createdUser.chapter}</p>
+          <p>
+            <strong>Chapter:</strong> {createdUser.chapter?.trim() ? createdUser.chapter : '— (none yet)'}
+          </p>
           <p><strong>Role:</strong> {createdUser.role}</p>
           <p><strong>Developer Access:</strong> {createdUser.is_developer ? 'Yes' : 'No'}</p>
         </div>
@@ -299,7 +337,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         </div>
       </div>
 
-      {/* Chapter Field - Full Width */}
+      {/* Chapter / space — chapter admins: fixed. Developers: optional space unless Space Icon or governance. */}
       {chapterContext ? (
         <div>
           <Label htmlFor="chapter">Chapter *</Label>
@@ -311,21 +349,157 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           />
         </div>
       ) : isDeveloper ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="chapter-space-trigger">Chapter *</Label>
-          <DeveloperSpaceSelectCombobox
-            id="chapter-space-trigger"
-            value={formData.chapter}
-            selectedLabel={chapterPickLabel}
-            onValueChange={(spaceId, spaceName) => {
-              setFormData({ ...formData, chapter: spaceId });
-              setChapterPickLabel(spaceName);
-            }}
-            disabled={loading}
-          />
-          <p className="text-xs text-muted-foreground">
-            Search the full space directory (same as developer tools). Results update as you type.
-          </p>
+        <div className="space-y-4">
+          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50/90 p-3">
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="set_as_space_icon"
+                checked={formData.setAsSpaceIcon}
+                onCheckedChange={(checked) => {
+                  const on = Boolean(checked);
+                  setFormData((prev) => ({
+                    ...prev,
+                    setAsSpaceIcon: on,
+                    spaceIconAttachMode: on ? prev.spaceIconAttachMode : 'existing',
+                    ...(on
+                      ? {}
+                      : { newSpaceName: '', newSpaceCategory: '' }),
+                  }));
+                }}
+              />
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="set_as_space_icon" className="cursor-pointer text-sm font-medium text-gray-900">
+                  Space Icon
+                </Label>
+                <p className="text-xs leading-snug text-gray-600">
+                  Optional: designate this user as the face of a space. Choose an existing space or create a new one
+                  first—only one icon per space; assigning moves the badge from anyone else.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {formData.setAsSpaceIcon ? (
+            <div className="space-y-3 rounded-md border border-gray-200 bg-white p-3">
+              <Label className="text-sm font-medium text-gray-900">Space for icon *</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={formData.spaceIconAttachMode === 'existing' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => {
+                    setFormData((prev) => ({ ...prev, spaceIconAttachMode: 'existing' }));
+                  }}
+                >
+                  Existing space
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={formData.spaceIconAttachMode === 'new' ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      spaceIconAttachMode: 'new',
+                      chapter: '',
+                    }));
+                    setChapterPickLabel('');
+                  }}
+                >
+                  Create new space
+                </Button>
+              </div>
+
+              {formData.spaceIconAttachMode === 'existing' ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="chapter-space-trigger">Search spaces</Label>
+                  <DeveloperSpaceSelectCombobox
+                    id="chapter-space-trigger"
+                    value={formData.chapter}
+                    selectedLabel={chapterPickLabel}
+                    onValueChange={(spaceId, spaceName) => {
+                      setFormData({ ...formData, chapter: spaceId });
+                      setChapterPickLabel(spaceName);
+                    }}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Search the full space directory. Results update as you type.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="new_space_name">New space display name *</Label>
+                    <Input
+                      id="new_space_name"
+                      value={formData.newSpaceName}
+                      onChange={(e) => setFormData({ ...formData, newSpaceName: e.target.value })}
+                      placeholder="e.g. Alpha Chapter at State U"
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Organization type (optional)</Label>
+                    <SearchableSelect
+                      value={formData.newSpaceCategory}
+                      onValueChange={(v) => setFormData((prev) => ({ ...prev, newSpaceCategory: v }))}
+                      options={SPACE_TYPE_SEARCHABLE_OPTIONS}
+                      placeholder="Select or type organization type…"
+                      searchPlaceholder="Search types…"
+                      allowCustom
+                      customMaxLength={200}
+                      disabled={loading}
+                      portalContainerRef={spaceTypeSelectPortalRef}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Same taxonomy as Create space — preset slug on the row, or your own label. Used when the shell
+                      space is created.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="chapter-space-trigger">
+                Space {formData.role === 'governance' ? '*' : '(optional)'}
+              </Label>
+              <DeveloperSpaceSelectCombobox
+                id="chapter-space-trigger"
+                value={formData.chapter}
+                selectedLabel={chapterPickLabel}
+                onValueChange={(spaceId, spaceName) => {
+                  setFormData({ ...formData, chapter: spaceId });
+                  setChapterPickLabel(spaceName);
+                }}
+                disabled={loading}
+              />
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="text-xs text-muted-foreground">
+                  {formData.role === 'governance'
+                    ? 'Governance users need a home space.'
+                    : 'Leave empty to create the user without a space; assign a space later from tools.'}
+                </p>
+                {formData.chapter ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-2 py-0.5 text-xs"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, chapter: '' }));
+                      setChapterPickLabel('');
+                    }}
+                  >
+                    Clear space
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div>
@@ -348,23 +522,23 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         </div>
       )}
 
-      {isDeveloper ? (
+      {isDeveloper && chapterContext ? (
         <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50/90 p-3">
           <div className="flex items-start gap-2">
             <Checkbox
-              id="set_as_space_icon"
+              id="set_as_space_icon_ctx"
               checked={formData.setAsSpaceIcon}
               onCheckedChange={(checked) =>
                 setFormData((prev) => ({ ...prev, setAsSpaceIcon: Boolean(checked) }))
               }
             />
             <div className="min-w-0 space-y-1">
-              <Label htmlFor="set_as_space_icon" className="cursor-pointer text-sm font-medium text-gray-900">
+              <Label htmlFor="set_as_space_icon_ctx" className="cursor-pointer text-sm font-medium text-gray-900">
                 Space Icon
               </Label>
               <p className="text-xs leading-snug text-gray-600">
-                Only one Space Icon exists per space. Checking this removes the designation from anyone else, then
-                assigns this user. Applies when the chapter value is a space UUID.
+                Assign this user as the Space Icon for the chapter above. Only one icon per space; this replaces any
+                existing icon.
               </p>
             </div>
           </div>
@@ -548,6 +722,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         />
 
         <div
+          ref={spaceTypeSelectPortalRef}
           className="fixed bottom-0 left-0 right-0 z-10 flex max-h-[85dvh] min-h-0 flex-col rounded-t-2xl bg-white shadow-xl"
           style={
             maxHeightPx !== undefined || bottomPx !== undefined
@@ -595,37 +770,42 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <Card
-        className="relative z-[10000] flex w-full max-w-2xl max-h-[min(90vh,820px)] flex-col overflow-hidden rounded-xl shadow-xl"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <CardHeader className="shrink-0 border-b border-gray-200 pb-4">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-lg font-semibold">Create New User</CardTitle>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-8 w-8 shrink-0 p-0 hover:bg-gray-100"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="mt-2 text-sm text-gray-500">Only the middle section scrolls.</p>
-        </CardHeader>
+      <div ref={spaceTypeSelectPortalRef} className="relative z-[10000] w-full max-w-2xl">
+        <Card
+          className="relative flex w-full max-h-[min(90vh,820px)] min-h-0 flex-col overflow-hidden rounded-xl shadow-xl"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <CardHeader className="shrink-0 border-b border-gray-200 bg-white pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-lg font-semibold">Create New User</CardTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="h-8 w-8 shrink-0 p-0 hover:bg-gray-100"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="mt-2 text-sm text-gray-500">Only the middle section scrolls.</p>
+          </CardHeader>
 
-        <form className="flex flex-col" onSubmit={handleSubmit}>
-          <div className="relative max-h-[min(calc(100dvh-15rem),43rem)] overflow-y-auto overscroll-contain px-6 py-4">
-            <div className="space-y-4">{formFields}</div>
-          </div>
+          <form
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            onSubmit={handleSubmit}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+              <div className="space-y-4">{formFields}</div>
+            </div>
 
-          <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/90 px-6 py-4">
-            {actionButtons}
-          </div>
-        </form>
-      </Card>
+            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/95 px-6 py-4">
+              {actionButtons}
+            </div>
+          </form>
+        </Card>
+      </div>
     </div>,
     document.body
   );
