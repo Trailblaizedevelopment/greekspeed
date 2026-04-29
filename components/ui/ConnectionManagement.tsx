@@ -11,6 +11,7 @@ import { Check, X, UserPlus, Users, Clock, UserX } from 'lucide-react';
 import { ClickableAvatar } from '@/components/features/user-profile/ClickableAvatar';
 import { ClickableUserName } from '@/components/features/user-profile/ClickableUserName';
 import { ConnectionPagination } from '@/components/ui/ConnectionPagination';
+import { cn } from '@/lib/utils';
 
 interface ConnectionManagementProps {
   variant?: 'desktop' | 'mobile';
@@ -201,72 +202,86 @@ export function ConnectionManagement({ variant = 'desktop', className = '', hide
               </div>
             ) : (
               <>
-                <div className={`space-y-${isMobile ? '3' : '4'}`}>
+                <div className={isMobile ? 'space-y-3' : 'space-y-4'}>
                   {pendingRequests
                     .slice((pendingPage - 1) * itemsPerPage, pendingPage * itemsPerPage)
                     .map((connection) => {
                   const partner = getConnectionPartner(connection);
                   return (
-                    <div key={connection.id} className={`flex items-center justify-between ${cardPadding} ${hideCard ? 'border-0 border-b border-gray-200 last:border-b-0' : 'border border-gray-200 rounded-lg'} hover:bg-gray-50 transition-colors`}>
-                      <div className="flex items-center space-x-3">
+                    <div
+                      key={connection.id}
+                      className={cn(
+                        'flex flex-col gap-3',
+                        cardPadding,
+                        hideCard ? 'border-0 border-b border-gray-200 last:border-b-0' : 'border border-gray-200 rounded-lg',
+                        'hover:bg-gray-50 transition-colors'
+                      )}
+                    >
+                      <h3 className={cn('font-medium text-gray-900 leading-snug', textSize)}>
+                        Connection Request from{' '}
                         {partner.id ? (
-                          <ClickableAvatar
+                          <ClickableUserName
                             userId={partner.id}
-                            avatarUrl={partner.avatar}
                             fullName={partner.name}
-                            firstName={partner.firstName}
-                            lastName={partner.lastName}
-                            size={isMobile ? 'sm' : 'md'}
-                            className={avatarSize}
+                            className="font-semibold text-brand-primary hover:text-brand-primary-hover"
                           />
                         ) : (
-                          <div className={`${avatarSize} bg-primary-100 rounded-full flex items-center justify-center text-brand-primary ${textSize} font-semibold`}>
-                            {partner.avatar ? (
-                              <img 
-                                src={partner.avatar} 
-                                alt={partner.name}
-                                className="w-full h-full object-cover rounded-full"
-                              />
-                            ) : (
-                              partner.initials
-                            )}
-                          </div>
+                          <span className="font-semibold">{partner.name}</span>
                         )}
-                        <div>
+                      </h3>
+
+                      <div className="flex flex-col gap-2">
+                        <div className="shrink-0">
                           {partner.id ? (
-                            <ClickableUserName
+                            <ClickableAvatar
                               userId={partner.id}
-                              fullName={isMobile ? partner.name : `Connection Request from ${partner.name}`}
-                              className={`font-medium text-gray-900 ${textSize}`}
+                              avatarUrl={partner.avatar}
+                              fullName={partner.name}
+                              firstName={partner.firstName}
+                              lastName={partner.lastName}
+                              size={isMobile ? 'sm' : 'md'}
+                              className={avatarSize}
                             />
                           ) : (
-                            <p className={`font-medium text-gray-900 ${textSize}`}>
-                              {isMobile ? partner.name : `Connection Request from ${partner.name}`}
-                            </p>
-                          )}
-                          {connection.message && (
-                            <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-600 mt-1`}>{connection.message}</p>
-                          )}
-                          {!isMobile && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(connection.created_at).toLocaleDateString()}
-                            </p>
+                            <div className={`${avatarSize} bg-primary-100 rounded-full flex items-center justify-center text-brand-primary ${textSize} font-semibold`}>
+                              {partner.avatar ? (
+                                <img
+                                  src={partner.avatar}
+                                  alt={partner.name}
+                                  className="w-full h-full object-cover rounded-full"
+                                />
+                              ) : (
+                                partner.initials
+                              )}
+                            </div>
                           )}
                         </div>
+                        {connection.message ? (
+                          <p className={cn('text-gray-600', isMobile ? 'text-xs' : 'text-sm')}>
+                            {connection.message}
+                          </p>
+                        ) : null}
+                        <p className="text-xs text-gray-500">
+                          {new Date(connection.created_at).toLocaleDateString()}
+                        </p>
                       </div>
-                      <div className={`flex space-x-${isMobile ? '1' : '2'}`}>
+
+                      <div className={cn('flex w-full min-w-0 items-stretch', isMobile ? 'gap-1.5' : 'gap-2')}>
                         <Button
                           size="sm"
                           onClick={() => handleConnectionAction(connection.id, 'accept')}
                           disabled={processingId === connection.id}
-                          className={`bg-brand-primary hover:bg-brand-primary-hover text-white rounded-full font-medium shadow-sm ${buttonSize}`}
+                          className={cn(
+                            'flex-1 min-w-0 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-full font-medium shadow-sm flex items-center justify-center gap-1',
+                            buttonSize
+                          )}
                         >
                           {processingId === connection.id ? (
-                            <div className={`animate-spin rounded-full ${iconSize} border-b border-white`} />
+                            <div className={cn('animate-spin rounded-full border-b border-white shrink-0', iconSize)} />
                           ) : (
                             <>
-                              <Check className={`${iconSize} ${!isMobile ? 'mr-1' : ''}`} />
-                              {!isMobile && 'Accept'}
+                              <Check className={cn(iconSize, 'shrink-0')} />
+                              <span className="truncate">Accept</span>
                             </>
                           )}
                         </Button>
@@ -275,14 +290,17 @@ export function ConnectionManagement({ variant = 'desktop', className = '', hide
                           variant="outline"
                           onClick={() => handleConnectionAction(connection.id, 'decline')}
                           disabled={processingId === connection.id}
-                          className={`text-red-600 border-red-300 hover:bg-red-50 rounded-full font-medium shadow-sm ${buttonSize}`}
+                          className={cn(
+                            'flex-1 min-w-0 text-red-600 border-red-300 hover:bg-red-50 rounded-full font-medium shadow-sm flex items-center justify-center gap-1',
+                            buttonSize
+                          )}
                         >
                           {processingId === connection.id ? (
-                            <div className={`animate-spin rounded-full ${iconSize} border-b border-red-600`} />
+                            <div className={cn('animate-spin rounded-full border-b border-red-600 shrink-0', iconSize)} />
                           ) : (
                             <>
-                              <X className={`${iconSize} ${!isMobile ? 'mr-1' : ''}`} />
-                              {!isMobile && 'Decline'}
+                              <X className={cn(iconSize, 'shrink-0')} />
+                              <span className="truncate">Decline</span>
                             </>
                           )}
                         </Button>
@@ -315,7 +333,7 @@ export function ConnectionManagement({ variant = 'desktop', className = '', hide
               </div>
             ) : (
               <>
-                <div className={`space-y-${isMobile ? '3' : '4'}`}>
+                <div className={isMobile ? 'space-y-3' : 'space-y-4'}>
                   {sentRequests
                     .slice((sentPage - 1) * itemsPerPage, sentPage * itemsPerPage)
                     .map((connection) => {
@@ -394,7 +412,7 @@ export function ConnectionManagement({ variant = 'desktop', className = '', hide
               </div>
             ) : (
               <>
-                <div className={`space-y-${isMobile ? '3' : '4'}`}>
+                <div className={isMobile ? 'space-y-3' : 'space-y-4'}>
                   {declinedConnections
                     .slice((declinedPage - 1) * itemsPerPage, declinedPage * itemsPerPage)
                     .map((connection) => {

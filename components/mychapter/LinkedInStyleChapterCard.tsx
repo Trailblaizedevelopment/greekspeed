@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChapterMember } from "@/types/chapter";
-import { MessageCircle, UserPlus, Clock, Users } from "lucide-react";
+import { MessageCircle, UserPlus, Clock, Users, Check, X } from "lucide-react";
 import { useConnections } from "@/lib/contexts/ConnectionsContext";
 import { useAuth } from "@/lib/supabase/auth-context";
 import { useState } from "react";
@@ -155,20 +155,30 @@ export function LinkedInStyleChapterCard({ member, onClick }: LinkedInStyleChapt
       
       case 'pending_received':
         return (
-          <div className="flex space-x-2">
+          <div className="flex w-full min-w-0 gap-2">
             <Button
               onClick={(e) => handleConnectionAction('accept', e)}
               disabled={isLoading}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-full font-medium h-8 sm:h-10 text-xs sm:text-sm"
+              className="flex-1 min-w-0 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-full font-medium h-8 sm:h-10 text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 shadow-sm transition-colors"
             >
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b border-white shrink-0" />
+              ) : (
+                <Check className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+              )}
               Accept
             </Button>
             <Button
               onClick={(e) => handleConnectionAction('decline', e)}
               disabled={isLoading}
-              className="flex-1 border border-gray-300 text-gray-600 bg-white hover:bg-gray-50 rounded-full font-medium h-8 sm:h-10 text-xs sm:text-sm"
+              className="flex-1 min-w-0 border border-gray-300 text-gray-600 bg-white hover:bg-gray-50 rounded-full font-medium h-8 sm:h-10 text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 transition-colors"
               variant="outline"
             >
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b border-gray-600 shrink-0" />
+              ) : (
+                <X className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+              )}
               Decline
             </Button>
           </div>
@@ -421,7 +431,7 @@ export function LinkedInStyleChapterCard({ member, onClick }: LinkedInStyleChapt
           </div>
 
           {/* Action Button - Fixed height at bottom */}
-          <div className="mt-auto h-8 sm:h-10 flex items-center">
+          <div className="mt-auto h-8 sm:h-10 flex w-full min-w-0 items-center justify-center">
             {renderConnectionButton()}
           </div>
         </div>
