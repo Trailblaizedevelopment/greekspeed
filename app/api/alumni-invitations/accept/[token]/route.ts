@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/client';
 import { validateInvitationToken, validateEmailDomain, hasEmailUsedInvitation, recordInvitationUsage } from '@/lib/utils/invitationUtils';
 import { createPendingMembershipRequest } from '@/lib/services/membershipRequestService';
 import { notifyChapterAdminsOfNewMembershipRequest } from '@/lib/services/membershipRequestNotificationService';
-import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
+import { isEduEmailBlockedForSelfServeSignup, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import {
   ensureProfileChapterIdNullForPendingInvite,
@@ -57,7 +57,7 @@ export async function POST(
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    if (isEduEmail(normalizedEmail)) {
+    if (isEduEmailBlockedForSelfServeSignup(normalizedEmail)) {
       return NextResponse.json({ error: EDU_SIGNUP_ERROR }, { status: 400 });
     }
 

@@ -658,7 +658,8 @@ export function SearchableSelect({
           <div
             ref={dropdownRef}
             className={cn(
-              'z-[100100] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
+              // Above high-z modals (e.g. EditChapterModal Card z-[100160]); must sit on top when portaled into overlay.
+              'z-[100200] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl overflow-hidden overscroll-contain pointer-events-auto',
               useDrawerRelativePosition ? 'absolute' : 'fixed',
               dropdownRect.panelMaxHeightPx == null && 'max-h-[min(70dvh,28rem)]'
             )}

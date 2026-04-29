@@ -184,7 +184,7 @@ export function ChapterSwitcher() {
         const params = new URLSearchParams({
           page: '1',
           limit: String(DEVELOPER_SEARCH_LIMIT),
-          status: 'all',
+          status: 'active',
           q: debouncedSearchTrim,
         });
         const response = await fetch(`/api/developer/chapters?${params.toString()}`, {
@@ -392,7 +392,7 @@ export function ChapterSwitcher() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={
                       isDeveloperOnly
-                        ? 'Search all spaces (server)…'
+                        ? 'Search all spaces'
                         : 'Search chapters…'
                     }
                     className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"

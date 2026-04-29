@@ -43,8 +43,11 @@ import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import { ONBOARDING_MAIN_CARD_CLASS } from '@/lib/constants/onboardingUi';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 import { SchoolSearchCombobox } from '@/components/schools/SchoolSearchCombobox';
+import { NationalOrgSearchCombobox } from '@/components/directory/NationalOrgSearchCombobox';
 import type { SchoolDirectoryPick } from '@/lib/utils/chapterSchoolMatch';
 import { chapterMatchesSchoolDirectory } from '@/lib/utils/chapterSchoolMatch';
+import type { NationalOrgDirectoryPick } from '@/lib/utils/chapterNationalOrgMatch';
+import { chapterMatchesNationalOrgDirectory } from '@/lib/utils/chapterNationalOrgMatch';
 
 const profileBasicsIndustryOptions = buildIndustrySelectOptions('Select industry');
 
@@ -113,21 +116,29 @@ export default function ProfileBasicsPage() {
   /** TRA-579: canonical chapter UUID when profile.chapter_id is null (pending marketing request). */
   const [pendingRequestChapterId, setPendingRequestChapterId] = useState<string | null>(null);
   const [schoolDirectoryFilter, setSchoolDirectoryFilter] = useState<SchoolDirectoryPick | null>(null);
+  const [nationalOrgDirectoryFilter, setNationalOrgDirectoryFilter] =
+    useState<NationalOrgDirectoryPick | null>(null);
 
   const graduationYears = getGraduationYears();
 
   const chaptersForSelect = useMemo(() => {
-    if (!schoolDirectoryFilter) return chapters;
-    return chapters.filter((c) => chapterMatchesSchoolDirectory(c, schoolDirectoryFilter));
-  }, [chapters, schoolDirectoryFilter]);
+    let list = chapters;
+    if (schoolDirectoryFilter) {
+      list = list.filter((c) => chapterMatchesSchoolDirectory(c, schoolDirectoryFilter));
+    }
+    if (nationalOrgDirectoryFilter) {
+      list = list.filter((c) => chapterMatchesNationalOrgDirectory(c, nationalOrgDirectoryFilter));
+    }
+    return list;
+  }, [chapters, schoolDirectoryFilter, nationalOrgDirectoryFilter]);
 
   useEffect(() => {
-    if (!schoolDirectoryFilter || !formData.chapter) return;
+    if ((!schoolDirectoryFilter && !nationalOrgDirectoryFilter) || !formData.chapter) return;
     const stillListed = chaptersForSelect.some((c) => c.name === formData.chapter);
     if (!stillListed) {
       setFormData((prev) => ({ ...prev, chapter: '', chapterId: '' }));
     }
-  }, [schoolDirectoryFilter, chaptersForSelect, formData.chapter]);
+  }, [schoolDirectoryFilter, nationalOrgDirectoryFilter, chaptersForSelect, formData.chapter]);
 
   /** Chapter + role already set (e.g. join link or step 1) — hide redundant fields */
   const chapterAndRoleLocked = !!(profile?.chapter && profile?.role);
@@ -387,7 +398,8 @@ export default function ProfileBasicsPage() {
 
   // Handle chapter selection
   const handleChapterChange = (chapterName: string) => {
-    const selectedChapter = chapters.find(c => c.name === chapterName);
+    const selectedChapter =
+      chaptersForSelect.find((c) => c.name === chapterName) ?? chapters.find((c) => c.name === chapterName);
     setFormData(prev => ({
       ...prev,
       chapter: chapterName,
@@ -665,6 +677,14 @@ export default function ProfileBasicsPage() {
                   getAuthHeaders={getAuthHeaders}
                   value={schoolDirectoryFilter}
                   onChange={setSchoolDirectoryFilter}
+                  disabled={chaptersLoading || !!profile?.chapter}
+                />
+                <NationalOrgSearchCombobox
+                  id="profile-basics-national-org-directory"
+                  label="Your organization (optional)"
+                  description="Narrow chapters by national fraternity, sorority, or umbrella organization."
+                  value={nationalOrgDirectoryFilter}
+                  onChange={setNationalOrgDirectoryFilter}
                   disabled={chaptersLoading || !!profile?.chapter}
                 />
                 {/* Chapter Selection */}

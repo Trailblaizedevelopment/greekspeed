@@ -146,7 +146,7 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
     if (!formData.name.trim()) newErrors.name = 'Full space name is required';
     if (!formData.university.trim()) newErrors.university = 'University is required';
     if (!formData.national_fraternity.trim()) newErrors.national_fraternity = 'National organization is required';
-    if (!formData.chapter_name.trim()) newErrors.chapter_name = 'Local designation is required';
+    if (!formData.chapter_name.trim()) newErrors.chapter_name = 'Chapter Name (Short) is required';
     if (!formData.location.trim()) newErrors.location = 'Location is required';
     if (!formData.founded_year.trim()) newErrors.founded_year = 'Founded year is required';
     if (!formData.member_count.trim()) newErrors.member_count = 'Member count is required';
@@ -323,8 +323,8 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
 
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label htmlFor="chapter_name">Local designation *</Label>
-                  <FieldHint text="Short branch label for this space (for example a Greek letter chapter) stored as the local designation alongside the full name." />
+                  <Label htmlFor="chapter_name">Chapter Name (Short) *</Label>
+                  <FieldHint text="Short label for this chapter or branch (for example Greek letters like Omega). Shown next to the full name and used in the URL slug." />
                 </div>
                 <Input
                   id="chapter_name"
@@ -387,8 +387,8 @@ export function EditChapterModal({ isOpen, onClose, chapter, accessToken, onSucc
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label htmlFor="school">School</Label>
-                  <FieldHint text="Informal or short school nickname stored on the space for search, labels, and URLs (for example a well-known campus shorthand)." />
+                  <Label htmlFor="school">School (Short Name)</Label>
+                  <FieldHint text="Short campus or school nickname (for example Ole Miss). Used in search, labels, and the generated slug." />
                 </div>
                 <Input
                   id="school"

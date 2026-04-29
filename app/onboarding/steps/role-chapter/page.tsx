@@ -30,8 +30,11 @@ import {
 import { cn } from '@/lib/utils';
 import { isAwaitingChapterMembershipApproval } from '@/lib/utils/marketingAlumniOnboarding';
 import { SchoolSearchCombobox } from '@/components/schools/SchoolSearchCombobox';
+import { NationalOrgSearchCombobox } from '@/components/directory/NationalOrgSearchCombobox';
 import type { SchoolDirectoryPick } from '@/lib/utils/chapterSchoolMatch';
 import { chapterMatchesSchoolDirectory } from '@/lib/utils/chapterSchoolMatch';
+import type { NationalOrgDirectoryPick } from '@/lib/utils/chapterNationalOrgMatch';
+import { chapterMatchesNationalOrgDirectory } from '@/lib/utils/chapterNationalOrgMatch';
 
 // ============================================================================
 // Component
@@ -65,6 +68,9 @@ export default function RoleChapterPage() {
   const [hasChapterJoinFromLink, setHasChapterJoinFromLink] = useState(false);
   /** Optional: narrow chapter list by canonical school (Handshake-style directory). */
   const [schoolDirectoryFilter, setSchoolDirectoryFilter] = useState<SchoolDirectoryPick | null>(null);
+  /** Optional: narrow by national org linked on the space or name match on `national_fraternity`. */
+  const [nationalOrgDirectoryFilter, setNationalOrgDirectoryFilter] =
+    useState<NationalOrgDirectoryPick | null>(null);
 
   // Session + profile + join-link slug prefill before paint so Radix Select and labels don’t flash empty.
   useLayoutEffect(() => {
@@ -173,17 +179,28 @@ export default function RoleChapterPage() {
   }, [profileChapter, profileRole, chapters]);
 
   const chaptersForDirectory = useMemo(() => {
-    if (!schoolDirectoryFilter) return chapters;
-    return chapters.filter((c) => chapterMatchesSchoolDirectory(c, schoolDirectoryFilter));
-  }, [chapters, schoolDirectoryFilter]);
+    let list = chapters;
+    if (schoolDirectoryFilter) {
+      list = list.filter((c) => chapterMatchesSchoolDirectory(c, schoolDirectoryFilter));
+    }
+    if (nationalOrgDirectoryFilter) {
+      list = list.filter((c) => chapterMatchesNationalOrgDirectory(c, nationalOrgDirectoryFilter));
+    }
+    return list;
+  }, [chapters, schoolDirectoryFilter, nationalOrgDirectoryFilter]);
 
   useEffect(() => {
-    if (!schoolDirectoryFilter || !formData.chapter) return;
+    if ((!schoolDirectoryFilter && !nationalOrgDirectoryFilter) || !formData.chapter) return;
     const stillListed = chaptersForDirectory.some((c) => c.name === formData.chapter);
     if (!stillListed) {
       setFormData((prev) => ({ ...prev, chapter: '', chapterId: '' }));
     }
-  }, [schoolDirectoryFilter, chaptersForDirectory, formData.chapter]);
+  }, [
+    schoolDirectoryFilter,
+    nationalOrgDirectoryFilter,
+    chaptersForDirectory,
+    formData.chapter,
+  ]);
 
   /** Ensures Radix Select always has a SelectItem for the current value (API list may still be loading). */
   const chapterSelectOptions = useMemo(() => {
@@ -245,7 +262,9 @@ export default function RoleChapterPage() {
 
   // Handle chapter selection
   const handleChapterChange = (chapterName: string) => {
-    const selectedChapter = chapters.find(c => c.name === chapterName);
+    const selectedChapter =
+      chaptersForDirectory.find((c) => c.name === chapterName) ??
+      chapters.find((c) => c.name === chapterName);
     const resolvedId =
       selectedChapter?.id ||
       (chapterName === profile?.chapter ? profile.chapter_id || '' : '') ||
@@ -683,15 +702,25 @@ export default function RoleChapterPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {showChapterDirectoryPicker ? (
-              <SchoolSearchCombobox
-                id="onboarding-school-directory"
-                label="Your school (optional)"
-                description="Search the school directory, then pick your campus to narrow the chapter list."
-                getAuthHeaders={getAuthHeaders}
-                value={schoolDirectoryFilter}
-                onChange={setSchoolDirectoryFilter}
-                disabled={chaptersLoading}
-              />
+              <>
+                <SchoolSearchCombobox
+                  id="onboarding-school-directory"
+                  label="Your school (optional)"
+                  description="Search the school directory, then pick your campus to narrow the chapter list."
+                  getAuthHeaders={getAuthHeaders}
+                  value={schoolDirectoryFilter}
+                  onChange={setSchoolDirectoryFilter}
+                  disabled={chaptersLoading}
+                />
+                <NationalOrgSearchCombobox
+                  id="onboarding-national-org-directory"
+                  label="Your organization (optional)"
+                  description="Search your national fraternity, sorority, or umbrella org to narrow chapters."
+                  value={nationalOrgDirectoryFilter}
+                  onChange={setNationalOrgDirectoryFilter}
+                  disabled={chaptersLoading}
+                />
+              </>
             ) : null}
             {/* Chapter: directory picker (marketing self-serve only) vs read-only (invite / chapter join) */}
             <div className="space-y-2">

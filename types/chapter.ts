@@ -7,6 +7,9 @@ export interface Chapter {
   national_fraternity: string;
   chapter_name: string;
   school: string;
+  /** When set on `spaces`, used for directory filters and FK-backed chapter data. */
+  school_id?: string | null;
+  national_organization_id?: string | null;
   school_location?: string;
   description?: string;
   location?: string;

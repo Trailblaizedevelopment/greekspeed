@@ -18,7 +18,7 @@ import {
   OAUTH_SIGNUP_ROLE_COOKIE,
   OAUTH_POST_LOGIN_REDIRECT_MAX_AGE_SEC,
 } from '@/lib/utils/oauthPostLoginRedirect';
-import { isEduEmail, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
+import { isEduEmailBlockedForSelfServeSignup, EDU_SIGNUP_ERROR } from '@/lib/utils/emailUtils';
 
 const MOBILE_OVERLAY_MIN_MS = 6000;
 
@@ -99,7 +99,7 @@ export default function SignUpPage() {
       return;
     }
 
-    if (isEduEmail(email)) {
+    if (isEduEmailBlockedForSelfServeSignup(email)) {
       setError(EDU_SIGNUP_ERROR);
       setLoading(false);
       return;

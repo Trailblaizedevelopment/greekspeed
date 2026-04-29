@@ -75,22 +75,14 @@ export function DeveloperReferenceSearchField({
   const [rect, setRect] = useState<{ top: number; left: number; width: number; maxH: number } | null>(null);
 
   const endpoint =
-    kind === 'schools'
-      ? '/api/schools/search'
-      : '/api/developer/reference/national-organizations';
+    kind === 'schools' ? '/api/schools/search' : '/api/national-organizations/search';
 
   const fetchHits = useCallback(
     async (q: string) => {
-      if (kind === 'national-organizations' && !accessToken) return;
       setLoading(true);
       try {
         const params = new URLSearchParams({ q, limit: '30' });
-        const res = await fetch(`${endpoint}?${params}`, {
-          headers:
-            kind === 'schools'
-              ? {}
-              : { Authorization: `Bearer ${accessToken}` },
-        });
+        const res = await fetch(`${endpoint}?${params}`);
         if (!res.ok) return;
         const json = (await res.json()) as { schools?: SchoolRow[]; nationalOrganizations?: OrgRow[] };
         if (kind === 'schools') setSchoolHits(json.schools ?? []);
@@ -99,7 +91,7 @@ export function DeveloperReferenceSearchField({
         setLoading(false);
       }
     },
-    [accessToken, endpoint, kind],
+    [endpoint, kind],
   );
 
   useEffect(() => {
@@ -208,8 +200,6 @@ export function DeveloperReferenceSearchField({
     setQuery('');
   };
 
-  const orgsNeedToken = kind === 'national-organizations' && !accessToken;
-
   return (
     <div ref={wrapRef} className="space-y-2">
       <div className="flex items-start justify-between gap-2">
@@ -227,9 +217,7 @@ export function DeveloperReferenceSearchField({
         ) : null}
       </div>
 
-      {orgsNeedToken ? (
-        <p className="text-xs text-amber-700">Sign in as a developer to search national organizations.</p>
-      ) : kind === 'schools' && !accessToken ? (
+      {kind === 'schools' && !accessToken ? (
         <p className="text-xs text-gray-600">
           School search works without signing in; sign in to link a directory-only campus (saves it to your database).
         </p>
@@ -239,12 +227,12 @@ export function DeveloperReferenceSearchField({
         <button
           ref={triggerRef}
           type="button"
-          disabled={disabled || orgsNeedToken}
-          onClick={() => !orgsNeedToken && setOpen((o) => !o)}
+          disabled={disabled}
+          onClick={() => setOpen((o) => !o)}
           className={cn(
             'flex h-9 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm',
             'focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary',
-            (disabled || orgsNeedToken) && 'opacity-50 cursor-not-allowed'
+            disabled && 'opacity-50 cursor-not-allowed'
           )}
         >
           <span className={cn('truncate text-left', !value && 'text-gray-500')}>
@@ -274,7 +262,7 @@ export function DeveloperReferenceSearchField({
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Type to search…"
+                    placeholder="Type to search..."
                     className="w-full h-8 pl-8 pr-8 text-sm rounded-md border border-gray-200 bg-gray-50 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary"
                     autoFocus
                   />
@@ -292,6 +280,26 @@ export function DeveloperReferenceSearchField({
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {loading ? (
                   <div className="px-3 py-4 text-sm text-gray-500">Loading…</div>
+                ) : query.trim().length < 2 ? (
+                  <div className="px-3 py-4 text-center text-sm text-gray-600">
+                    {kind === 'schools' ? (
+                      <>
+                        <p className="font-medium text-gray-800">Look up your school</p>
+                        <p className="mt-1.5 text-xs leading-relaxed">
+                          Search your school. Results load from your
+                          directory as you type.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-gray-800">Look up your organization</p>
+                        <p className="mt-1.5 text-xs leading-relaxed">
+                          Search national fraternities, sororities, and
+                          umbrella organizations.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 ) : hits.length === 0 ? (
                   <div className="px-3 py-4 text-sm text-gray-500 text-center">No matches</div>
                 ) : (

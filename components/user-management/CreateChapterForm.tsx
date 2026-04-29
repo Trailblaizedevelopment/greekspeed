@@ -64,7 +64,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
     if (!formData.national_fraternity.trim()) {
       newErrors.national_fraternity = 'National organization is required';
     }
-    if (!formData.chapter_name.trim()) newErrors.chapter_name = 'Local designation is required';
+    if (!formData.chapter_name.trim()) newErrors.chapter_name = 'Short chapter name is required';
     if (!formData.location.trim()) newErrors.location = 'Location is required';
     if (!formData.founded_year.trim()) newErrors.founded_year = 'Founded year is required';
     if (!formData.member_count.trim()) newErrors.member_count = 'Member count is required';
@@ -231,7 +231,7 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
                 </div>
               </div>
 
-              <div className="rounded-lg border border-sky-200/90 bg-sky-50/50 p-4">
+              <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-4">
                 <DeveloperUserSearchPickField
                   label="Space Icon (optional)"
                   labelHint="Search a profile by name, email, or UUID. On save, that user becomes an active member of the new space and the exclusive Space Icon."
@@ -259,8 +259,8 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
 
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="chapter_name">Local designation *</Label>
-                    <FieldHint text="Short branch label for this space (for example a Greek letter chapter) used with the slug next to the full name." />
+                    <Label htmlFor="chapter_name">Chapter Name (Short) *</Label>
+                    <FieldHint text="Short label for this chapter or branch (for example Greek letters like Omega). Shown next to the full name and used in the URL slug." />
                   </div>
                   <Input
                     id="chapter_name"
@@ -321,8 +321,8 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="school">School</Label>
-                    <FieldHint text="Informal or short school nickname stored on the space for search, labels, and the generated slug (for example a well-known campus shorthand)." />
+                    <Label htmlFor="school">School (Short Name)</Label>
+                    <FieldHint text="Short campus or school nickname (for example Ole Miss). Used in search, labels, and the generated slug." />
                   </div>
                   <Input
                     id="school"
@@ -462,10 +462,10 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
 
           <div className="shrink-0 border-t border-gray-200 bg-gray-50/90 px-6 py-4">
             <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              <Button type="button" variant="outline" className="rounded-full" onClick={onClose} disabled={loading}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading} className="flex items-center gap-2">
+              <Button type="submit" disabled={loading} className="flex items-center gap-2 rounded-full">
                 {loading ? (
                   <>
                     <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
