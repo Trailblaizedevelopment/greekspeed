@@ -42,6 +42,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const spaceTypeParam = (searchParams.get('spaceType') || '').trim();
+    if (spaceTypeParam.length > 200) {
+      return NextResponse.json({ error: 'spaceType filter is too long' }, { status: 400 });
+    }
+
     let query = auth.service
       .from('spaces')
       .select('*', { count: 'exact' })
@@ -49,6 +54,10 @@ export async function GET(request: NextRequest) {
 
     if (statusParam === 'active') {
       query = query.eq('chapter_status', 'active');
+    }
+
+    if (spaceTypeParam) {
+      query = query.eq('space_type', spaceTypeParam);
     }
 
     if (orFilter) {
@@ -72,6 +81,7 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit) || 1,
       q: qParam.replace(/%/g, '').replace(/,/g, '').trim().slice(0, 120) || null,
       status: statusParam,
+      spaceType: spaceTypeParam || null,
     });
   } catch (error) {
     console.error('Error in chapters API:', error);

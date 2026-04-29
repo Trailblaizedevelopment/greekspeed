@@ -22,6 +22,8 @@ import { EditChapterModal } from './EditChapterModal';
 import { CreateChapterForm } from './CreateChapterForm';
 import { ChapterSpaceManageSheet, type ChapterRow } from './ChapterSpaceManageSheet';
 import { useAuth } from '@/lib/supabase/auth-context';
+import { Select, SelectItem } from '@/components/ui/select';
+import { SPACE_TYPE_TAXONOMY, getSpaceTypeLabel } from '@/lib/spaceTypeTaxonomy';
 
 export interface Chapter {
   id: string;
@@ -81,6 +83,8 @@ export function ChaptersTab() {
   const [pageSize] = useState(100); // Show 100 chapters per page
   /** Inactive = directory shells / not yet active; default list shows active spaces only. */
   const [includeInactiveSpaces, setIncludeInactiveSpaces] = useState(false);
+  /** `__all__` = no filter; otherwise exact match on `spaces.space_type` (taxonomy slug or legacy string). */
+  const [spaceTypeFilter, setSpaceTypeFilter] = useState<string>('__all__');
 
   const debouncedSearch = useDebouncedValue(searchTerm.trim(), 400);
   /** When search changes we reset to page 1; skip one fetch while `currentPage` is still stale. */
@@ -90,6 +94,10 @@ export function ChaptersTab() {
     pendingSearchPageResetRef.current = true;
     setCurrentPage(1);
   }, [debouncedSearch]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [spaceTypeFilter]);
 
   const fetchChapters = useCallback(async () => {
     try {
@@ -101,6 +109,9 @@ export function ChaptersTab() {
       });
       if (debouncedSearch.length > 0) {
         params.set('q', debouncedSearch);
+      }
+      if (spaceTypeFilter !== '__all__') {
+        params.set('spaceType', spaceTypeFilter);
       }
       const headers: HeadersInit = {};
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -118,7 +129,7 @@ export function ChaptersTab() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearch, accessToken, includeInactiveSpaces]);
+  }, [currentPage, pageSize, debouncedSearch, accessToken, includeInactiveSpaces, spaceTypeFilter]);
 
   useEffect(() => {
     if (pendingSearchPageResetRef.current && currentPage !== 1) {
@@ -235,7 +246,7 @@ export function ChaptersTab() {
       </div>
 
       {/* Search + inactive filter */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
         <div className="flex-1 min-w-0">
           <Input
             placeholder="Search chapters (name, university, fraternity, slug, school…) — paginated on the server"
@@ -243,6 +254,21 @@ export function ChaptersTab() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
           />
+        </div>
+        <div className="w-full min-w-0 sm:max-w-xs shrink-0">
+          <Select
+            value={spaceTypeFilter}
+            onValueChange={setSpaceTypeFilter}
+            placeholder="Organization type"
+            className="w-full"
+          >
+            <SelectItem value="__all__">All organization types</SelectItem>
+            {SPACE_TYPE_TAXONOMY.map((t) => (
+              <SelectItem key={t.slug} value={t.slug}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </Select>
         </div>
         <label className="flex cursor-pointer items-center gap-2 shrink-0 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
           <Checkbox
@@ -279,7 +305,7 @@ export function ChaptersTab() {
           <div className="overflow-x-auto">
             {/* Scrollable container with fixed height */}
             <div className="max-h-[70vh] overflow-y-auto border border-gray-200 rounded-lg">
-              <table className="w-full min-w-[920px] border-collapse text-sm">
+              <table className="w-full min-w-[1040px] border-collapse text-sm">
                 <thead className="sticky top-0 bg-gray-50 z-10">
                   <tr className="border-b">
                     <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 max-w-[220px]">
@@ -293,6 +319,9 @@ export function ChaptersTab() {
                     </th>
                     <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 max-w-[200px]">
                       National fraternity
+                    </th>
+                    <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 max-w-[140px]">
+                      Type
                     </th>
                     <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-gray-600 bg-gray-50 whitespace-nowrap">
                       Members
@@ -311,7 +340,7 @@ export function ChaptersTab() {
                 <tbody>
                   {chapters.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-sm text-gray-500">
+                      <td colSpan={9} className="p-8 text-center text-sm text-gray-500">
                         {debouncedSearch
                           ? `No spaces match “${debouncedSearch}”. Try a shorter or different search.`
                           : includeInactiveSpaces
@@ -355,6 +384,25 @@ export function ChaptersTab() {
                         <p className="truncate whitespace-nowrap" title={chapter.national_fraternity || undefined}>
                           {chapter.national_fraternity || '—'}
                         </p>
+                      </td>
+                      <td className="py-2 px-3 min-w-0 max-w-[140px] text-gray-700">
+                        {chapter.space_type ? (
+                          <div className="min-w-0">
+                            <p
+                              className="truncate text-sm"
+                              title={getSpaceTypeLabel(chapter.space_type)}
+                            >
+                              {getSpaceTypeLabel(chapter.space_type)}
+                            </p>
+                            {getSpaceTypeLabel(chapter.space_type) !== chapter.space_type ? (
+                              <p className="truncate font-mono text-[10px] text-gray-400" title={chapter.space_type}>
+                                {chapter.space_type}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td
                         className="py-2 px-3 whitespace-nowrap text-gray-900 tabular-nums"
