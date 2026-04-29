@@ -8,11 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectItem } from '@/components/ui/select';
-import { X } from 'lucide-react';
+import { X, Plus, Trash2, User } from 'lucide-react';
 import { useChapters } from '@/lib/hooks/useChapters';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { DEVELOPER_PERMISSIONS } from '@/lib/developerPermissions';
-import { DeveloperPermission } from '@/types/profile';
 import { useVisualViewportHeight } from '@/lib/hooks/useVisualViewportHeight';
 import { cn } from '@/lib/utils';
 import { DeveloperSpaceSelectCombobox } from '@/components/user-management/DeveloperSpaceSelectCombobox';
@@ -21,6 +19,11 @@ import {
   normalizeSpaceTypeInput,
   SPACE_TYPE_SEARCHABLE_OPTIONS,
 } from '@/lib/spaceTypeTaxonomy';
+import { ImageCropper } from '@/components/features/common/ImageCropper';
+import { Textarea } from '@/components/ui/textarea';
+import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
+import { LocationPicker } from '@/components/features/location/LocationPicker';
 
 interface CreateUserFormProps {
   onClose: () => void;
@@ -33,6 +36,10 @@ interface CreateUserFormProps {
   /** Only developers can assign governance role; hide option for non-developers */
   isDeveloper?: boolean;
 }
+
+type ExtraIconRow =
+  | { id: string; kind: 'existing'; spaceId: string; label: string }
+  | { id: string; kind: 'new'; name: string; category: string };
 
 export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper = false }: CreateUserFormProps) {
   const { getAuthHeaders } = useAuth();
@@ -61,6 +68,22 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const [isMobile, setIsMobile] = useState(false);
   /** Label for the selected space when using developer server search (CreateUserForm). */
   const [chapterPickLabel, setChapterPickLabel] = useState('');
+
+  const useWizard = Boolean(isDeveloper && !chapterContext);
+  const [wizardStep, setWizardStep] = useState<1 | 2>(1);
+  const [bio, setBio] = useState('');
+  const [phone, setPhone] = useState('');
+  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [extraIconRows, setExtraIconRows] = useState<ExtraIconRow[]>([]);
+  const [currentPlace, setCurrentPlace] = useState<CanonicalPlaceConfirmed | null>(null);
+
+  const showSpaceSection =
+    !isDeveloper ||
+    Boolean(chapterContext) ||
+    (isDeveloper && !chapterContext && (!useWizard || wizardStep === 2));
 
   // Chapters for non-developer chapter picker and governance checkboxes
   const { chapters, loading: chaptersLoading } = useChapters();
@@ -99,8 +122,23 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     }
   }, [chapterContext]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (useWizard && wizardStep === 1) {
+      return;
+    }
+    await submitCreateUser();
+  };
+
+  const goToSpaceStep = () => {
+    if (!formData.email?.trim() || !formData.firstName?.trim() || !formData.lastName?.trim()) {
+      alert('Email, first name, and last name are required.');
+      return;
+    }
+    setWizardStep(2);
+  };
+
+  const submitCreateUser = async () => {
     setLoading(true);
 
     try {
@@ -123,6 +161,31 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         }
       }
 
+      for (const row of extraIconRows) {
+        if (row.kind === 'existing' && !row.spaceId.trim()) {
+          throw new Error('Each additional Space Icon row must have a selected space, or remove the row.');
+        }
+        if (row.kind === 'new' && !row.name.trim()) {
+          throw new Error('Each “new space” icon row needs a display name, or remove the row.');
+        }
+      }
+
+      const additional_icon_memberships = extraIconRows
+        .map((row) => {
+          if (row.kind === 'existing') {
+            if (!row.spaceId.trim()) return null;
+            return { space_id: row.spaceId.trim() };
+          }
+          const cat = normalizeSpaceTypeInput(row.category);
+          return {
+            new_space: {
+              name: row.name.trim(),
+              ...(cat ? { category: cat } : {}),
+            },
+          };
+        })
+        .filter(Boolean);
+
       const body: Record<string, unknown> = {
         email: formData.email,
         firstName: formData.firstName,
@@ -130,6 +193,13 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         role: formData.role,
         chapter_role: formData.chapter_role,
         is_developer: formData.is_developer,
+        bio: bio.trim() || undefined,
+        phone: phone.trim() || undefined,
+        ...(currentPlace ? { current_place: currentPlace } : {}),
+        ...(avatarDataUrl ? { avatar_data_url: avatarDataUrl } : {}),
+        ...(additional_icon_memberships.length > 0
+          ? { additional_icon_memberships }
+          : {}),
       };
 
       if (isDeveloper && formData.setAsSpaceIcon && formData.spaceIconAttachMode === 'new') {
@@ -155,7 +225,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           'Content-Type': 'application/json',
           ...getAuthHeaders(),
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -164,11 +234,19 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       }
 
       const data = await response.json();
-      
+
       setCreatedUser(data.user);
       setTempPassword(data.tempPassword);
       setSuccess(true);
-      
+      setWizardStep(1);
+      setExtraIconRows([]);
+      setBio('');
+      setPhone('');
+      setAvatarDataUrl(null);
+      setAvatarPreview(null);
+      setImageToCrop(null);
+      setShowCropper(false);
+      setCurrentPlace(null);
     } catch (error) {
       console.error('Error creating user:', error);
       alert(`Error: ${error instanceof Error ? error.message : 'Failed to create user'}`);
@@ -193,6 +271,11 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           </p>
           <p><strong>Role:</strong> {createdUser.role}</p>
           <p><strong>Developer Access:</strong> {createdUser.is_developer ? 'Yes' : 'No'}</p>
+          {createdUser.location?.trim() ? (
+            <p>
+              <strong>Location:</strong> {createdUser.location}
+            </p>
+          ) : null}
         </div>
 
         <div className="bg-yellow-50 p-4 rounded-lg">
@@ -226,6 +309,15 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
 
     const handleCloseSuccess = () => {
       setSuccess(false);
+      setWizardStep(1);
+      setExtraIconRows([]);
+      setBio('');
+      setPhone('');
+      setAvatarDataUrl(null);
+      setAvatarPreview(null);
+      setImageToCrop(null);
+      setShowCropper(false);
+      setCurrentPlace(null);
       onSuccess();
       onClose();
     };
@@ -235,7 +327,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         <div className="fixed inset-0 z-[9999]">
           <div 
             className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-            onClick={onClose}
+            onClick={handleCloseSuccess}
           />
 
           <div
@@ -268,7 +360,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       <div className="fixed inset-0 z-[9999]">
         <div 
           className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-          onClick={onClose}
+          onClick={handleCloseSuccess}
         />
         
         <div className="relative min-h-screen flex items-center justify-center p-4">
@@ -337,8 +429,100 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         </div>
       </div>
 
+      {(!useWizard || wizardStep === 1) && (
+        <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50/50 p-4">
+          <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
+            <User className="h-4 w-4 shrink-0" aria-hidden />
+            Profile (optional)
+          </p>
+          <div>
+            <Label htmlFor="create_user_bio">Bio</Label>
+            <Textarea
+              id="create_user_bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX_LENGTH))}
+              rows={3}
+              placeholder="Short bio"
+              className="resize-y"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {bio.length}/{BIO_MAX_LENGTH}
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="create_user_phone">Phone</Label>
+            <Input
+              id="create_user_phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="(555) 000-0000"
+            />
+          </div>
+          <div className="space-y-1">
+            <LocationPicker
+              label="Location (optional)"
+              fieldId="create_user_location"
+              country="us"
+              suggestionsPortalRef={spaceTypeSelectPortalRef}
+              value={currentPlace}
+              onChange={setCurrentPlace}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
+              Same Mapbox search and confirm flow as profile edit (US).
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Profile photo</Label>
+            {!avatarPreview ? (
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/gif"
+                className="cursor-pointer text-sm"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  if (!f.type.startsWith('image/')) {
+                    alert('Please choose a JPEG, PNG, or GIF image.');
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setImageToCrop(reader.result as string);
+                    setShowCropper(true);
+                  };
+                  reader.readAsDataURL(f);
+                  e.target.value = '';
+                }}
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                <img
+                  src={avatarPreview}
+                  alt=""
+                  className="h-14 w-14 rounded-full border border-gray-200 object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAvatarPreview(null);
+                    setAvatarDataUrl(null);
+                  }}
+                >
+                  Remove photo
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">Square crop — same tool as profile edit.</p>
+          </div>
+        </div>
+      )}
+
       {/* Chapter / space — chapter admins: fixed. Developers: optional space unless Space Icon or governance. */}
-      {chapterContext ? (
+      {showSpaceSection && (chapterContext ? (
         <div>
           <Label htmlFor="chapter">Chapter *</Label>
           <Input
@@ -520,7 +704,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
             ))}
           </Select>
         </div>
-      )}
+      ))}
 
       {isDeveloper && chapterContext ? (
         <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50/90 p-3">
@@ -545,7 +729,155 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         </div>
       ) : null}
 
+      {showSpaceSection && isDeveloper && formData.setAsSpaceIcon && (
+        <div className="space-y-3 rounded-md border border-dashed border-gray-300 bg-white/80 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-gray-900">Additional Space Icon memberships</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() =>
+                setExtraIconRows((prev) => [
+                  ...prev,
+                  { id: crypto.randomUUID(), kind: 'existing', spaceId: '', label: '' },
+                ])
+              }
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Add space
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Home space (above) stays primary. Each row adds this user as Space Icon on another space (existing UUID or
+            new shell). Duplicates with home are skipped on the server.
+          </p>
+          {extraIconRows.length === 0 ? (
+            <p className="text-xs text-gray-500">None — optional.</p>
+          ) : (
+            <div className="space-y-3">
+              {extraIconRows.map((row, idx) => (
+                <div
+                  key={row.id}
+                  className="space-y-2 rounded-md border border-gray-200 bg-gray-50/80 p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-gray-600">Extra icon #{idx + 1}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1 text-destructive"
+                      onClick={() =>
+                        setExtraIconRows((prev) => prev.filter((r) => r.id !== row.id))
+                      }
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      Remove
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={row.kind === 'existing' ? 'default' : 'outline'}
+                      onClick={() =>
+                        setExtraIconRows((prev) =>
+                          prev.map((r) =>
+                            r.id === row.id ? { ...r, kind: 'existing', spaceId: '', label: '' } : r
+                          )
+                        )
+                      }
+                    >
+                      Existing space
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={row.kind === 'new' ? 'default' : 'outline'}
+                      onClick={() =>
+                        setExtraIconRows((prev) =>
+                          prev.map((r) =>
+                            r.id === row.id ? { ...r, kind: 'new', name: '', category: '' } : r
+                          )
+                        )
+                      }
+                    >
+                      New space
+                    </Button>
+                  </div>
+                  {row.kind === 'existing' ? (
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`extra-icon-space-${row.id}`}>Search space</Label>
+                      <DeveloperSpaceSelectCombobox
+                        id={`extra-icon-space-${row.id}`}
+                        value={row.spaceId}
+                        selectedLabel={row.label}
+                        onValueChange={(spaceId, spaceName) => {
+                          setExtraIconRows((prev) =>
+                            prev.map((r) =>
+                              r.id === row.id && r.kind === 'existing'
+                                ? { ...r, spaceId, label: spaceName }
+                                : r
+                            )
+                          );
+                        }}
+                        disabled={loading}
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div>
+                        <Label htmlFor={`extra-new-name-${row.id}`}>New space name *</Label>
+                        <Input
+                          id={`extra-new-name-${row.id}`}
+                          value={row.name}
+                          onChange={(e) =>
+                            setExtraIconRows((prev) =>
+                              prev.map((r) =>
+                                r.id === row.id && r.kind === 'new'
+                                  ? { ...r, name: e.target.value }
+                                  : r
+                              )
+                            )
+                          }
+                          placeholder="Display name"
+                          disabled={loading}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Organization type (optional)</Label>
+                        <SearchableSelect
+                          value={row.category}
+                          onValueChange={(v) =>
+                            setExtraIconRows((prev) =>
+                              prev.map((r) =>
+                                r.id === row.id && r.kind === 'new' ? { ...r, category: v } : r
+                              )
+                            )
+                          }
+                          options={SPACE_TYPE_SEARCHABLE_OPTIONS}
+                          placeholder="Select or type…"
+                          searchPlaceholder="Search types…"
+                          allowCustom
+                          customMaxLength={200}
+                          disabled={loading}
+                          portalContainerRef={spaceTypeSelectPortalRef}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Role and Chapter Role - Stack on mobile, side-by-side on desktop */}
+      {(!useWizard || wizardStep === 1) && (
+      <>
       <div className={cn(
         "gap-4",
         isMobile ? "space-y-4" : "grid grid-cols-2"
@@ -673,15 +1005,46 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           )}
         </div>
       )}
+      </>
+      )}
     </>
   );
+
+  const resetWizardLocalState = () => {
+    setWizardStep(1);
+    setExtraIconRows([]);
+    setBio('');
+    setPhone('');
+    setCurrentPlace(null);
+    setAvatarDataUrl(null);
+    setAvatarPreview(null);
+    setImageToCrop(null);
+    setShowCropper(false);
+  };
+
+  const handleCancel = () => {
+    resetWizardLocalState();
+    onClose();
+  };
+
+  const handleAvatarCropComplete = (croppedBlob: Blob) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result as string;
+      setAvatarDataUrl(url);
+      setAvatarPreview(url);
+      setShowCropper(false);
+      setImageToCrop(null);
+    };
+    reader.readAsDataURL(croppedBlob);
+  };
 
   const actionButtons = (
     <>
       <Button
         type="button"
         variant="outline"
-        onClick={onClose}
+        onClick={handleCancel}
         className={cn(
           isMobile ? 'flex-1' : 'rounded-full',
           isMobile &&
@@ -691,122 +1054,181 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       >
         Cancel
       </Button>
-      <Button
-        type="submit"
-        className={cn(
-          isMobile ? 'flex-1' : 'rounded-full',
-          isMobile &&
-            'rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover shadow-lg shadow-navy-100/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
-        )}
-        disabled={loading}
-      >
-        {loading ? (
-          <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            <span>Creating...</span>
-          </div>
-        ) : (
-          'Create User'
-        )}
-      </Button>
+      {useWizard && wizardStep === 2 && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setWizardStep(1)}
+          disabled={loading}
+          className={cn(isMobile ? 'flex-1' : 'rounded-full')}
+        >
+          Back
+        </Button>
+      )}
+      {useWizard && wizardStep === 1 ? (
+        <Button
+          type="button"
+          onClick={goToSpaceStep}
+          className={cn(
+            isMobile ? 'flex-1' : 'rounded-full',
+            isMobile &&
+              'rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover shadow-lg shadow-navy-100/20 transition-all duration-300'
+          )}
+        >
+          Next: home space and icon
+        </Button>
+      ) : (
+        <Button
+          type="submit"
+          className={cn(
+            isMobile ? 'flex-1' : 'rounded-full',
+            isMobile &&
+              'rounded-full bg-brand-primary text-white hover:bg-brand-primary-hover shadow-lg shadow-navy-100/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+          disabled={loading}
+        >
+          {loading ? (
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <span>Creating...</span>
+            </div>
+          ) : (
+            'Create User'
+          )}
+        </Button>
+      )}
     </>
   );
 
+  const cropperOverlay =
+    imageToCrop && showCropper ? (
+      <ImageCropper
+        imageSrc={imageToCrop}
+        isOpen={showCropper}
+        onClose={() => {
+          setShowCropper(false);
+          setImageToCrop(null);
+        }}
+        onCropComplete={handleAvatarCropComplete}
+        cropType="avatar"
+        elevatedZIndex
+      />
+    ) : null;
+
   // Main form - Mobile: Bottom drawer with fixed header/footer, Desktop: Centered modal
   if (isMobile) {
-    return typeof window !== 'undefined' && createPortal(
-      <div className="fixed inset-0 z-[9999]">
-        <div 
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-          onClick={onClose}
-        />
+    return typeof window !== 'undefined' ? (
+      <>
+        {createPortal(
+          <div className="fixed inset-0 z-[9999]">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={handleCancel}
+            />
 
-        <div
-          ref={spaceTypeSelectPortalRef}
-          className="fixed bottom-0 left-0 right-0 z-10 flex max-h-[85dvh] min-h-0 flex-col rounded-t-2xl bg-white shadow-xl"
-          style={
-            maxHeightPx !== undefined || bottomPx !== undefined
-              ? {
-                  ...(maxHeightPx !== undefined && { maxHeight: `${maxHeightPx}px` }),
-                  ...(bottomPx !== undefined && { bottom: `${bottomPx}px` }),
-                }
-              : undefined
-          }
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Fixed Header */}
-          <div className="flex-shrink-0 border-b border-gray-200 px-4 py-4 rounded-t-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold leading-none tracking-tight">Create New User</h3>
-              <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+            <div
+              ref={spaceTypeSelectPortalRef}
+              className="fixed bottom-0 left-0 right-0 z-10 flex max-h-[85dvh] min-h-0 flex-col rounded-t-2xl bg-white shadow-xl"
+              style={
+                maxHeightPx !== undefined || bottomPx !== undefined
+                  ? {
+                      ...(maxHeightPx !== undefined && { maxHeight: `${maxHeightPx}px` }),
+                      ...(bottomPx !== undefined && { bottom: `${bottomPx}px` }),
+                    }
+                  : undefined
+              }
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 border-b border-gray-200 px-4 py-4 rounded-t-2xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold leading-none tracking-tight">Create New User</h3>
+                    {useWizard ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Step {wizardStep} of 2 — {wizardStep === 1 ? 'Identity & access' : 'Home space & icon'}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleCancel} className="h-8 w-8 p-0">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
 
-          <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-            {/* Scrollable Body */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
-              <div className="space-y-4">{formFields}</div>
-            </div>
+              <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleFormSubmit}>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                  <div className="space-y-4">{formFields}</div>
+                </div>
 
-            {/* Fixed Footer */}
-            <div className="flex flex-shrink-0 space-x-2 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
-              {actionButtons}
+                <div className="flex flex-shrink-0 space-x-2 border-t border-gray-200 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+                  {actionButtons}
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
-      </div>,
-      document.body
-    );
+          </div>,
+          document.body
+        )}
+        {cropperOverlay}
+      </>
+    ) : null;
   }
 
-  // Desktop: fixed header + scrollable body + fixed footer (matches Edit space / Create space modals)
-  return typeof window !== 'undefined' && createPortal(
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div ref={spaceTypeSelectPortalRef} className="relative z-[10000] w-full max-w-2xl">
-        <Card
-          className="relative flex w-full max-h-[min(90vh,820px)] min-h-0 flex-col overflow-hidden rounded-xl shadow-xl"
-          onMouseDown={(e) => e.stopPropagation()}
+  return typeof window !== 'undefined' ? (
+    <>
+      {createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) handleCancel();
+          }}
         >
-          <CardHeader className="shrink-0 border-b border-gray-200 bg-white pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-lg font-semibold">Create New User</CardTitle>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="h-8 w-8 shrink-0 p-0 hover:bg-gray-100"
-                aria-label="Close"
+          <div ref={spaceTypeSelectPortalRef} className="relative z-[10000] w-full max-w-2xl">
+            <Card
+              className="relative flex w-full max-h-[min(90vh,820px)] min-h-0 flex-col overflow-hidden rounded-xl shadow-xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <CardHeader className="shrink-0 border-b border-gray-200 bg-white pb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-lg font-semibold">Create New User</CardTitle>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancel}
+                    className="h-8 w-8 shrink-0 p-0 hover:bg-gray-100"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {useWizard ? (
+                  <p className="mt-2 text-sm text-gray-500">
+                    Step {wizardStep} of 2 — {wizardStep === 1 ? 'Identity & access' : 'Home space & icon'}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-500">Only the middle section scrolls.</p>
+                )}
+              </CardHeader>
+
+              <form
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                onSubmit={handleFormSubmit}
               >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="mt-2 text-sm text-gray-500">Only the middle section scrolls.</p>
-          </CardHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                  <div className="space-y-4">{formFields}</div>
+                </div>
 
-          <form
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
-            onSubmit={handleSubmit}
-          >
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-              <div className="space-y-4">{formFields}</div>
-            </div>
-
-            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/95 px-6 py-4">
-              {actionButtons}
-            </div>
-          </form>
-        </Card>
-      </div>
-    </div>,
-    document.body
-  );
+                <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 bg-gray-50/95 px-6 py-4">
+                  {actionButtons}
+                </div>
+              </form>
+            </Card>
+          </div>
+        </div>,
+        document.body
+      )}
+      {cropperOverlay}
+    </>
+  ) : null;
 }
