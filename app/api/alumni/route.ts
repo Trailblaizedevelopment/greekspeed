@@ -67,6 +67,47 @@ const getChapterId = async (supabase: any, chapterIdentifier: string): Promise<s
   return data?.id || null;
 };
 
+/** Users tied to a space via membership or legacy primary `profiles.chapter_id` (for alumni pipeline scope). */
+async function getUserIdsLinkedToSpace(supabase: any, spaceId: string): Promise<string[]> {
+  const ids = new Set<string>();
+
+  const { data: mem } = await supabase
+    .from('space_memberships')
+    .select('user_id')
+    .eq('space_id', spaceId)
+    .neq('status', 'inactive');
+
+  for (const m of mem || []) {
+    if (typeof m?.user_id === 'string' && m.user_id.length > 0) ids.add(m.user_id);
+  }
+
+  const { data: prof } = await supabase.from('profiles').select('id').eq('chapter_id', spaceId);
+
+  for (const p of prof || []) {
+    if (typeof p?.id === 'string' && p.id.length > 0) ids.add(p.id);
+  }
+
+  return Array.from(ids);
+}
+
+const ALUMNI_SCOPE_USER_ID_IN_CHUNK = 200;
+
+/**
+ * PostgREST `or()` argument: match legacy `alumni.chapter` text OR any `user_id` linked to the space.
+ * Chunk `user_id.in.(...)` to stay within practical URL/body limits.
+ */
+function buildAlumniChapterScopeOrFilter(chapterDisplayName: string, memberUserIds: string[]): string {
+  const escaped = chapterDisplayName.replace(/"/g, '""');
+  const parts: string[] = [`chapter.eq."${escaped}"`];
+  for (let i = 0; i < memberUserIds.length; i += ALUMNI_SCOPE_USER_ID_IN_CHUNK) {
+    const chunk = memberUserIds.slice(i, i + ALUMNI_SCOPE_USER_ID_IN_CHUNK);
+    if (chunk.length > 0) {
+      parts.push(`user_id.in.(${chunk.join(',')})`);
+    }
+  }
+  return parts.join(',');
+}
+
 /**
  * Helper function to validate field values (same as client-side)
  * Returns false for empty strings and invalid placeholder values
@@ -372,8 +413,8 @@ export async function GET(request: NextRequest) {
     const userChapterParam = searchParams.get('userChapter') || ''
     const chapterIdParam = searchParams.get('chapter_id') || '' // Developer "view as" support
 
-    // Resolve chapter: if developer sent a chapter_id UUID, look up the chapter name
-    // (the alumni table uses `chapter` name column, not chapter_id)
+    // Resolve chapter: if caller sent chapter_id UUID, look up display name for legacy `alumni.chapter` text match.
+    // Pipeline scope also includes users linked via `space_memberships` / `profiles.chapter_id` (see getUserIdsLinkedToSpace).
     let userChapter = userChapterParam;
 
     if (!userChapter && chapterIdParam) {
@@ -422,17 +463,20 @@ export async function GET(request: NextRequest) {
     if (userChapter) {
       const chapterId = await getChapterId(supabase, userChapter);
       if (chapterId) {
-        let chapterNameQuery = supabase
+        const memberUserIds = await getUserIdsLinkedToSpace(supabase, chapterId);
+
+        let chapterScopedQuery = supabase
           .from('alumni')
-          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
-          .eq('chapter', userChapter);
-        
-        let chapterIdQuery = supabase
-          .from('alumni')
-          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
-          .eq('chapter', userChapter);
-        
-        // Apply all other filters to both queries
+          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' });
+
+        if (memberUserIds.length > 0) {
+          chapterScopedQuery = chapterScopedQuery.or(
+            buildAlumniChapterScopeOrFilter(userChapter, memberUserIds)
+          );
+        } else {
+          chapterScopedQuery = chapterScopedQuery.eq('chapter', userChapter);
+        }
+
         if (search) {
           const searchTerm = search.toLowerCase().trim()
           const searchTerms = searchTerm.split(/\s+/)
@@ -440,81 +484,55 @@ export async function GET(request: NextRequest) {
             `full_name.ilike.%${term}%,company.ilike.%${term}%,job_title.ilike.%${term}%,industry.ilike.%${term}%,chapter.ilike.%${term}%`
           ).join(',')
           
-          chapterNameQuery = chapterNameQuery.or(searchConditions);
-          chapterIdQuery = chapterIdQuery.or(searchConditions);
+          chapterScopedQuery = chapterScopedQuery.or(searchConditions);
         }
         
         if (industry) {
           const normalizedFilterIndustry = normalizeIndustry(industry);
           if (normalizedFilterIndustry) {
-            chapterNameQuery = chapterNameQuery.ilike('industry', `%${normalizedFilterIndustry}%`);
-            chapterIdQuery = chapterIdQuery.ilike('industry', `%${normalizedFilterIndustry}%`);
+            chapterScopedQuery = chapterScopedQuery.ilike('industry', `%${normalizedFilterIndustry}%`);
           } else {
-            chapterNameQuery = chapterNameQuery.ilike('industry', `%${industry}%`);
-            chapterIdQuery = chapterIdQuery.ilike('industry', `%${industry}%`);
+            chapterScopedQuery = chapterScopedQuery.ilike('industry', `%${industry}%`);
           }
         }
         
         if (state) {
           const workStateCode = state.trim().toUpperCase();
           if (getStateNameByCode(workStateCode)) {
-            chapterNameQuery = chapterNameQuery.eq('work_state_code', workStateCode);
-            chapterIdQuery = chapterIdQuery.eq('work_state_code', workStateCode);
+            chapterScopedQuery = chapterScopedQuery.eq('work_state_code', workStateCode);
           }
         }
 
         if (hometownFilterActive) {
           const homeOr = buildProfileHometownStateOrFilter(hometownState);
-          chapterNameQuery = chapterNameQuery.or(homeOr);
-          chapterIdQuery = chapterIdQuery.or(homeOr);
+          chapterScopedQuery = chapterScopedQuery.or(homeOr);
         }
 
         if (graduationYear && graduationYear !== 'All Years') {
           if (graduationYear === 'older') {
-            chapterNameQuery = chapterNameQuery.lte('graduation_year', 2019);
-            chapterIdQuery = chapterIdQuery.lte('graduation_year', 2019);
+            chapterScopedQuery = chapterScopedQuery.lte('graduation_year', 2019);
           } else {
-            chapterNameQuery = chapterNameQuery.eq('graduation_year', parseInt(graduationYear));
-            chapterIdQuery = chapterIdQuery.eq('graduation_year', parseInt(graduationYear));
+            chapterScopedQuery = chapterScopedQuery.eq('graduation_year', parseInt(graduationYear));
           }
         }
         
         if (activelyHiring) {
-          chapterNameQuery = chapterNameQuery.eq('is_actively_hiring', true);
-          chapterIdQuery = chapterIdQuery.eq('is_actively_hiring', true);
+          chapterScopedQuery = chapterScopedQuery.eq('is_actively_hiring', true);
         }
         
         const from = (page - 1) * limit;
         const to = from + limit - 1;
 
-        chapterNameQuery = chapterNameQuery
-          .order('completeness_score', { ascending: false })
-          .order('created_at', { ascending: false })
-          .range(from, to);
-        chapterIdQuery = chapterIdQuery
+        chapterScopedQuery = chapterScopedQuery
           .order('completeness_score', { ascending: false })
           .order('created_at', { ascending: false })
           .range(from, to);
         
-        // Execute both queries and combine results (fetch ALL matching records)
-        const [chapterNameResult, chapterIdResult] = await Promise.all([
-          chapterNameQuery,
-          chapterIdQuery
-        ]);
+        const chapterScopedResult = await chapterScopedQuery;
         
-        // Combine and deduplicate results
-        const combinedResults = [
-          ...(chapterNameResult.data || []),
-          ...(chapterIdResult.data || [])
-        ];
+        const uniqueResults = chapterScopedResult.data || [];
         
-        // Remove duplicates based on id
-        const uniqueResults = combinedResults.filter((alumni, index, self) => 
-          index === self.findIndex(a => a.id === alumni.id)
-        );
-        
-        // Calculate total count
-        const totalCount = Math.max(chapterNameResult.count || 0, chapterIdResult.count || 0);
+        const totalCount = chapterScopedResult.count ?? 0;
         
         // Calculate mutual connections for all alumni if viewer is logged in
         let mutualConnectionsMap = new Map<string, Array<{ id: string; name: string; avatar: string | null }>>();
@@ -640,18 +658,20 @@ export async function GET(request: NextRequest) {
     } else if (chapter) {
       const chapterId = await getChapterId(supabase, chapter);
       if (chapterId) {
-        // Similar logic for selected chapter filter
-        let chapterNameQuery = supabase
+        const memberUserIds = await getUserIdsLinkedToSpace(supabase, chapterId);
+
+        let chapterScopedQuery = supabase
           .from('alumni')
-          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
-          .eq('chapter', chapter);
-        
-        let chapterIdQuery = supabase
-          .from('alumni')
-          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' })
-          .eq('chapter', chapter);
-        
-        // Apply all other filters to both queries (same logic as above)
+          .select(alumniListSelect(hometownFilterActive, false), { count: 'exact' });
+
+        if (memberUserIds.length > 0) {
+          chapterScopedQuery = chapterScopedQuery.or(
+            buildAlumniChapterScopeOrFilter(chapter, memberUserIds)
+          );
+        } else {
+          chapterScopedQuery = chapterScopedQuery.eq('chapter', chapter);
+        }
+
         if (search) {
           const searchTerm = search.toLowerCase().trim()
           const searchTerms = searchTerm.split(/\s+/)
@@ -659,78 +679,55 @@ export async function GET(request: NextRequest) {
             `full_name.ilike.%${term}%,company.ilike.%${term}%,job_title.ilike.%${term}%,industry.ilike.%${term}%,chapter.ilike.%${term}%`
           ).join(',')
           
-          chapterNameQuery = chapterNameQuery.or(searchConditions);
-          chapterIdQuery = chapterIdQuery.or(searchConditions);
+          chapterScopedQuery = chapterScopedQuery.or(searchConditions);
         }
         
         if (industry) {
           const normalizedFilterIndustry = normalizeIndustry(industry);
           if (normalizedFilterIndustry) {
-            chapterNameQuery = chapterNameQuery.ilike('industry', `%${normalizedFilterIndustry}%`);
-            chapterIdQuery = chapterIdQuery.ilike('industry', `%${normalizedFilterIndustry}%`);
+            chapterScopedQuery = chapterScopedQuery.ilike('industry', `%${normalizedFilterIndustry}%`);
           } else {
-            chapterNameQuery = chapterNameQuery.ilike('industry', `%${industry}%`);
-            chapterIdQuery = chapterIdQuery.ilike('industry', `%${industry}%`);
+            chapterScopedQuery = chapterScopedQuery.ilike('industry', `%${industry}%`);
           }
         }
         
         if (state) {
           const workStateCode = state.trim().toUpperCase();
           if (getStateNameByCode(workStateCode)) {
-            chapterNameQuery = chapterNameQuery.eq('work_state_code', workStateCode);
-            chapterIdQuery = chapterIdQuery.eq('work_state_code', workStateCode);
+            chapterScopedQuery = chapterScopedQuery.eq('work_state_code', workStateCode);
           }
         }
 
         if (hometownFilterActive) {
           const homeOr = buildProfileHometownStateOrFilter(hometownState);
-          chapterNameQuery = chapterNameQuery.or(homeOr);
-          chapterIdQuery = chapterIdQuery.or(homeOr);
+          chapterScopedQuery = chapterScopedQuery.or(homeOr);
         }
 
         if (graduationYear && graduationYear !== 'All Years') {
           if (graduationYear === 'older') {
-            chapterNameQuery = chapterNameQuery.lte('graduation_year', 2019);
-            chapterIdQuery = chapterIdQuery.lte('graduation_year', 2019);
+            chapterScopedQuery = chapterScopedQuery.lte('graduation_year', 2019);
           } else {
-            chapterNameQuery = chapterNameQuery.eq('graduation_year', parseInt(graduationYear));
-            chapterIdQuery = chapterIdQuery.eq('graduation_year', parseInt(graduationYear));
+            chapterScopedQuery = chapterScopedQuery.eq('graduation_year', parseInt(graduationYear));
           }
         }
         
         if (activelyHiring) {
-          chapterNameQuery = chapterNameQuery.eq('is_actively_hiring', true);
-          chapterIdQuery = chapterIdQuery.eq('is_actively_hiring', true);
+          chapterScopedQuery = chapterScopedQuery.eq('is_actively_hiring', true);
         }
         
-        // Apply pagination to both queries
         const from = (page - 1) * limit;
         const to = from + limit - 1;
         
-        chapterNameQuery = chapterNameQuery
-          .order('completeness_score', { ascending: false })
-          .order('created_at', { ascending: false })
-          .range(from, to);
-        chapterIdQuery = chapterIdQuery
+        chapterScopedQuery = chapterScopedQuery
           .order('completeness_score', { ascending: false })
           .order('created_at', { ascending: false })
           .range(from, to);
         
-        const [chapterNameResult, chapterIdResult] = await Promise.all([
-          chapterNameQuery,
-          chapterIdQuery
-        ]);
+        const chapterScopedResult = await chapterScopedQuery;
         
-        const combinedResults = [
-          ...(chapterNameResult.data || []),
-          ...(chapterIdResult.data || [])
-        ];
+        const uniqueResults = chapterScopedResult.data || [];
         
-        const uniqueResults = combinedResults.filter((alumni, index, self) => 
-          index === self.findIndex(a => a.id === alumni.id)
-        );
-        
-        const totalCount = Math.max(chapterNameResult.count || 0, chapterIdResult.count || 0);
+        const totalCount = chapterScopedResult.count ?? 0;
         
         // Transform data to match your interface with privacy checks
         const transformedAlumni = uniqueResults?.map(alumni => {
