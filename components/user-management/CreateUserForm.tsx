@@ -25,6 +25,10 @@ import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 import { LocationPicker } from '@/components/features/location/LocationPicker';
 import { formatUsPhoneInput, normalizeUsPhoneForStorage } from '@/lib/utils/formatUsPhone';
+import {
+  DeveloperReferenceSearchField,
+  type DeveloperReferenceSelection,
+} from '@/components/user-management/DeveloperReferenceSearchField';
 
 interface CreateUserFormProps {
   onClose: () => void;
@@ -40,10 +44,18 @@ interface CreateUserFormProps {
 
 type ExtraSpaceRow =
   | { id: string; kind: 'existing'; spaceId: string; label: string; asSpaceIcon: boolean }
-  | { id: string; kind: 'new'; name: string; category: string; asSpaceIcon: boolean };
+  | {
+      id: string;
+      kind: 'new';
+      name: string;
+      category: string;
+      asSpaceIcon: boolean;
+      schoolLink: DeveloperReferenceSelection | null;
+      orgLink: DeveloperReferenceSelection | null;
+    };
 
 export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper = false }: CreateUserFormProps) {
-  const { getAuthHeaders } = useAuth();
+  const { getAuthHeaders, session } = useAuth();
   /** Portals SearchableSelect inside this modal so dropdown/search stay usable (z-index + focus). */
   const spaceTypeSelectPortalRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
@@ -79,6 +91,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [extraSpaceRows, setExtraSpaceRows] = useState<ExtraSpaceRow[]>([]);
+  /** Optional directory links when quick-creating the home shell space (Space Icon → new). */
+  const [newShellSchoolLink, setNewShellSchoolLink] = useState<DeveloperReferenceSelection | null>(null);
+  const [newShellOrgLink, setNewShellOrgLink] = useState<DeveloperReferenceSelection | null>(null);
   const [currentPlace, setCurrentPlace] = useState<CanonicalPlaceConfirmed | null>(null);
   const wizardStepRef = useRef<1 | 2>(1);
   wizardStepRef.current = wizardStep;
@@ -186,10 +201,15 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
             return { space_id: row.spaceId.trim(), is_space_icon: row.asSpaceIcon };
           }
           const cat = normalizeSpaceTypeInput(row.category);
+          const school_id = row.schoolLink?.kind === 'school' ? row.schoolLink.id : undefined;
+          const national_organization_id =
+            row.orgLink?.kind === 'national_organization' ? row.orgLink.id : undefined;
           return {
             new_space: {
               name: row.name.trim(),
               ...(cat ? { category: cat } : {}),
+              ...(school_id ? { school_id } : {}),
+              ...(national_organization_id ? { national_organization_id } : {}),
             },
             is_space_icon: row.asSpaceIcon,
           };
@@ -217,9 +237,14 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       if (isDeveloper && formData.setAsSpaceIcon && formData.spaceIconAttachMode === 'new') {
         body.chapter = null;
         const categoryNorm = normalizeSpaceTypeInput(formData.newSpaceCategory);
+        const shellSchoolId = newShellSchoolLink?.kind === 'school' ? newShellSchoolLink.id : undefined;
+        const shellOrgId =
+          newShellOrgLink?.kind === 'national_organization' ? newShellOrgLink.id : undefined;
         body.newSpace = {
           name: formData.newSpaceName.trim(),
           ...(categoryNorm ? { category: categoryNorm } : {}),
+          ...(shellSchoolId ? { school_id: shellSchoolId } : {}),
+          ...(shellOrgId ? { national_organization_id: shellOrgId } : {}),
         };
       } else {
         body.chapter = formData.chapter?.trim() || null;
@@ -252,6 +277,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setSuccess(true);
       setWizardStep(1);
       setExtraSpaceRows([]);
+      setNewShellSchoolLink(null);
+      setNewShellOrgLink(null);
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -323,6 +350,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setSuccess(false);
       setWizardStep(1);
       setExtraSpaceRows([]);
+      setNewShellSchoolLink(null);
+      setNewShellOrgLink(null);
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -556,6 +585,10 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                 checked={formData.setAsSpaceIcon}
                 onCheckedChange={(checked) => {
                   const on = Boolean(checked);
+                  if (!on) {
+                    setNewShellSchoolLink(null);
+                    setNewShellOrgLink(null);
+                  }
                   setFormData((prev) => ({
                     ...prev,
                     setAsSpaceIcon: on,
@@ -588,6 +621,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                   variant={formData.spaceIconAttachMode === 'existing' ? 'default' : 'outline'}
                   className="rounded-full"
                   onClick={() => {
+                    setNewShellSchoolLink(null);
+                    setNewShellOrgLink(null);
                     setFormData((prev) => ({ ...prev, spaceIconAttachMode: 'existing' }));
                   }}
                 >
@@ -657,6 +692,28 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       Same taxonomy as Create space — preset slug on the row, or your own label. Used when the shell
                       space is created.
                     </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <DeveloperReferenceSearchField
+                      label="School (optional)"
+                      labelHint="Links the new shell space to a directory school record (school_id)."
+                      kind="schools"
+                      accessToken={session?.access_token}
+                      value={newShellSchoolLink?.kind === 'school' ? newShellSchoolLink : null}
+                      onChange={(next) => setNewShellSchoolLink(next?.kind === 'school' ? next : null)}
+                      disabled={loading}
+                    />
+                    <DeveloperReferenceSearchField
+                      label="National organization (optional)"
+                      labelHint="Links the new shell space to a directory national org (national_organization_id)."
+                      kind="national-organizations"
+                      accessToken={session?.access_token}
+                      value={newShellOrgLink?.kind === 'national_organization' ? newShellOrgLink : null}
+                      onChange={(next) =>
+                        setNewShellOrgLink(next?.kind === 'national_organization' ? next : null)
+                      }
+                      disabled={loading}
+                    />
                   </div>
                 </div>
               )}
@@ -807,7 +864,13 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                         setExtraSpaceRows((prev) =>
                           prev.map((r) =>
                             r.id === row.id
-                              ? { ...r, kind: 'existing', spaceId: '', label: '', asSpaceIcon: false }
+                              ? {
+                                  id: r.id,
+                                  kind: 'existing',
+                                  spaceId: '',
+                                  label: '',
+                                  asSpaceIcon: false,
+                                }
                               : r
                           )
                         )
@@ -823,7 +886,15 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                         setExtraSpaceRows((prev) =>
                           prev.map((r) =>
                             r.id === row.id
-                              ? { ...r, kind: 'new', name: '', category: '', asSpaceIcon: false }
+                              ? {
+                                  id: r.id,
+                                  kind: 'new',
+                                  name: '',
+                                  category: '',
+                                  asSpaceIcon: false,
+                                  schoolLink: null,
+                                  orgLink: null,
+                                }
                               : r
                           )
                         )
@@ -889,6 +960,42 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                           customMaxLength={200}
                           disabled={loading}
                           portalContainerRef={spaceTypeSelectPortalRef}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <DeveloperReferenceSearchField
+                          label="School (optional)"
+                          labelHint="Optional school_id on the new shell space."
+                          kind="schools"
+                          accessToken={session?.access_token}
+                          value={row.schoolLink?.kind === 'school' ? row.schoolLink : null}
+                          onChange={(next) =>
+                            setExtraSpaceRows((prev) =>
+                              prev.map((r) =>
+                                r.id === row.id && r.kind === 'new'
+                                  ? { ...r, schoolLink: next?.kind === 'school' ? next : null }
+                                  : r
+                              )
+                            )
+                          }
+                          disabled={loading}
+                        />
+                        <DeveloperReferenceSearchField
+                          label="National organization (optional)"
+                          labelHint="Optional national_organization_id on the new shell space."
+                          kind="national-organizations"
+                          accessToken={session?.access_token}
+                          value={row.orgLink?.kind === 'national_organization' ? row.orgLink : null}
+                          onChange={(next) =>
+                            setExtraSpaceRows((prev) =>
+                              prev.map((r) =>
+                                r.id === row.id && r.kind === 'new'
+                                  ? { ...r, orgLink: next?.kind === 'national_organization' ? next : null }
+                                  : r
+                              )
+                            )
+                          }
+                          disabled={loading}
                         />
                       </div>
                     </div>
@@ -1057,6 +1164,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const resetWizardLocalState = () => {
     setWizardStep(1);
     setExtraSpaceRows([]);
+    setNewShellSchoolLink(null);
+    setNewShellOrgLink(null);
     setBio('');
     setPhone('');
     setCurrentPlace(null);

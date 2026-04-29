@@ -91,11 +91,24 @@ function parseOptionalCurrentPlace(
   return { ok: true, place: parsed.data };
 }
 
+type NewSpacePayloadSlice = {
+  name: string;
+  category?: string;
+  school_id?: string;
+  national_organization_id?: string;
+};
+
 type AdditionalSpaceMembershipEntry = {
   space_id?: string;
-  new_space?: { name: string; category?: string };
+  new_space?: NewSpacePayloadSlice;
   is_space_icon: boolean;
 };
+
+function optionalUuidField(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const t = raw.trim();
+  return z.string().uuid().safeParse(t).success ? t : undefined;
+}
 
 function parseOneAdditionalMembershipItem(
   o: Record<string, unknown>,
@@ -112,7 +125,17 @@ function parseOneAdditionalMembershipItem(
     const name = typeof n.name === 'string' ? n.name.trim() : '';
     if (!name) return null;
     const category = typeof n.category === 'string' && n.category.trim() ? n.category.trim() : undefined;
-    return { new_space: { name, category }, is_space_icon };
+    const school_id = optionalUuidField(n.school_id);
+    const national_organization_id = optionalUuidField(n.national_organization_id);
+    return {
+      new_space: {
+        name,
+        category,
+        ...(school_id ? { school_id } : {}),
+        ...(national_organization_id ? { national_organization_id } : {}),
+      },
+      is_space_icon,
+    };
   }
   return null;
 }
@@ -221,7 +244,7 @@ export async function POST(request: NextRequest) {
 
     const trimmedChapter = typeof chapter === 'string' ? chapter.trim() : '';
     const newSpaceRaw = body.newSpace;
-    const newSpacePayload =
+    const newSpacePayload: NewSpacePayloadSlice | null =
       newSpaceRaw &&
       typeof newSpaceRaw === 'object' &&
       !Array.isArray(newSpaceRaw) &&
@@ -232,6 +255,15 @@ export async function POST(request: NextRequest) {
               typeof (newSpaceRaw as { category?: unknown }).category === 'string'
                 ? String((newSpaceRaw as { category: string }).category).trim() || undefined
                 : undefined,
+            ...(() => {
+              const r = newSpaceRaw as Record<string, unknown>;
+              const school_id = optionalUuidField(r.school_id);
+              const national_organization_id = optionalUuidField(r.national_organization_id);
+              return {
+                ...(school_id ? { school_id } : {}),
+                ...(national_organization_id ? { national_organization_id } : {}),
+              };
+            })(),
           }
         : null;
 
@@ -317,6 +349,8 @@ export async function POST(request: NextRequest) {
         rawName: newSpacePayload.name,
         category: newSpacePayload.category,
         source: 'api_developer_create_user',
+        school_id: newSpacePayload.school_id ?? null,
+        national_organization_id: newSpacePayload.national_organization_id ?? null,
       });
       if (!created.ok) {
         return NextResponse.json({ error: created.error }, { status: 400 });
@@ -562,6 +596,8 @@ export async function POST(request: NextRequest) {
             rawName: entry.new_space.name,
             category: entry.new_space.category,
             source: 'api_developer_create_user_additional_space',
+            school_id: entry.new_space.school_id ?? null,
+            national_organization_id: entry.new_space.national_organization_id ?? null,
           });
           if (!created.ok) {
             return NextResponse.json(
