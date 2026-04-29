@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
-import { VALID_FEATURE_FLAGS } from '@/types/featureFlags';
+import { DEFAULT_FEATURE_FLAGS, VALID_FEATURE_FLAGS } from '@/types/featureFlags';
 import type { ChapterFeatureFlags } from '@/types/featureFlags';
 import { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies';
 import { canManageChapterForContext } from '@/lib/permissions';
@@ -111,13 +111,9 @@ export async function GET(
       return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
     }
     
-    // Return flags (should already have defaults from database, but ensure it's never null)
+    const stored = (chapter.feature_flags ?? {}) as ChapterFeatureFlags;
     return NextResponse.json({
-      feature_flags: chapter.feature_flags || {
-        financial_tools_enabled: true,
-        recruitment_crm_enabled: true,
-        events_management_enabled: true,
-      }
+      feature_flags: { ...DEFAULT_FEATURE_FLAGS, ...stored },
     });
     
   } catch (error) {
@@ -217,13 +213,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update feature flags' }, { status: 500 });
     }
     
+    const returned = (updatedChapter.feature_flags ?? {}) as ChapterFeatureFlags;
     return NextResponse.json({
       success: true,
-      feature_flags: updatedChapter.feature_flags || {
-        financial_tools_enabled: true,
-        recruitment_crm_enabled: true,
-        events_management_enabled: true,
-      }
+      feature_flags: { ...DEFAULT_FEATURE_FLAGS, ...returned },
     });
     
   } catch (error) {

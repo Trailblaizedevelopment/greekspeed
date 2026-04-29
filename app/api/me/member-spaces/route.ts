@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
+import { fetchPrimaryLogoUrlByChapterIds } from '@/lib/services/chapterBrandingBatchService';
 import type { MemberSpace } from '@/types/spaceMembership';
 
 /**
@@ -98,16 +99,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const logoMap = await fetchPrimaryLogoUrlByChapterIds(
+      supabase,
+      memberSpaces.map((m) => m.id)
+    );
+    const spacesWithLogos: MemberSpace[] = memberSpaces.map((m) => ({
+      ...m,
+      primary_logo_url: logoMap.get(m.id) ?? null,
+    }));
+
     // Sort: primary first, then alphabetical
-    memberSpaces.sort((a, b) => {
+    spacesWithLogos.sort((a, b) => {
       if (a.is_primary && !b.is_primary) return -1;
       if (!a.is_primary && b.is_primary) return 1;
       return a.name.localeCompare(b.name);
     });
 
     return NextResponse.json({
-      spaces: memberSpaces,
-      has_multiple: memberSpaces.length > 1,
+      spaces: spacesWithLogos,
+      has_multiple: spacesWithLogos.length > 1,
     });
   } catch (error) {
     console.error('member-spaces API error:', error);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
+import { fetchPrimaryLogoUrlByChapterIds } from '@/lib/services/chapterBrandingBatchService';
 import { getManagedChapterIds } from '@/lib/services/governanceService';
 
 export async function GET(request: NextRequest) {
@@ -58,9 +59,15 @@ export async function GET(request: NextRequest) {
           ]
         : list;
 
+    const logoMap = await fetchPrimaryLogoUrlByChapterIds(supabase, chapterIds);
+    const chaptersWithLogos = sorted.map((c) => ({
+      ...c,
+      primary_logo_url: logoMap.get(c.id) ?? null,
+    }));
+
     return NextResponse.json({
       chapterIds,
-      chapters: sorted,
+      chapters: chaptersWithLogos,
     });
   } catch (error) {
     console.error('governance-chapters API error:', error);
