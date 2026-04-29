@@ -12,6 +12,7 @@ import {
 } from '@/lib/services/spaceMembershipService';
 import { findOrCreateSpaceFromSimulationLabel } from '@/lib/services/spaceFromSimulationService';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
+import { normalizeUsPhoneForStorage } from '@/lib/utils/formatUsPhone';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 import {
@@ -76,8 +77,7 @@ function sanitizeBio(raw: unknown): string | null {
 
 function sanitizePhone(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const t = raw.replace(/[^\d+\-\s().]/g, '').trim().slice(0, 32);
-  return t.length > 0 ? t : null;
+  return normalizeUsPhoneForStorage(raw);
 }
 
 function parseOptionalCurrentPlace(

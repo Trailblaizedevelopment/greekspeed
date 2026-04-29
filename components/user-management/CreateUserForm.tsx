@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { BIO_MAX_LENGTH } from '@/lib/constants/profileConstants';
 import type { CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 import { LocationPicker } from '@/components/features/location/LocationPicker';
+import { formatUsPhoneInput, normalizeUsPhoneForStorage } from '@/lib/utils/formatUsPhone';
 
 interface CreateUserFormProps {
   onClose: () => void;
@@ -186,6 +187,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         })
         .filter(Boolean);
 
+      const phoneStored = normalizeUsPhoneForStorage(phone);
+
       const body: Record<string, unknown> = {
         email: formData.email,
         firstName: formData.firstName,
@@ -194,7 +197,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         chapter_role: formData.chapter_role,
         is_developer: formData.is_developer,
         bio: bio.trim() || undefined,
-        phone: phone.trim() || undefined,
+        ...(phoneStored ? { phone: phoneStored } : {}),
         ...(currentPlace ? { current_place: currentPlace } : {}),
         ...(avatarDataUrl ? { avatar_data_url: avatarDataUrl } : {}),
         ...(additional_icon_memberships.length > 0
@@ -454,9 +457,12 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
             <Input
               id="create_user_phone"
               type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="(555) 000-0000"
+              onChange={(e) => setPhone(formatUsPhoneInput(e.target.value))}
+              placeholder="(850) 586-0162"
+              maxLength={14}
             />
           </div>
           <div className="space-y-1">
