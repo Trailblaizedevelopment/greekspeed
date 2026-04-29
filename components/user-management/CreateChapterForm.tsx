@@ -462,10 +462,10 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
 
           <div className="shrink-0 border-t border-gray-200 bg-gray-50/90 px-6 py-4">
             <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              <Button type="button" variant="outline" className="rounded-full" onClick={onClose} disabled={loading}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading} className="flex items-center gap-2">
+              <Button type="submit" disabled={loading} className="flex items-center gap-2 rounded-full">
                 {loading ? (
                   <>
                     <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
