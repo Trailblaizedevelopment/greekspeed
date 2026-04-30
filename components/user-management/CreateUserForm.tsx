@@ -98,6 +98,11 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const [newShellSchoolLink, setNewShellSchoolLink] = useState<DeveloperReferenceSelection | null>(null);
   const [newShellOrgLink, setNewShellOrgLink] = useState<DeveloperReferenceSelection | null>(null);
   const [newShellSpaceImageDataUrl, setNewShellSpaceImageDataUrl] = useState<string | null>(null);
+  const [spaceLogoCropSrc, setSpaceLogoCropSrc] = useState<string | null>(null);
+  const [showSpaceLogoCropper, setShowSpaceLogoCropper] = useState(false);
+  const pendingSpaceLogoCropTargetRef = useRef<
+    { kind: 'new_shell' } | { kind: 'extra_row'; rowId: string } | null
+  >(null);
   const [currentPlace, setCurrentPlace] = useState<CanonicalPlaceConfirmed | null>(null);
   const wizardStepRef = useRef<1 | 2>(1);
   wizardStepRef.current = wizardStep;
@@ -728,8 +733,8 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                   <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
                     <Label className="text-sm">Space image (optional)</Label>
                     <p className="text-xs text-muted-foreground">
-                      Primary logo for this space in chapter branding (JPEG, PNG, or GIF, max 5 MB). Applied when the
-                      shell is first created.
+                      Primary logo for this space (square 1:1 crop, JPEG, PNG, or GIF, max 5 MB). Applied when the shell
+                      is first created.
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <Input
@@ -746,7 +751,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                             alert(r.error);
                             return;
                           }
-                          setNewShellSpaceImageDataUrl(r.dataUrl);
+                          pendingSpaceLogoCropTargetRef.current = { kind: 'new_shell' };
+                          setSpaceLogoCropSrc(r.dataUrl);
+                          setShowSpaceLogoCropper(true);
                         }}
                       />
                       {newShellSpaceImageDataUrl ? (
@@ -1057,7 +1064,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
                         <Label className="text-sm">Space image (optional)</Label>
                         <p className="text-xs text-muted-foreground">
-                          Primary logo when this shell is first created (JPEG, PNG, or GIF, max 5 MB).
+                          Primary logo when this shell is first created (square 1:1 crop, JPEG, PNG, or GIF, max 5 MB).
                         </p>
                         <div className="flex flex-wrap items-center gap-3">
                           <Input
@@ -1074,13 +1081,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                                 alert(r.error);
                                 return;
                               }
-                              setExtraSpaceRows((prev) =>
-                                prev.map((x) =>
-                                  x.id === row.id && x.kind === 'new'
-                                    ? { ...x, spaceImageDataUrl: r.dataUrl }
-                                    : x
-                                )
-                              );
+                              pendingSpaceLogoCropTargetRef.current = { kind: 'extra_row', rowId: row.id };
+                              setSpaceLogoCropSrc(r.dataUrl);
+                              setShowSpaceLogoCropper(true);
                             }}
                           />
                           {row.kind === 'new' && row.spaceImageDataUrl ? (
@@ -1281,6 +1284,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     setNewShellSchoolLink(null);
     setNewShellOrgLink(null);
     setNewShellSpaceImageDataUrl(null);
+    pendingSpaceLogoCropTargetRef.current = null;
+    setSpaceLogoCropSrc(null);
+    setShowSpaceLogoCropper(false);
     setBio('');
     setPhone('');
     setCurrentPlace(null);
@@ -1303,6 +1309,33 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setAvatarPreview(url);
       setShowCropper(false);
       setImageToCrop(null);
+    };
+    reader.readAsDataURL(croppedBlob);
+  };
+
+  const handleSpaceLogoCropClose = () => {
+    pendingSpaceLogoCropTargetRef.current = null;
+    setShowSpaceLogoCropper(false);
+    setSpaceLogoCropSrc(null);
+  };
+
+  const handleSpaceLogoCropComplete = (croppedBlob: Blob) => {
+    const target = pendingSpaceLogoCropTargetRef.current;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result as string;
+      if (target?.kind === 'new_shell') {
+        setNewShellSpaceImageDataUrl(url);
+      } else if (target?.kind === 'extra_row') {
+        setExtraSpaceRows((prev) =>
+          prev.map((x) =>
+            x.id === target.rowId && x.kind === 'new' ? { ...x, spaceImageDataUrl: url } : x
+          )
+        );
+      }
+      pendingSpaceLogoCropTargetRef.current = null;
+      setShowSpaceLogoCropper(false);
+      setSpaceLogoCropSrc(null);
     };
     reader.readAsDataURL(croppedBlob);
   };
@@ -1383,6 +1416,18 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       />
     ) : null;
 
+  const spaceLogoCropperOverlay =
+    spaceLogoCropSrc && showSpaceLogoCropper ? (
+      <ImageCropper
+        imageSrc={spaceLogoCropSrc}
+        isOpen={showSpaceLogoCropper}
+        onClose={handleSpaceLogoCropClose}
+        onCropComplete={handleSpaceLogoCropComplete}
+        cropType="space_logo"
+        elevatedZIndex
+      />
+    ) : null;
+
   /** Wizard step 1 must not live inside `<form>`: Enter in inputs triggers implicit submit in some browsers. */
   const wrapBodyInForm = !useWizard || wizardStep === 2;
 
@@ -1452,6 +1497,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           document.body
         )}
         {cropperOverlay}
+        {spaceLogoCropperOverlay}
       </>
     ) : null;
   }
@@ -1524,6 +1570,7 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         document.body
       )}
       {cropperOverlay}
+      {spaceLogoCropperOverlay}
     </>
   ) : null;
 }

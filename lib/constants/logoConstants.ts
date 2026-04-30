@@ -23,3 +23,13 @@ export const LOGO_CONSTRAINTS = {
   CROP_AREA_MIN_WIDTH: 150,
   CROP_AREA_MIN_HEIGHT: 100,
 };
+
+/**
+ * 1:1 square crop for developer space images and developer-branding primary logo
+ * (matches chapter switcher tiles and object-contain headers).
+ */
+export const SPACE_LOGO_CROP_CONSTRAINTS = {
+  ASPECT_RATIO: 1,
+  RECOMMENDED_SIZE: 400,
+  CROP_AREA_MIN_SIZE: 100,
+} as const;

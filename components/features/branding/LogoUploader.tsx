@@ -7,8 +7,8 @@ import { Upload, X, Image as ImageIcon, Loader2, CheckCircle2, RotateCcw } from 
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { LogoCropper } from './LogoCropper';
-import { LOGO_CONSTRAINTS } from '@/lib/constants/logoConstants';
+import { LogoCropper, type LogoCropMode } from './LogoCropper';
+import { LOGO_CONSTRAINTS, SPACE_LOGO_CROP_CONSTRAINTS } from '@/lib/constants/logoConstants';
 
 interface LogoUploaderProps {
   /** Logo variant: 'primary' or 'secondary' */
@@ -25,6 +25,8 @@ interface LogoUploaderProps {
   defaultLogoUrl?: string | null;
   /** Additional className for styling */
   className?: string;
+  /** Raster images only: horizontal header logo vs square 1:1 (developer primary logo). SVG skips cropping. */
+  rasterCropMode?: LogoCropMode;
 }
 
 /**
@@ -41,6 +43,7 @@ export function LogoUploader({
   onRemove,
   defaultLogoUrl,
   className,
+  rasterCropMode = 'horizontal',
 }: LogoUploaderProps) {
   const { session } = useAuth();
   const [preview, setPreview] = useState<string | null>(currentLogoUrl || null);
@@ -453,8 +456,19 @@ export function LogoUploader({
 
       {/* Help Text */}
       <p className="text-xs text-gray-500">
-        Required: Horizontal logo (width &gt; height), dimensions {LOGO_CONSTRAINTS.RECOMMENDED_MIN_WIDTH}x{LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px to {LOGO_CONSTRAINTS.RECOMMENDED_MAX_WIDTH}x{LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px.
-        You'll be able to crop your logo after upload. SVG files are accepted without cropping.
+        {rasterCropMode === 'square' ? (
+          <>
+            Square 1:1 crop recommended ({SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE}px output). SVG files are
+            accepted without cropping.
+          </>
+        ) : (
+          <>
+            Required: Horizontal logo (width &gt; height), dimensions {LOGO_CONSTRAINTS.RECOMMENDED_MIN_WIDTH}x
+            {LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px to {LOGO_CONSTRAINTS.RECOMMENDED_MAX_WIDTH}x
+            {LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px. You&apos;ll be able to crop your logo after upload. SVG files are
+            accepted without cropping.
+          </>
+        )}
       </p>
 
       {/* Logo Cropper Modal */}
@@ -464,6 +478,7 @@ export function LogoUploader({
           isOpen={showCropper}
           onClose={handleCropperClose}
           onCropComplete={handleCropComplete}
+          cropMode={rasterCropMode}
         />
       )}
     </div>

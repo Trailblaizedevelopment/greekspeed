@@ -486,6 +486,7 @@ function DeveloperBrandingPageContent() {
                 chapterId={selectedChapterId}
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
+                primaryLogoRasterCropMode="square"
               />
             )}
           </div>
