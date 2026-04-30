@@ -98,6 +98,10 @@ type NewSpacePayloadSlice = {
   national_organization_id?: string;
   /** JPEG/PNG/GIF data URL for chapter primary logo (new shell rows only). */
   image_data_url?: string;
+  /** Denormalized / listing fields for `spaces` (optional). */
+  location?: string;
+  member_count?: number;
+  founded_year?: number;
 };
 
 type AdditionalSpaceMembershipEntry = {
@@ -120,6 +124,27 @@ function optionalSpaceImageDataUrl(raw: unknown): string | undefined {
   return t;
 }
 
+function optionalNonNegativeInt(raw: unknown, max: number): number | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(n)) return undefined;
+  const i = Math.floor(n);
+  if (i < 0 || i > max) return undefined;
+  return i;
+}
+
+function optionalFoundedYearField(raw: unknown): number | undefined {
+  const n = optionalNonNegativeInt(raw, 2100);
+  if (n === undefined || n < 1800) return undefined;
+  return n;
+}
+
+function optionalLocationLine(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const t = raw.trim().slice(0, 500);
+  return t.length > 0 ? t : undefined;
+}
+
 function parseOneAdditionalMembershipItem(
   o: Record<string, unknown>,
   defaultSpaceIcon: boolean
@@ -138,6 +163,9 @@ function parseOneAdditionalMembershipItem(
     const school_id = optionalUuidField(n.school_id);
     const national_organization_id = optionalUuidField(n.national_organization_id);
     const image_data_url = optionalSpaceImageDataUrl(n.image_data_url);
+    const member_count = optionalNonNegativeInt(n.member_count, 2_000_000);
+    const founded_year = optionalFoundedYearField(n.founded_year);
+    const location = optionalLocationLine(n.location);
     return {
       new_space: {
         name,
@@ -145,6 +173,9 @@ function parseOneAdditionalMembershipItem(
         ...(school_id ? { school_id } : {}),
         ...(national_organization_id ? { national_organization_id } : {}),
         ...(image_data_url ? { image_data_url } : {}),
+        ...(member_count !== undefined ? { member_count } : {}),
+        ...(founded_year !== undefined ? { founded_year } : {}),
+        ...(location ? { location } : {}),
       },
       is_space_icon,
     };
@@ -272,10 +303,16 @@ export async function POST(request: NextRequest) {
               const school_id = optionalUuidField(r.school_id);
               const national_organization_id = optionalUuidField(r.national_organization_id);
               const image_data_url = optionalSpaceImageDataUrl(r.image_data_url);
+              const member_count = optionalNonNegativeInt(r.member_count, 2_000_000);
+              const founded_year = optionalFoundedYearField(r.founded_year);
+              const location = optionalLocationLine(r.location);
               return {
                 ...(school_id ? { school_id } : {}),
                 ...(national_organization_id ? { national_organization_id } : {}),
                 ...(image_data_url ? { image_data_url } : {}),
+                ...(member_count !== undefined ? { member_count } : {}),
+                ...(founded_year !== undefined ? { founded_year } : {}),
+                ...(location ? { location } : {}),
               };
             })(),
           }
@@ -367,6 +404,9 @@ export async function POST(request: NextRequest) {
         national_organization_id: newSpacePayload.national_organization_id ?? null,
         initial_logo_data_url: newSpacePayload.image_data_url ?? null,
         branding_actor_user_id: user.id,
+        location: newSpacePayload.location ?? null,
+        member_count: newSpacePayload.member_count ?? null,
+        founded_year: newSpacePayload.founded_year ?? null,
       });
       if (!created.ok) {
         return NextResponse.json({ error: created.error }, { status: 400 });
@@ -616,6 +656,9 @@ export async function POST(request: NextRequest) {
             national_organization_id: entry.new_space.national_organization_id ?? null,
             initial_logo_data_url: entry.new_space.image_data_url ?? null,
             branding_actor_user_id: user.id,
+            location: entry.new_space.location ?? null,
+            member_count: entry.new_space.member_count ?? null,
+            founded_year: entry.new_space.founded_year ?? null,
           });
           if (!created.ok) {
             return NextResponse.json(
