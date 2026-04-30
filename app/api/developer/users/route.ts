@@ -384,16 +384,34 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const allowed = ['role', 'chapter_role', 'member_status', 'chapter_id'];
+    if (requestedRole === 'developer' && !isDeveloper) {
+      return NextResponse.json(
+        { error: 'Only developers can assign the developer platform role' },
+        { status: 403 }
+      );
+    }
+
+    const allowed = ['role', 'chapter_role', 'member_status', 'chapter_id', 'is_developer'];
     const update: Record<string, unknown> = {};
     for (const key of allowed) if (key in body) update[key] = body[key];
 
     const nextRole = update.role;
     if (
       typeof nextRole === 'string' &&
-      !['admin', 'active_member', 'alumni', 'governance'].includes(nextRole)
+      !['admin', 'active_member', 'alumni', 'governance', 'developer'].includes(nextRole)
     ) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+    }
+
+    if ('is_developer' in update && !isDeveloper) {
+      return NextResponse.json(
+        { error: 'Only developers can change the is_developer flag' },
+        { status: 403 }
+      );
+    }
+
+    if (nextRole === 'developer' && isDeveloper) {
+      update.is_developer = true;
     }
 
     if (typeof update.chapter_role === 'string') {

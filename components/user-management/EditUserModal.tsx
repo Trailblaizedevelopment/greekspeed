@@ -13,7 +13,15 @@ import { useChapters } from '@/lib/hooks/useChapters';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useAuth } from '@/lib/supabase/auth-context';
 
-type SystemRoleOption = 'admin' | 'active_member' | 'alumni' | 'governance';
+type SystemRoleOption = 'admin' | 'active_member' | 'alumni' | 'governance' | 'developer';
+
+const SYSTEM_ROLE_VALUES: readonly SystemRoleOption[] = [
+  'active_member',
+  'alumni',
+  'admin',
+  'governance',
+  'developer',
+] as const;
 
 type MembershipRoleInSpace = 'active_member' | 'alumni';
 
@@ -84,7 +92,9 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
 
   const applyUserPayload = useCallback((u: Record<string, unknown>) => {
     const r = (u?.role as string) || 'active_member';
-    setRole(['admin', 'active_member', 'alumni', 'governance'].includes(r) ? (r as SystemRoleOption) : 'active_member');
+    setRole(
+      SYSTEM_ROLE_VALUES.includes(r as SystemRoleOption) ? (r as SystemRoleOption) : 'active_member'
+    );
     setChapterRole((u?.chapter_role as string) || 'member');
     setGovernanceChapterIds(Array.isArray(u?.governance_chapter_ids) ? (u.governance_chapter_ids as string[]) : []);
 
@@ -201,6 +211,10 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
   };
 
   const handleSave = async () => {
+    if (!isDeveloper && (role === 'governance' || role === 'developer')) {
+      alert('Only developer accounts can assign Governance or Developer system roles.');
+      return;
+    }
     try {
       setSaving(true);
       const body: Record<string, unknown> = { role, chapter_role: chapterRole };
@@ -277,13 +291,17 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
                 onValueChange={(v: string) => setRole(v as SystemRoleOption)}
                 disabled={loadingUser}
               >
-                <SelectItem value="active_member">Active Member</SelectItem>
+                <SelectItem value="active_member">Active member</SelectItem>
                 <SelectItem value="alumni">Alumni</SelectItem>
-                <SelectItem value="admin">Admin / Executive</SelectItem>
-                {(isDeveloper || role === 'governance') && (
-                  <SelectItem value="governance">Governance</SelectItem>
-                )}
+                <SelectItem value="admin">Admin / Executive (chapter)</SelectItem>
+                <SelectItem value="governance">Governance</SelectItem>
+                <SelectItem value="developer">Developer (platform)</SelectItem>
               </Select>
+              {!isDeveloper && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
+                  Governance and Developer can only be saved by a logged-in developer account.
+                </p>
+              )}
             </div>
 
             {role === 'governance' && isDeveloper && (
