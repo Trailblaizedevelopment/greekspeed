@@ -380,7 +380,7 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
                   </div>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="outline"
                     className="rounded-full shrink-0"
                     disabled={!pendingSpaceId || addingSpace || loadingUser}
                     onClick={() => void handleAddSpaceMembership()}
