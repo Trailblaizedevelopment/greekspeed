@@ -6,6 +6,11 @@ import { z } from 'zod';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { cascadeDeleteUser } from '@/lib/services/userDeletionService';
 import { upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
+import {
+  SPACE_MEMBERSHIP_ROLE_OPTIONS,
+  membershipRoleFromSpaceMembershipRow,
+  spaceMembershipStatusFromRole,
+} from '@/lib/constants/spaceMembershipRoles';
 
 async function authenticateRequest(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -106,7 +111,10 @@ export async function GET(request: NextRequest) {
             membership_id: m.id,
             space_id: m.space_id,
             space_name: nameBy.get(m.space_id as string) ?? 'Unknown space',
-            membership_role: m.status === 'alumni' ? 'alumni' : 'active_member',
+            membership_role: membershipRoleFromSpaceMembershipRow({
+              role: m.role,
+              status: m.status,
+            }),
             is_primary: Boolean(m.is_primary),
           }));
         } else {
@@ -444,7 +452,7 @@ export async function PUT(request: NextRequest) {
     const spaceMembershipRolesSchema = z.array(
       z.object({
         space_id: z.string().uuid(),
-        membership_role: z.enum(['active_member', 'alumni']),
+        membership_role: z.enum(SPACE_MEMBERSHIP_ROLE_OPTIONS),
       })
     );
 
@@ -492,7 +500,7 @@ export async function PUT(request: NextRequest) {
           );
         }
 
-        const status = row.membership_role === 'alumni' ? 'alumni' : 'active';
+        const status = spaceMembershipStatusFromRole(row.membership_role);
         const up = await upsertSpaceMembership(supabase, {
           userId,
           spaceId: row.space_id,

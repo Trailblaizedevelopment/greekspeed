@@ -12,6 +12,12 @@ import { Plus, X } from 'lucide-react';
 import { useChapters } from '@/lib/hooks/useChapters';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useAuth } from '@/lib/supabase/auth-context';
+import {
+  SPACE_MEMBERSHIP_ROLE_OPTIONS,
+  SPACE_MEMBERSHIP_ROLE_LABELS,
+  isSpaceMembershipRoleOption,
+  type SpaceMembershipRoleOption,
+} from '@/lib/constants/spaceMembershipRoles';
 
 type SystemRoleOption = 'admin' | 'active_member' | 'alumni' | 'governance' | 'developer';
 
@@ -23,12 +29,10 @@ const SYSTEM_ROLE_VALUES: readonly SystemRoleOption[] = [
   'developer',
 ] as const;
 
-type MembershipRoleInSpace = 'active_member' | 'alumni';
-
 type SpaceMembershipRow = {
   space_id: string;
   space_name: string;
-  membership_role: MembershipRoleInSpace;
+  membership_role: SpaceMembershipRoleOption;
 };
 
 type ApiSpaceMembership = {
@@ -65,11 +69,18 @@ function parseSpaceMembershipsFromUser(u: {
 
   const additional: SpaceMembershipRow[] = raw
     .filter((m) => !m.is_primary)
-    .map((m) => ({
-      space_id: m.space_id,
-      space_name: typeof m.space_name === 'string' ? m.space_name : 'Unknown space',
-      membership_role: m.membership_role === 'alumni' ? 'alumni' : 'active_member',
-    }));
+    .map((m) => {
+      const rawRole = m.membership_role;
+      const membership_role: SpaceMembershipRoleOption =
+        typeof rawRole === 'string' && isSpaceMembershipRoleOption(rawRole)
+          ? rawRole
+          : 'active_member';
+      return {
+        space_id: m.space_id,
+        space_name: typeof m.space_name === 'string' ? m.space_name : 'Unknown space',
+        membership_role,
+      };
+    });
 
   return { additional, occupiedSpaceIds };
 }
@@ -82,12 +93,12 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
   const [governanceChapterIds, setGovernanceChapterIds] = useState<string[]>([]);
   const [additionalMemberships, setAdditionalMemberships] = useState<SpaceMembershipRow[]>([]);
   const [occupiedSpaceIds, setOccupiedSpaceIds] = useState<Set<string>>(new Set());
-  const initialAdditionalRolesRef = useRef<Map<string, MembershipRoleInSpace>>(new Map());
+  const initialAdditionalRolesRef = useRef<Map<string, SpaceMembershipRoleOption>>(new Map());
   const [saving, setSaving] = useState(false);
   const [loadingUser, setLoadingUser] = useState(false);
   const [addingSpace, setAddingSpace] = useState(false);
   const [pendingSpaceId, setPendingSpaceId] = useState<string>('');
-  const [pendingSpaceRole, setPendingSpaceRole] = useState<MembershipRoleInSpace>('active_member');
+  const [pendingSpaceRole, setPendingSpaceRole] = useState<SpaceMembershipRoleOption>('active_member');
   const { chapters, loading: chaptersLoading } = useChapters();
 
   const applyUserPayload = useCallback((u: Record<string, unknown>) => {
@@ -221,7 +232,7 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
       if (role === 'governance') body.governance_chapter_ids = governanceChapterIds;
 
       if (isDeveloper && additionalMemberships.length > 0) {
-        const updates: { space_id: string; membership_role: MembershipRoleInSpace }[] = [];
+        const updates: { space_id: string; membership_role: SpaceMembershipRoleOption }[] = [];
         for (const row of additionalMemberships) {
           const initial = initialAdditionalRolesRef.current.get(row.space_id);
           if (initial !== row.membership_role) {
@@ -254,7 +265,7 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
     }
   };
 
-  const setMembershipRole = (spaceId: string, membership_role: MembershipRoleInSpace) => {
+  const setMembershipRole = (spaceId: string, membership_role: SpaceMembershipRoleOption) => {
     setAdditionalMemberships((prev) =>
       prev.map((r) => (r.space_id === spaceId ? { ...r, membership_role } : r))
     );
@@ -364,8 +375,8 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
                 <div>
                   <Label>Additional chapter memberships</Label>
                   <p className="text-xs text-gray-600 mt-1">
-                    Spaces beyond the user&apos;s primary (home) chapter. Add a space below, then set Active member or
-                    Alumni for that chapter.
+                    Spaces beyond the user&apos;s primary (home) chapter. Add a space below, then set how this user
+                    appears in that chapter (member type and per-space role).
                   </p>
                 </div>
 
@@ -389,11 +400,16 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
                     <Label className="text-xs text-gray-600">Role in that space</Label>
                     <Select
                       value={pendingSpaceRole}
-                      onValueChange={(v: string) => setPendingSpaceRole(v as MembershipRoleInSpace)}
+                      onValueChange={(v: string) =>
+                        setPendingSpaceRole(isSpaceMembershipRoleOption(v) ? v : 'active_member')
+                      }
                       disabled={loadingUser || addingSpace}
                     >
-                      <SelectItem value="active_member">Active member</SelectItem>
-                      <SelectItem value="alumni">Alumni</SelectItem>
+                      {SPACE_MEMBERSHIP_ROLE_OPTIONS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {SPACE_MEMBERSHIP_ROLE_LABELS[value]}
+                        </SelectItem>
+                      ))}
                     </Select>
                   </div>
                   <Button
@@ -432,12 +448,18 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
                           <Select
                             value={row.membership_role}
                             onValueChange={(v: string) =>
-                              setMembershipRole(row.space_id, v as MembershipRoleInSpace)
+                              setMembershipRole(
+                                row.space_id,
+                                isSpaceMembershipRoleOption(v) ? v : 'active_member'
+                              )
                             }
                             disabled={loadingUser || saving}
                           >
-                            <SelectItem value="active_member">Active member</SelectItem>
-                            <SelectItem value="alumni">Alumni</SelectItem>
+                            {SPACE_MEMBERSHIP_ROLE_OPTIONS.map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {SPACE_MEMBERSHIP_ROLE_LABELS[value]}
+                              </SelectItem>
+                            ))}
                           </Select>
                         </div>
                       </li>

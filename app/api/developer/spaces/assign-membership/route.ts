@@ -6,11 +6,15 @@ import {
   syncProfileHomeFromPrimaryMembership,
   upsertSpaceMembership,
 } from '@/lib/services/spaceMembershipService';
+import {
+  SPACE_MEMBERSHIP_ROLE_OPTIONS,
+  spaceMembershipStatusFromRole,
+} from '@/lib/constants/spaceMembershipRoles';
 
 const bodySchema = z.object({
   user_id: z.string().uuid(),
   space_id: z.string().uuid(),
-  role: z.enum(['active_member', 'alumni']).default('active_member'),
+  role: z.enum(SPACE_MEMBERSHIP_ROLE_OPTIONS).default('active_member'),
   is_primary: z.boolean().optional().default(false),
   /** When true, this user becomes the only Space Icon for the space (previous holder cleared). */
   is_space_icon: z.boolean().optional(),
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { user_id, space_id, role, is_primary, is_space_icon } = parsed.data;
-  const status = role === 'alumni' ? 'alumni' : 'active';
+  const status = spaceMembershipStatusFromRole(role);
 
   const result = await upsertSpaceMembership(auth.service, {
     userId: user_id,
