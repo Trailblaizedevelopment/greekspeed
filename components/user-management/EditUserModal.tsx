@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectItem } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { useChapters } from '@/lib/hooks/useChapters';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useAuth } from '@/lib/supabase/auth-context';
@@ -21,6 +21,13 @@ type SpaceMembershipRow = {
   space_id: string;
   space_name: string;
   membership_role: MembershipRoleInSpace;
+};
+
+type ApiSpaceMembership = {
+  space_id: string;
+  space_name?: string;
+  membership_role?: string;
+  is_primary?: boolean;
 };
 
 interface User {
@@ -37,6 +44,28 @@ interface EditUserModalProps {
   onSaved: () => void;
 }
 
+function parseSpaceMembershipsFromUser(u: {
+  chapter_id?: string | null;
+  space_memberships?: ApiSpaceMembership[];
+}): { additional: SpaceMembershipRow[]; occupiedSpaceIds: Set<string> } {
+  const raw = u.space_memberships ?? [];
+  const occupiedSpaceIds = new Set<string>();
+  for (const m of raw) {
+    if (m.space_id) occupiedSpaceIds.add(String(m.space_id));
+  }
+  if (u.chapter_id) occupiedSpaceIds.add(String(u.chapter_id));
+
+  const additional: SpaceMembershipRow[] = raw
+    .filter((m) => !m.is_primary)
+    .map((m) => ({
+      space_id: m.space_id,
+      space_name: typeof m.space_name === 'string' ? m.space_name : 'Unknown space',
+      membership_role: m.membership_role === 'alumni' ? 'alumni' : 'active_member',
+    }));
+
+  return { additional, occupiedSpaceIds };
+}
+
 export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalProps) {
   const { isDeveloper } = useProfile();
   const { session, getAuthHeaders } = useAuth();
@@ -44,57 +73,65 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
   const [chapterRole, setChapterRole] = useState<string>('member');
   const [governanceChapterIds, setGovernanceChapterIds] = useState<string[]>([]);
   const [additionalMemberships, setAdditionalMemberships] = useState<SpaceMembershipRow[]>([]);
+  const [occupiedSpaceIds, setOccupiedSpaceIds] = useState<Set<string>>(new Set());
   const initialAdditionalRolesRef = useRef<Map<string, MembershipRoleInSpace>>(new Map());
   const [saving, setSaving] = useState(false);
   const [loadingUser, setLoadingUser] = useState(false);
+  const [addingSpace, setAddingSpace] = useState(false);
+  const [pendingSpaceId, setPendingSpaceId] = useState<string>('');
+  const [pendingSpaceRole, setPendingSpaceRole] = useState<MembershipRoleInSpace>('active_member');
   const { chapters, loading: chaptersLoading } = useChapters();
 
-  useEffect(() => {
-    if (!isOpen || !user || !session) return;
-    setLoadingUser(true);
-    // Intentionally depend on user.id (not whole user) to avoid parent identity churn; getAuthHeaders is stable enough for fetch.
-    fetch(`/api/developer/users?userId=${user.id}`, {
-      headers: getAuthHeaders(),
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Failed to fetch user'))))
-      .then((data) => {
-        const u = data.user;
-        const r = (u?.role as string) || 'active_member';
-        setRole(['admin', 'active_member', 'alumni', 'governance'].includes(r) ? (r as SystemRoleOption) : 'active_member');
-        setChapterRole(u?.chapter_role || 'member');
-        setGovernanceChapterIds(Array.isArray(u?.governance_chapter_ids) ? u.governance_chapter_ids : []);
+  const applyUserPayload = useCallback((u: Record<string, unknown>) => {
+    const r = (u?.role as string) || 'active_member';
+    setRole(['admin', 'active_member', 'alumni', 'governance'].includes(r) ? (r as SystemRoleOption) : 'active_member');
+    setChapterRole((u?.chapter_role as string) || 'member');
+    setGovernanceChapterIds(Array.isArray(u?.governance_chapter_ids) ? (u.governance_chapter_ids as string[]) : []);
 
-        const raw = u?.space_memberships as
-          | {
-              space_id: string;
-              space_name?: string;
-              membership_role?: string;
-              is_primary?: boolean;
-            }[]
-          | undefined;
+    const { additional, occupiedSpaceIds: occ } = parseSpaceMembershipsFromUser({
+      chapter_id: (u.chapter_id as string | null) ?? null,
+      space_memberships: u.space_memberships as ApiSpaceMembership[] | undefined,
+    });
+    setAdditionalMemberships(additional);
+    setOccupiedSpaceIds(occ);
+    initialAdditionalRolesRef.current = new Map(additional.map((row) => [row.space_id, row.membership_role]));
+  }, []);
 
-        const additional: SpaceMembershipRow[] = (raw ?? [])
-          .filter((m) => !m.is_primary)
-          .map((m) => ({
-            space_id: m.space_id,
-            space_name: typeof m.space_name === 'string' ? m.space_name : 'Unknown space',
-            membership_role: m.membership_role === 'alumni' ? 'alumni' : 'active_member',
-          }));
-        setAdditionalMemberships(additional);
-        initialAdditionalRolesRef.current = new Map(
-          additional.map((row) => [row.space_id, row.membership_role])
-        );
-      })
-      .catch(() => {
-        setRole((user.role as SystemRoleOption) || 'active_member');
-        setChapterRole(user.chapter_role || 'member');
+  const fetchAndApplyUser = useCallback(
+    async (opts: {
+      userId: string;
+      fallbacks: { role: string | null; chapter_role: string | null };
+    }) => {
+      if (!session) return;
+      setLoadingUser(true);
+      try {
+        const r = await fetch(`/api/developer/users?userId=${opts.userId}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!r.ok) throw new Error('Failed to fetch user');
+        const data = await r.json();
+        applyUserPayload(data.user as Record<string, unknown>);
+      } catch {
+        setRole((opts.fallbacks.role as SystemRoleOption) || 'active_member');
+        setChapterRole(opts.fallbacks.chapter_role || 'member');
         setGovernanceChapterIds([]);
         setAdditionalMemberships([]);
+        setOccupiedSpaceIds(new Set());
         initialAdditionalRolesRef.current = new Map();
-      })
-      .finally(() => setLoadingUser(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above
-  }, [isOpen, user?.id, session, user?.role, user?.chapter_role]);
+      } finally {
+        setLoadingUser(false);
+      }
+    },
+    [session, getAuthHeaders, applyUserPayload]
+  );
+
+  useEffect(() => {
+    if (!isOpen || !session || !user?.id) return;
+    void fetchAndApplyUser({
+      userId: user.id,
+      fallbacks: { role: user.role, chapter_role: user.chapter_role },
+    });
+  }, [isOpen, user?.id, user?.role, user?.chapter_role, session, fetchAndApplyUser]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -126,6 +163,42 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
     'member',
     'pledge',
   ];
+
+  const chaptersAvailableToAdd = chapters.filter((c) => !occupiedSpaceIds.has(c.id));
+
+  const handleAddSpaceMembership = async () => {
+    if (!pendingSpaceId || !user?.id) return;
+    try {
+      setAddingSpace(true);
+      const resp = await fetch('/api/developer/spaces/assign-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          space_id: pendingSpaceId,
+          role: pendingSpaceRole,
+          is_primary: false,
+        }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new Error((json as { error?: string }).error || 'Failed to add space membership');
+      }
+      setPendingSpaceId('');
+      setPendingSpaceRole('active_member');
+      await fetchAndApplyUser({
+        userId: user.id,
+        fallbacks: { role: user.role, chapter_role: user.chapter_role },
+      });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to add membership');
+    } finally {
+      setAddingSpace(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -174,14 +247,24 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
   };
 
   const modal = (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+    <div
+      className="fixed inset-0 z-[200] flex flex-col"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-user-modal-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm border-0 cursor-default p-0"
+        aria-label="Close dialog backdrop"
+        onClick={onClose}
+      />
 
-      <div className="absolute inset-0 flex items-center justify-center p-4 overflow-y-auto">
-        <Card className="w-full max-w-xl shadow-xl my-4">
+      <div className="relative flex flex-1 items-center justify-center p-4 overflow-y-auto pointer-events-none">
+        <Card className="w-full max-w-xl shadow-2xl my-4 pointer-events-auto border-gray-200">
           <CardHeader className="p-6 pb-2 flex flex-row items-center justify-between">
-            <CardTitle>Edit User</CardTitle>
-            <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
+            <CardTitle id="edit-user-modal-title">Edit User</CardTitle>
+            <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close" className="rounded-full">
               <X className="h-4 w-4" />
             </Button>
           </CardHeader>
@@ -259,22 +342,70 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
             </div>
 
             {isDeveloper && (
-              <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50/80 p-3">
-                <Label>Additional chapter memberships</Label>
-                <p className="text-xs text-gray-600">
-                  Spaces beyond the user&apos;s primary (home) chapter. Role here maps to membership active vs alumni
-                  in that space.
-                </p>
+              <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/90 p-4">
+                <div>
+                  <Label>Additional chapter memberships</Label>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Spaces beyond the user&apos;s primary (home) chapter. Add a space below, then set Active member or
+                    Alumni for that chapter.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-wrap">
+                  <div className="flex-1 min-w-[200px] space-y-1">
+                    <Label className="text-xs text-gray-600">Space to add</Label>
+                    <Select
+                      value={pendingSpaceId || '_none'}
+                      onValueChange={(v: string) => setPendingSpaceId(v === '_none' ? '' : v)}
+                      disabled={loadingUser || chaptersLoading || addingSpace}
+                    >
+                      <SelectItem value="_none">Select a space…</SelectItem>
+                      {chaptersAvailableToAdd.map((ch) => (
+                        <SelectItem key={ch.id} value={ch.id}>
+                          {ch.name}
+                        </SelectItem>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="w-full sm:w-44 space-y-1">
+                    <Label className="text-xs text-gray-600">Role in that space</Label>
+                    <Select
+                      value={pendingSpaceRole}
+                      onValueChange={(v: string) => setPendingSpaceRole(v as MembershipRoleInSpace)}
+                      disabled={loadingUser || addingSpace}
+                    >
+                      <SelectItem value="active_member">Active member</SelectItem>
+                      <SelectItem value="alumni">Alumni</SelectItem>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="rounded-full shrink-0"
+                    disabled={!pendingSpaceId || addingSpace || loadingUser}
+                    onClick={() => void handleAddSpaceMembership()}
+                  >
+                    <Plus className="h-4 w-4 mr-1.5" aria-hidden />
+                    {addingSpace ? 'Adding…' : 'Add space'}
+                  </Button>
+                </div>
+
+                {chaptersAvailableToAdd.length === 0 && !chaptersLoading && (
+                  <p className="text-xs text-gray-500">
+                    No spaces left to add (user is already linked to all known chapters, or chapter list is empty).
+                  </p>
+                )}
+
                 {loadingUser ? (
                   <p className="text-sm text-muted-foreground">Loading memberships…</p>
                 ) : additionalMemberships.length === 0 ? (
-                  <p className="text-sm text-gray-600">No additional spaces linked for this user.</p>
+                  <p className="text-sm text-gray-600">No additional spaces linked yet. Use Add space above.</p>
                 ) : (
                   <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
                     {additionalMemberships.map((row) => (
                       <li
                         key={row.space_id}
-                        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 rounded-md border border-gray-100 bg-white px-3 py-2"
+                        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2.5"
                       >
                         <span className="text-sm font-medium text-gray-900 truncate" title={row.space_name}>
                           {row.space_name}
@@ -298,11 +429,17 @@ export function EditUserModal({ isOpen, onClose, user, onSaved }: EditUserModalP
               </div>
             )}
 
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                type="button"
+                className="flex-1 rounded-full h-11"
+                onClick={onClose}
+                disabled={saving}
+              >
                 Cancel
               </Button>
-              <Button className="flex-1" onClick={handleSave} disabled={saving}>
+              <Button type="button" className="flex-1 rounded-full h-11" onClick={() => void handleSave()} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </Button>
             </div>
