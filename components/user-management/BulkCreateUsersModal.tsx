@@ -22,6 +22,8 @@ import {
   SPACE_TYPE_SEARCHABLE_OPTIONS,
 } from '@/lib/spaceTypeTaxonomy';
 import { fileToImageDataUrl } from '@/lib/utils/readImageFileAsDataUrl';
+import { LocationPicker } from '@/components/features/location/LocationPicker';
+import { formatCanonicalPlaceDisplayForApp, type CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
 
 const MAX_ROWS = 50;
 
@@ -41,7 +43,8 @@ export type BulkExtraSpaceRow =
       spaceImageDataUrl: string | null;
       memberCount: string;
       foundedYear: string;
-      locationLine: string;
+      /** Mapbox-confirmed place for `new_space.location` (same flow as profile LocationPicker). */
+      locationPlace: CanonicalPlaceConfirmed | null;
     };
 
 const CHAPTER_ROLE_PRESETS = [
@@ -87,7 +90,7 @@ function emptyExtraNew(): BulkExtraSpaceRow {
     spaceImageDataUrl: null,
     memberCount: '',
     foundedYear: '',
-    locationLine: '',
+    locationPlace: null,
   };
 }
 
@@ -233,7 +236,9 @@ function buildAdditionalSpaceMemberships(row: BulkUserRow): Record<string, unkno
         er.orgLink?.kind === 'national_organization' ? er.orgLink.id : undefined;
       const mc = parseOptionalBoundedInt(er.memberCount, 0, 2_000_000);
       const fy = parseOptionalBoundedInt(er.foundedYear, 1800, 2100);
-      const loc = er.locationLine.trim().slice(0, 500);
+      const loc = er.locationPlace
+        ? formatCanonicalPlaceDisplayForApp(er.locationPlace).trim().slice(0, 500)
+        : '';
       return {
         new_space: {
           name: er.name.trim(),
@@ -648,6 +653,7 @@ export function BulkCreateUsersModal({
                             type="button"
                             size="sm"
                             variant={ex.kind === 'existing' ? 'default' : 'outline'}
+                            className="rounded-full"
                             onClick={() =>
                               setExtraRows(row.id, (prev) =>
                                 prev.map((r) =>
@@ -671,6 +677,7 @@ export function BulkCreateUsersModal({
                             type="button"
                             size="sm"
                             variant={ex.kind === 'new' ? 'default' : 'outline'}
+                            className="rounded-full"
                             onClick={() =>
                               setExtraRows(row.id, (prev) =>
                                 prev.map((r) =>
@@ -777,24 +784,25 @@ export function BulkCreateUsersModal({
                               />
                             </div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                              <div className="space-y-1">
-                                <Label htmlFor={`ex-loc-${ex.id}`}>Location (optional)</Label>
-                                <Input
-                                  id={`ex-loc-${ex.id}`}
-                                  value={ex.locationLine}
-                                  onChange={(e) =>
+                              <div className="space-y-1 sm:col-span-3">
+                                <LocationPicker
+                                  label="Location (optional)"
+                                  fieldId={`extra-loc-${ex.id}`}
+                                  country="us"
+                                  suggestionsPortalRef={spaceSelectPortalRef}
+                                  value={ex.locationPlace}
+                                  onChange={(place) =>
                                     setExtraRows(row.id, (prev) =>
                                       prev.map((r) =>
-                                        r.id === ex.id && r.kind === 'new'
-                                          ? { ...r, locationLine: e.target.value }
-                                          : r
+                                        r.id === ex.id && r.kind === 'new' ? { ...r, locationPlace: place } : r
                                       )
                                     )
                                   }
-                                  placeholder="e.g. Miami, FL"
                                   disabled={submitting}
-                                  maxLength={500}
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                  Same Mapbox search and confirm flow as profile edit (US).
+                                </p>
                               </div>
                               <div className="space-y-1">
                                 <Label htmlFor={`ex-mc-${ex.id}`}>Active members (optional)</Label>
@@ -898,7 +906,7 @@ export function BulkCreateUsersModal({
   };
 
   const body = (
-    <div ref={spaceSelectPortalRef} className="space-y-5">
+    <div ref={spaceSelectPortalRef} className="relative space-y-5">
       <p className="text-sm text-gray-600">
         One user per row; empty identity rows are skipped (up to {MAX_ROWS}). Open{' '}
         <strong>Home space & memberships</strong> on each row to set that user&apos;s home space, optional home Space
