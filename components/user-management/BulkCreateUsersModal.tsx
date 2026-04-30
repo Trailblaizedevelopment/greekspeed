@@ -24,8 +24,13 @@ import {
 import { fileToImageDataUrl } from '@/lib/utils/readImageFileAsDataUrl';
 import { LocationPicker } from '@/components/features/location/LocationPicker';
 import { formatCanonicalPlaceDisplayForApp, type CanonicalPlaceConfirmed } from '@/types/canonicalPlace';
+import { ImageCropper } from '@/components/features/common/ImageCropper';
 
 const MAX_ROWS = 50;
+
+type BulkSpaceLogoCropTarget =
+  | { kind: 'new_home'; bulkUserRowId: string }
+  | { kind: 'extra_new'; bulkUserRowId: string; extraRowId: string };
 
 type RoleChoice = 'admin' | 'active_member' | 'alumni';
 
@@ -377,6 +382,9 @@ export function BulkCreateUsersModal({
   >([]);
 
   const spaceSelectPortalRef = useRef<HTMLDivElement>(null);
+  const [spaceLogoCropSrc, setSpaceLogoCropSrc] = useState<string | null>(null);
+  const [showSpaceLogoCropper, setShowSpaceLogoCropper] = useState(false);
+  const pendingSpaceLogoCropTargetRef = useRef<BulkSpaceLogoCropTarget | null>(null);
 
   useEffect(() => {
     const mq = () => setIsMobile(window.innerWidth < 640);
@@ -404,6 +412,9 @@ export function BulkCreateUsersModal({
       setRows([createEmptyRow(chapterContext)]);
       setProgress(null);
       setResultLog([]);
+      pendingSpaceLogoCropTargetRef.current = null;
+      setSpaceLogoCropSrc(null);
+      setShowSpaceLogoCropper(false);
     }
   }, [open, chapterContext]);
 
@@ -435,6 +446,43 @@ export function BulkCreateUsersModal({
     setRows((prev) =>
       prev.map((r) => (r.id === userRowId ? { ...r, extraSpaceRows: updater(r.extraSpaceRows) } : r))
     );
+  };
+
+  const handleSpaceLogoCropClose = () => {
+    pendingSpaceLogoCropTargetRef.current = null;
+    setShowSpaceLogoCropper(false);
+    setSpaceLogoCropSrc(null);
+  };
+
+  const handleSpaceLogoCropComplete = (croppedBlob: Blob) => {
+    const target = pendingSpaceLogoCropTargetRef.current;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result as string;
+      if (target?.kind === 'new_home') {
+        setRows((prev) =>
+          prev.map((r) =>
+            r.id === target.bulkUserRowId ? { ...r, newHomeSpaceImageDataUrl: url } : r
+          )
+        );
+      } else if (target?.kind === 'extra_new') {
+        setRows((prev) =>
+          prev.map((r) => {
+            if (r.id !== target.bulkUserRowId) return r;
+            return {
+              ...r,
+              extraSpaceRows: r.extraSpaceRows.map((x) =>
+                x.id === target.extraRowId && x.kind === 'new' ? { ...x, spaceImageDataUrl: url } : x
+              ),
+            };
+          })
+        );
+      }
+      pendingSpaceLogoCropTargetRef.current = null;
+      setShowSpaceLogoCropper(false);
+      setSpaceLogoCropSrc(null);
+    };
+    reader.readAsDataURL(croppedBlob);
   };
 
   const addRow = () => {
@@ -815,25 +863,55 @@ export function BulkCreateUsersModal({
                           />
                         </div>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
                         <Label className="text-sm">Space image (optional)</Label>
-                        <Input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/gif"
-                          className="max-w-xs cursor-pointer text-sm file:mr-2"
-                          disabled={submitting}
-                          onChange={async (e) => {
-                            const f = e.target.files?.[0];
-                            e.target.value = '';
-                            if (!f) return;
-                            const r = await fileToImageDataUrl(f);
-                            if (!r.ok) {
-                              alert(r.error);
-                              return;
-                            }
-                            updateRow(row.id, { newHomeSpaceImageDataUrl: r.dataUrl });
-                          }}
-                        />
+                        <p className="text-xs text-muted-foreground">
+                          Primary logo for this space (square 1:1 crop, JPEG, PNG, or GIF, max 5 MB). Applied when the
+                          shell is first created.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Input
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/gif"
+                            className="max-w-xs cursor-pointer text-sm file:mr-2"
+                            disabled={submitting}
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              e.target.value = '';
+                              if (!f) return;
+                              const r = await fileToImageDataUrl(f);
+                              if (!r.ok) {
+                                alert(r.error);
+                                return;
+                              }
+                              pendingSpaceLogoCropTargetRef.current = {
+                                kind: 'new_home',
+                                bulkUserRowId: row.id,
+                              };
+                              setSpaceLogoCropSrc(r.dataUrl);
+                              setShowSpaceLogoCropper(true);
+                            }}
+                          />
+                          {row.newHomeSpaceImageDataUrl ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={row.newHomeSpaceImageDataUrl}
+                                alt=""
+                                className="h-14 w-14 rounded-md border object-cover"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => updateRow(row.id, { newHomeSpaceImageDataUrl: null })}
+                                disabled={submitting}
+                              >
+                                Remove image
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1118,29 +1196,63 @@ export function BulkCreateUsersModal({
                                 />
                               </div>
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
                               <Label className="text-sm">Space image (optional)</Label>
-                              <Input
-                                type="file"
-                                accept="image/jpeg,image/jpg,image/png,image/gif"
-                                className="max-w-xs cursor-pointer text-sm file:mr-2"
-                                disabled={submitting}
-                                onChange={async (e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = '';
-                                  if (!f) return;
-                                  const r = await fileToImageDataUrl(f);
-                                  if (!r.ok) {
-                                    alert(r.error);
-                                    return;
-                                  }
-                                  setExtraRows(row.id, (prev) =>
-                                    prev.map((x) =>
-                                      x.id === ex.id && x.kind === 'new' ? { ...x, spaceImageDataUrl: r.dataUrl } : x
-                                    )
-                                  );
-                                }}
-                              />
+                              <p className="text-xs text-muted-foreground">
+                                Square 1:1 crop, JPEG, PNG, or GIF, max 5 MB. Applied when the shell is first created.
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <Input
+                                  type="file"
+                                  accept="image/jpeg,image/jpg,image/png,image/gif"
+                                  className="max-w-xs cursor-pointer text-sm file:mr-2"
+                                  disabled={submitting}
+                                  onChange={async (e) => {
+                                    const f = e.target.files?.[0];
+                                    e.target.value = '';
+                                    if (!f) return;
+                                    const r = await fileToImageDataUrl(f);
+                                    if (!r.ok) {
+                                      alert(r.error);
+                                      return;
+                                    }
+                                    pendingSpaceLogoCropTargetRef.current = {
+                                      kind: 'extra_new',
+                                      bulkUserRowId: row.id,
+                                      extraRowId: ex.id,
+                                    };
+                                    setSpaceLogoCropSrc(r.dataUrl);
+                                    setShowSpaceLogoCropper(true);
+                                  }}
+                                />
+                                {ex.spaceImageDataUrl ? (
+                                  <>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={ex.spaceImageDataUrl}
+                                      alt=""
+                                      className="h-14 w-14 rounded-md border object-cover"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        setExtraRows(row.id, (prev) =>
+                                          prev.map((x) =>
+                                            x.id === ex.id && x.kind === 'new'
+                                              ? { ...x, spaceImageDataUrl: null }
+                                              : x
+                                          )
+                                        )
+                                      }
+                                      disabled={submitting}
+                                    >
+                                      Remove image
+                                    </Button>
+                                  </>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1258,76 +1370,110 @@ export function BulkCreateUsersModal({
     </div>
   );
 
+  const spaceLogoCropperOverlay =
+    spaceLogoCropSrc && showSpaceLogoCropper ? (
+      <ImageCropper
+        imageSrc={spaceLogoCropSrc}
+        isOpen={showSpaceLogoCropper}
+        onClose={handleSpaceLogoCropClose}
+        onCropComplete={handleSpaceLogoCropComplete}
+        cropType="space_logo"
+        elevatedZIndex
+      />
+    ) : null;
+
   if (isMobile) {
-    return createPortal(
-      <div className="fixed inset-0 z-[9999]">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !submitting && onClose()} />
-        <div
-          className="fixed bottom-0 left-0 right-0 z-10 flex max-h-[90dvh] min-h-0 flex-col rounded-t-2xl bg-white shadow-xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-gray-600" aria-hidden />
-              <div>
-                <h3 className="text-lg font-semibold leading-tight">Bulk create users</h3>
-                <p className="text-xs text-muted-foreground">Per-row home space & memberships</p>
+    return (
+      <>
+        {createPortal(
+          <div className="fixed inset-0 z-[9999]">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => !submitting && onClose()}
+            />
+            <div
+              className="fixed bottom-0 left-0 right-0 z-10 flex max-h-[90dvh] min-h-0 flex-col rounded-t-2xl bg-white shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-gray-600" aria-hidden />
+                  <div>
+                    <h3 className="text-lg font-semibold leading-tight">Bulk create users</h3>
+                    <p className="text-xs text-muted-foreground">Per-row home space & memberships</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={onClose}
+                  disabled={submitting}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">{body}</div>
+              {footer}
             </div>
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onClose} disabled={submitting}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">{body}</div>
-          {footer}
-        </div>
-      </div>,
-      document.body
+          </div>,
+          document.body
+        )}
+        {spaceLogoCropperOverlay}
+      </>
     );
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !submitting) onClose();
-      }}
-    >
-      <div className="relative z-[10000] w-full max-w-5xl">
-        <Card
-          className="relative flex max-h-[min(92vh,900px)] w-full min-h-0 flex-col overflow-hidden rounded-xl shadow-xl"
-          onMouseDown={(e) => e.stopPropagation()}
+  return (
+    <>
+      {createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !submitting) onClose();
+          }}
         >
-          <CardHeader className="shrink-0 border-b border-gray-200 pb-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2">
-                <Users className="mt-0.5 h-5 w-5 shrink-0 text-gray-600" aria-hidden />
-                <div>
-                  <CardTitle className="text-lg font-semibold">Bulk create users</CardTitle>
-                  <p className="mt-1 text-sm text-gray-500">Per-row home space, icons, and extra memberships</p>
+          <div className="relative z-[10000] w-full max-w-5xl">
+            <Card
+              className="relative flex max-h-[min(92vh,900px)] w-full min-h-0 flex-col overflow-hidden rounded-xl shadow-xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <CardHeader className="shrink-0 border-b border-gray-200 pb-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <Users className="mt-0.5 h-5 w-5 shrink-0 text-gray-600" aria-hidden />
+                    <div>
+                      <CardTitle className="text-lg font-semibold">Bulk create users</CardTitle>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Per-row home space, icons, and extra memberships
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClose}
+                    disabled={submitting}
+                    className="h-8 w-8 shrink-0 p-0"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                disabled={submitting}
-                className="h-8 w-8 shrink-0 p-0"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">{body}</div>
-            {footer}
-          </CardContent>
-        </Card>
-      </div>
-    </div>,
-    document.body
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">{body}</div>
+                {footer}
+              </CardContent>
+            </Card>
+          </div>
+        </div>,
+        document.body
+      )}
+      {spaceLogoCropperOverlay}
+    </>
   );
 }
