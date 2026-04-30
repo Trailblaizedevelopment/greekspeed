@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import {
   normalizeSpaceTypeInput,
 } from '@/lib/spaceTypeTaxonomy';
 import { fileToImageDataUrl } from '@/lib/utils/readImageFileAsDataUrl';
+import { ImageCropper } from '@/components/features/common/ImageCropper';
 
 interface CreateChapterFormProps {
   accessToken: string | undefined;
@@ -54,6 +55,23 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
   const [spaceIconUser, setSpaceIconUser] = useState<DeveloperUserPick | null>(null);
   /** Optional data URL → POST as space_image_data_url for chapter primary logo. */
   const [spaceImageDataUrl, setSpaceImageDataUrl] = useState<string | null>(null);
+  const [spaceImageCropSrc, setSpaceImageCropSrc] = useState<string | null>(null);
+  const [showSpaceImageCropper, setShowSpaceImageCropper] = useState(false);
+
+  const handleSpaceImageCropClose = useCallback(() => {
+    setShowSpaceImageCropper(false);
+    setSpaceImageCropSrc(null);
+  }, []);
+
+  const handleSpaceImageCropComplete = useCallback((croppedBlob: Blob) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSpaceImageDataUrl(reader.result as string);
+      setShowSpaceImageCropper(false);
+      setSpaceImageCropSrc(null);
+    };
+    reader.readAsDataURL(croppedBlob);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -156,7 +174,21 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
   const showManualUniversityField = !hasSchoolDirectoryLink;
   const showDirectoryBackedFieldsRow = showManualOrgField || showManualUniversityField;
 
-  return createPortal(
+  const spaceImageCropperOverlay =
+    spaceImageCropSrc && showSpaceImageCropper ? (
+      <ImageCropper
+        imageSrc={spaceImageCropSrc}
+        isOpen={showSpaceImageCropper}
+        onClose={handleSpaceImageCropClose}
+        onCropComplete={handleSpaceImageCropComplete}
+        cropType="space_logo"
+        elevatedZIndex
+      />
+    ) : null;
+
+  return (
+    <>
+      {createPortal(
     <div
       ref={portalHostRef}
       className="fixed inset-0 z-[100150] flex items-center justify-center bg-black/50 p-4"
@@ -260,7 +292,8 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
                   <FieldHint text="Stored as the space's primary chapter logo (JPEG, PNG, or GIF, max 5 MB)." />
                 </div>
                 <p className="text-xs text-gray-600">
-                  Upload a logo or photo for this space. It appears in branding after the space is created.
+                  Upload a logo or photo for this space (square 1:1 crop). It appears in branding after the space is
+                  created.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <Input
@@ -277,7 +310,8 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
                         alert(r.error);
                         return;
                       }
-                      setSpaceImageDataUrl(r.dataUrl);
+                      setSpaceImageCropSrc(r.dataUrl);
+                      setShowSpaceImageCropper(true);
                     }}
                   />
                   {spaceImageDataUrl ? (
@@ -563,5 +597,8 @@ export function CreateChapterForm({ accessToken, onClose, onSuccess }: CreateCha
       </Card>
     </div>,
     document.body
+      )}
+      {spaceImageCropperOverlay}
+    </>
   );
 }

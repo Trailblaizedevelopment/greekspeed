@@ -5,7 +5,7 @@ import CropperLib from 'react-easy-crop';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Check, X, RotateCw } from 'lucide-react';
-import { LOGO_CONSTRAINTS } from '@/lib/constants/logoConstants';
+import { LOGO_CONSTRAINTS, SPACE_LOGO_CROP_CONSTRAINTS } from '@/lib/constants/logoConstants';
 import type { Area, Point } from 'react-easy-crop';
 
 // Type-safe wrapper for react-easy-crop to fix React 19 compatibility
@@ -30,6 +30,8 @@ const cropperStyles = `
   }
 `;
 
+export type LogoCropMode = 'horizontal' | 'square';
+
 interface LogoCropperProps {
   /** Image source (data URL or URL) */
   imageSrc: string;
@@ -39,19 +41,20 @@ interface LogoCropperProps {
   onClose: () => void;
   /** Callback when crop is completed with cropped image blob */
   onCropComplete: (croppedImageBlob: Blob) => void;
+  /** `horizontal` = chapter header logo band; `square` = 1:1 for dev primary / space tile */
+  cropMode?: LogoCropMode;
 }
 
 /**
- * LogoCropper Component
- * 
- * Provides image cropping functionality with aspect ratio constraints
- * matching header logo display requirements.
+ * LogoCropper — raster chapter logos: horizontal header band (`horizontal`)
+ * or square 1:1 (`square`) for developer primary / space tile uploads.
  */
 export function LogoCropper({
   imageSrc,
   isOpen,
   onClose,
   onCropComplete,
+  cropMode = 'horizontal',
 }: LogoCropperProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -83,6 +86,19 @@ export function LogoCropper({
   const validateCropArea = useCallback((area: Area): string | null => {
     const aspectRatio = getAspectRatio(area);
 
+    if (cropMode === 'square') {
+      if (Math.abs(aspectRatio - 1) > 0.08) {
+        return `Image must be square (1:1). Current ratio: ${aspectRatio.toFixed(2)}:1`;
+      }
+      if (
+        area.width < SPACE_LOGO_CROP_CONSTRAINTS.CROP_AREA_MIN_SIZE ||
+        area.height < SPACE_LOGO_CROP_CONSTRAINTS.CROP_AREA_MIN_SIZE
+      ) {
+        return `Crop too small. Minimum: ${SPACE_LOGO_CROP_CONSTRAINTS.CROP_AREA_MIN_SIZE}x${SPACE_LOGO_CROP_CONSTRAINTS.CROP_AREA_MIN_SIZE}px`;
+      }
+      return null;
+    }
+
     if (aspectRatio < LOGO_CONSTRAINTS.MIN_ASPECT_RATIO) {
       return `Logo must be horizontal. Current ratio: ${aspectRatio.toFixed(2)}:1. Minimum: ${LOGO_CONSTRAINTS.MIN_ASPECT_RATIO}:1`;
     }
@@ -100,7 +116,7 @@ export function LogoCropper({
     }
 
     return null;
-  }, [getAspectRatio]);
+  }, [cropMode, getAspectRatio]);
 
   /**
    * Create cropped image blob from canvas
@@ -150,17 +166,20 @@ export function LogoCropper({
           return;
         }
 
-        // Calculate target dimensions based on aspect ratio to match header display
         const aspectRatio = pixelCrop.width / pixelCrop.height;
-        const targetHeight = LOGO_CONSTRAINTS.DISPLAY_HEIGHT; // 112px (h-28)
-        const targetWidth = Math.round(targetHeight * aspectRatio);
+        let finalWidth: number;
+        let finalHeight: number;
 
-        // Ensure target width is within constraints (max 448px for 4:1 ratio)
-        const finalWidth = Math.min(
-          targetWidth,
-          LOGO_CONSTRAINTS.RECOMMENDED_MAX_WIDTH // 448px max
-        );
-        const finalHeight = Math.round(finalWidth / aspectRatio);
+        if (cropMode === 'square') {
+          finalWidth = SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE;
+          finalHeight = SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE;
+        } else {
+          // Match header-friendly export (horizontal band)
+          const targetHeight = LOGO_CONSTRAINTS.DISPLAY_HEIGHT;
+          const targetWidth = Math.round(targetHeight * aspectRatio);
+          finalWidth = Math.min(targetWidth, LOGO_CONSTRAINTS.RECOMMENDED_MAX_WIDTH);
+          finalHeight = Math.round(finalWidth / aspectRatio);
+        }
 
         croppedCanvas.width = finalWidth;
         croppedCanvas.height = finalHeight;
@@ -194,7 +213,7 @@ export function LogoCropper({
 
       image.onerror = () => reject(new Error('Failed to load image'));
     });
-  }, []);
+  }, [cropMode]);
 
   /**
    * Handle crop completion
@@ -264,10 +283,18 @@ export function LogoCropper({
   }, []);
 
   /**
-   * Calculate aspect ratio for cropper
-   * Use a flexible range between min and max
+   * Aspect ratio for react-easy-crop overlay
    */
-  const cropAspectRatio = (LOGO_CONSTRAINTS.MIN_ASPECT_RATIO + LOGO_CONSTRAINTS.MAX_ASPECT_RATIO) / 2; // ~2.75:1
+  const cropAspectRatio =
+    cropMode === 'square'
+      ? 1
+      : (LOGO_CONSTRAINTS.MIN_ASPECT_RATIO + LOGO_CONSTRAINTS.MAX_ASPECT_RATIO) / 2;
+
+  const dialogTitle = cropMode === 'square' ? 'Crop space image' : 'Crop Logo';
+  const dialogBlurb =
+    cropMode === 'square'
+      ? `Square 1:1 crop for space branding. Recommended output: ${SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE}x${SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE}px.`
+      : `Logo must be horizontal (width > height). Recommended dimensions: ${LOGO_CONSTRAINTS.RECOMMENDED_MIN_WIDTH}x${LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px to ${LOGO_CONSTRAINTS.RECOMMENDED_MAX_WIDTH}x${LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px.`;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -275,10 +302,9 @@ export function LogoCropper({
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
         {/* Fixed Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
-          <DialogTitle>Crop Logo</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <p className="text-sm text-gray-500 mt-1">
-            <strong>Click and drag</strong> the image to reposition it, or use zoom/rotation controls below.
-            Logo must be horizontal (width &gt; height). Recommended dimensions: {LOGO_CONSTRAINTS.RECOMMENDED_MIN_WIDTH}x{LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px to {LOGO_CONSTRAINTS.RECOMMENDED_MAX_WIDTH}x{LOGO_CONSTRAINTS.RECOMMENDED_HEIGHT}px
+            <strong>Click and drag</strong> the image to reposition it, or use zoom/rotation controls below. {dialogBlurb}
           </p>
         </DialogHeader>
 
@@ -367,6 +393,12 @@ export function LogoCropper({
                   <strong>Current aspect ratio:</strong> {(croppedAreaPixels.width / croppedAreaPixels.height).toFixed(2)}:1
                   {(() => {
                     const ratio = croppedAreaPixels.width / croppedAreaPixels.height;
+                    if (cropMode === 'square') {
+                      if (Math.abs(ratio - 1) > 0.08) {
+                        return <span className="text-orange-600 ml-2">⚠ Not 1:1</span>;
+                      }
+                      return <span className="text-green-600 ml-2">✓ 1:1</span>;
+                    }
                     if (ratio < LOGO_CONSTRAINTS.MIN_ASPECT_RATIO) {
                       return <span className="text-orange-600 ml-2">⚠ Too vertical</span>;
                     }
@@ -411,7 +443,7 @@ export function LogoCropper({
             ) : (
               <>
                 <Check className="h-4 w-4 mr-2" />
-                Save & Upload Logo
+                {cropMode === 'square' ? 'Save & upload' : 'Save & Upload Logo'}
               </>
             )}
           </Button>

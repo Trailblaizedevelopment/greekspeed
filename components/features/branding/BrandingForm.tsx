@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import type { ChapterBranding } from '@/types/branding';
 import { brandingToTheme, DEFAULT_BRANDING_THEME, isValidHexColor, normalizeHexColor } from '@/types/branding';
 import { LogoUploader } from './LogoUploader';
+import type { LogoCropMode } from './LogoCropper';
 import { ColorPicker } from './ColorPicker';
 import { BrandingPreview } from './BrandingPreview';
 
@@ -25,6 +26,11 @@ interface BrandingFormProps {
   onCancel: () => void;
   /** Additional className */
   className?: string;
+  /**
+   * Primary logo raster crop: `square` (1:1) for developer branding tools only.
+   * Chapter admin branding omits this and keeps horizontal header crop.
+   */
+  primaryLogoRasterCropMode?: LogoCropMode;
 }
 
 /**
@@ -39,6 +45,7 @@ export function BrandingForm({
   onSubmit,
   onCancel,
   className,
+  primaryLogoRasterCropMode = 'horizontal',
 }: BrandingFormProps) {
   // Form state
   const [formData, setFormData] = useState<Partial<ChapterBranding>>({
@@ -203,6 +210,7 @@ export function BrandingForm({
             chapterId={chapterId}
             currentLogoUrl={formData.primary_logo_url || null}
             defaultLogoUrl={DEFAULT_BRANDING_THEME.primaryLogo}
+            rasterCropMode={primaryLogoRasterCropMode}
             onUploadComplete={(url) => {
               updateField('primary_logo_url', url);
             }}

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Check, X, RotateCw } from 'lucide-react';
 import type { Area, Point } from 'react-easy-crop';
 import { AVATAR_CONSTRAINTS, BANNER_CONSTRAINTS } from '@/lib/constants/imageConstants';
-import { LOGO_CONSTRAINTS } from '@/lib/constants/logoConstants';
+import { LOGO_CONSTRAINTS, SPACE_LOGO_CROP_CONSTRAINTS } from '@/lib/constants/logoConstants';
 
 // Type-safe wrapper for react-easy-crop to fix React 19 compatibility
 const Cropper = CropperLib as any;
@@ -31,7 +31,7 @@ const cropperStyles = `
   }
 `;
 
-export type CropType = 'avatar' | 'banner' | 'logo';
+export type CropType = 'avatar' | 'banner' | 'logo' | 'space_logo';
 
 interface ImageCropperProps {
   /** Image source (data URL or URL) */
@@ -42,7 +42,7 @@ interface ImageCropperProps {
   onClose: () => void;
   /** Callback when crop is completed with cropped image blob */
   onCropComplete: (croppedImageBlob: Blob) => void;
-  /** Type of crop (avatar, banner, or logo) */
+  /** Type of crop (avatar, banner, logo, or space_logo) */
   cropType: CropType;
   /** Use higher z-index so dialog appears above edit-profile drawer (z-[10005]) */
   elevatedZIndex?: boolean;
@@ -52,7 +52,7 @@ interface ImageCropperProps {
  * ImageCropper Component
  * 
  * Generic image cropping component that supports avatars (square), banners (wide),
- * and logos (horizontal) with appropriate aspect ratios and constraints.
+ * logos (horizontal), and space logos (1:1 square for dev tooling).
  */
 export function ImageCropper({
   imageSrc,
@@ -107,6 +107,18 @@ export function ImageCropper({
           title: 'Crop Logo',
           description: 'Crop your logo. Must be horizontal (width > height).',
         };
+      case 'space_logo':
+        return {
+          aspectRatio: SPACE_LOGO_CROP_CONSTRAINTS.ASPECT_RATIO,
+          minAspectRatio: SPACE_LOGO_CROP_CONSTRAINTS.ASPECT_RATIO,
+          maxAspectRatio: SPACE_LOGO_CROP_CONSTRAINTS.ASPECT_RATIO,
+          targetWidth: SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE,
+          targetHeight: SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE,
+          minSize: SPACE_LOGO_CROP_CONSTRAINTS.CROP_AREA_MIN_SIZE,
+          recommendedDimensions: `${SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE}x${SPACE_LOGO_CROP_CONSTRAINTS.RECOMMENDED_SIZE}px (1:1)`,
+          title: 'Crop space image',
+          description: 'Square 1:1 crop for space branding (switcher tiles and headers).',
+        };
     }
   };
 
@@ -156,6 +168,13 @@ export function ImageCropper({
       }
       if (area.height < LOGO_CONSTRAINTS.CROP_AREA_MIN_HEIGHT) {
         return `Logo height too small. Minimum: ${LOGO_CONSTRAINTS.CROP_AREA_MIN_HEIGHT}px`;
+      }
+    } else if (cropType === 'space_logo') {
+      if (Math.abs(aspectRatio - 1) > 0.1) {
+        return 'Space image must be square (1:1 aspect ratio)';
+      }
+      if (area.width < constraints.minSize || area.height < constraints.minSize) {
+        return `Crop too small. Minimum: ${constraints.minSize}x${constraints.minSize}px`;
       }
     }
 
@@ -214,7 +233,7 @@ export function ImageCropper({
         let finalWidth: number;
         let finalHeight: number;
 
-        if (cropType === 'avatar') {
+        if (cropType === 'avatar' || cropType === 'space_logo') {
           // Square crop - use fixed size
           finalWidth = constraints.targetWidth;
           finalHeight = constraints.targetHeight;
@@ -336,8 +355,12 @@ export function ImageCropper({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <style dangerouslySetInnerHTML={{ __html: cropperStyles }} />
       <DialogContent
-        className={elevatedZIndex ? 'max-w-4xl max-h-[90vh] flex flex-col p-0 z-[10005]' : 'max-w-4xl max-h-[90vh] flex flex-col p-0'}
-        overlayClassName={elevatedZIndex ? 'z-[10005]' : undefined}
+        className={
+          elevatedZIndex
+            ? 'max-w-4xl max-h-[90vh] flex flex-col p-0 z-[100200]'
+            : 'max-w-4xl max-h-[90vh] flex flex-col p-0'
+        }
+        overlayClassName={elevatedZIndex ? 'z-[100200]' : undefined}
       >
         {/* Fixed Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
