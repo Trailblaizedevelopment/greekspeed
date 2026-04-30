@@ -388,7 +388,11 @@ export async function PUT(request: NextRequest) {
     const update: Record<string, unknown> = {};
     for (const key of allowed) if (key in body) update[key] = body[key];
 
-    if (update.role && !['admin', 'active_member', 'alumni', 'governance'].includes(update.role)) {
+    const nextRole = update.role;
+    if (
+      typeof nextRole === 'string' &&
+      !['admin', 'active_member', 'alumni', 'governance'].includes(nextRole)
+    ) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
