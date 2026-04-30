@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { z } from 'zod';
 import { generateUniqueUsername, generateProfileSlug } from '@/lib/utils/usernameUtils';
 import { cascadeDeleteUser } from '@/lib/services/userDeletionService';
+import { upsertSpaceMembership } from '@/lib/services/spaceMembershipService';
 
 async function authenticateRequest(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -84,6 +86,32 @@ export async function GET(request: NextRequest) {
           .select('chapter_id')
           .eq('user_id', userId);
         userPayload.governance_chapter_ids = (rows ?? []).map((r: { chapter_id: string }) => r.chapter_id);
+      }
+
+      if (isDeveloper) {
+        const { data: memRows, error: memErr } = await supabase
+          .from('space_memberships')
+          .select('id, space_id, role, status, is_primary, is_space_icon')
+          .eq('user_id', userId)
+          .neq('status', 'inactive');
+
+        if (memErr) {
+          console.error('developer users GET space_memberships:', memErr);
+          userPayload.space_memberships = [];
+        } else if (memRows && memRows.length > 0) {
+          const spaceIds = [...new Set(memRows.map((m) => m.space_id as string))];
+          const { data: spaces } = await supabase.from('spaces').select('id, name').in('id', spaceIds);
+          const nameBy = new Map((spaces ?? []).map((s) => [s.id as string, (s.name as string) ?? '']));
+          userPayload.space_memberships = memRows.map((m) => ({
+            membership_id: m.id,
+            space_id: m.space_id,
+            space_name: nameBy.get(m.space_id as string) ?? 'Unknown space',
+            membership_role: m.status === 'alumni' ? 'alumni' : 'active_member',
+            is_primary: Boolean(m.is_primary),
+          }));
+        } else {
+          userPayload.space_memberships = [];
+        }
       }
 
       return NextResponse.json({ user: userPayload });
@@ -357,7 +385,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const allowed = ['role', 'chapter_role', 'member_status', 'chapter_id'];
-    const update: Record<string, any> = {};
+    const update: Record<string, unknown> = {};
     for (const key of allowed) if (key in body) update[key] = body[key];
 
     if (update.role && !['admin', 'active_member', 'alumni', 'governance'].includes(update.role)) {
@@ -389,6 +417,71 @@ export async function PUT(request: NextRequest) {
       await supabase.from('governance_chapters').insert(
         governanceChapterIds.map((chapter_id: string) => ({ user_id: userId, chapter_id }))
       );
+    }
+
+    const spaceMembershipRolesSchema = z.array(
+      z.object({
+        space_id: z.string().uuid(),
+        membership_role: z.enum(['active_member', 'alumni']),
+      })
+    );
+
+    if (body.space_membership_roles !== undefined && body.space_membership_roles !== null) {
+      if (!isDeveloper) {
+        return NextResponse.json(
+          { error: 'Only developers can update additional space membership roles' },
+          { status: 403 }
+        );
+      }
+      const parsedSmr = spaceMembershipRolesSchema.safeParse(body.space_membership_roles);
+      if (!parsedSmr.success) {
+        return NextResponse.json(
+          { error: 'Invalid space_membership_roles', details: parsedSmr.error.flatten() },
+          { status: 400 }
+        );
+      }
+
+      for (const row of parsedSmr.data) {
+        const { data: mem, error: memFetchErr } = await supabase
+          .from('space_memberships')
+          .select('id, is_primary, is_space_icon')
+          .eq('user_id', userId)
+          .eq('space_id', row.space_id)
+          .neq('status', 'inactive')
+          .maybeSingle();
+
+        if (memFetchErr) {
+          console.error('developer users PUT membership fetch:', memFetchErr);
+          return NextResponse.json({ error: 'Failed to load membership' }, { status: 500 });
+        }
+        if (!mem) {
+          return NextResponse.json(
+            { error: `No active membership for space ${row.space_id}` },
+            { status: 400 }
+          );
+        }
+        if (mem.is_primary) {
+          return NextResponse.json(
+            {
+              error:
+                'Primary (home) space membership cannot be changed via this field; update System Role or use assign-membership.',
+            },
+            { status: 400 }
+          );
+        }
+
+        const status = row.membership_role === 'alumni' ? 'alumni' : 'active';
+        const up = await upsertSpaceMembership(supabase, {
+          userId,
+          spaceId: row.space_id,
+          role: row.membership_role,
+          status,
+          isPrimary: false,
+        });
+        if (!up.ok) {
+          return NextResponse.json({ error: up.error ?? 'Membership update failed' }, { status: 500 });
+        }
+      }
     }
 
     return NextResponse.json({ user: data });

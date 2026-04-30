@@ -5,7 +5,9 @@ import { FileText, AlertCircle, CheckCircle, Clock, Upload, Download, User, Cale
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useActiveChapter } from '@/lib/contexts/ActiveChapterContext';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
+import { resolveEffectiveRoleForActiveContext } from '@/lib/utils/effectiveDashboardRole';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'react-toastify';
 import { DocumentDetailDrawer } from './DocumentDetailDrawer';
@@ -38,6 +40,8 @@ export function MobileDocsCompliancePage() {
   
   const { profile, isDeveloper } = useProfile();
   const chapterId = useScopedChapterId();
+  const { activeChapterId, memberSpaces } = useActiveChapter();
+  const effectiveRole = resolveEffectiveRoleForActiveContext(profile, activeChapterId, memberSpaces);
 
   // Load documents on component mount
   useEffect(() => {
@@ -45,7 +49,7 @@ export function MobileDocsCompliancePage() {
       loadDocuments();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapterId, profile?.role, isDeveloper]);
+  }, [chapterId, profile?.role, isDeveloper, effectiveRole, activeChapterId, memberSpaces]);
 
   const loadDocuments = async () => {
     try {
@@ -60,13 +64,13 @@ export function MobileDocsCompliancePage() {
       // Build visibility filter based on user role
       let visibilityFilter = [];
       
-      if (isDeveloper || profile?.role === 'admin') {
-        // Developers/admins can see all documents in the selected chapter
+      if (isDeveloper || effectiveRole === 'admin') {
+        // Developers / home-chapter exec admins can see all documents in the selected chapter
         visibilityFilter = ['chapter_all', 'active_members', 'alumni', 'admins'];
-      } else if (profile?.role === 'active_member') {
+      } else if (effectiveRole === 'active_member') {
         // Active members can see documents visible to chapter_all or active_members
         visibilityFilter = ['chapter_all', 'active_members'];
-      } else if (profile?.role === 'alumni') {
+      } else if (effectiveRole === 'alumni') {
         // Alumni can see documents visible to chapter_all or alumni
         visibilityFilter = ['chapter_all', 'alumni'];
       } else {

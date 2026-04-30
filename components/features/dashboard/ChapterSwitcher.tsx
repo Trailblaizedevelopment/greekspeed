@@ -130,7 +130,21 @@ export function ChapterSwitcher() {
               })
             )
           );
-          setMemberSpaces(raw.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })));
+          setMemberSpaces(
+            raw.map(
+              (s: {
+                id: string;
+                name: string;
+                membership_status?: string;
+                membership_role?: string;
+              }) => ({
+                id: s.id,
+                name: s.name,
+                membership_status: s.membership_status === 'alumni' ? 'alumni' : 'active',
+                membership_role: s.membership_role,
+              })
+            )
+          );
         } else {
           setMemberSpaces([]);
         }

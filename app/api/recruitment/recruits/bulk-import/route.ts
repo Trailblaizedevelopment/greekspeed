@@ -208,8 +208,10 @@ export async function POST(request: NextRequest) {
     if (profile.role === 'governance') {
       managedChapterIds = await getManagedChapterIds(supabase, user.id);
     }
-    const isAdmin = profile.role === 'admin';
-    const isExec = profile.chapter_role && EXECUTIVE_ROLES.includes(profile.chapter_role as any);
+    const isAdmin = profile.role === 'admin' && !!profile.chapter_id;
+    const isExec =
+      !!profile.chapter_role &&
+      EXECUTIVE_ROLES.includes(profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]);
     const canImportAsGovernance = profile.role === 'governance' && managedChapterIds?.includes(profile.chapter_id!);
 
     if (!isAdmin && !isExec && !canImportAsGovernance) {

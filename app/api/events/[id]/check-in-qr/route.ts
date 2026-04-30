@@ -101,21 +101,6 @@ export async function GET(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const isAdmin = profile.role === 'admin';
-    const isChapterExec =
-      profile.chapter_role != null &&
-      EXECUTIVE_ROLES.includes(
-        profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]
-      );
-    const isExec = isAdmin || isChapterExec;
-
-    if (!isExec) {
-      return NextResponse.json(
-        { error: 'Only chapter executives can view the check-in QR' },
-        { status: 403 }
-      );
-    }
-
     const { data: event, error: eventError } = await serviceSupabase
       .from('events')
       .select('id, chapter_id, status')
@@ -133,9 +118,20 @@ export async function GET(
       );
     }
 
-    if (!isAdmin && event.chapter_id !== profile.chapter_id) {
+    const eventChapterId = event.chapter_id as string;
+    const sameChapter = profile.chapter_id === eventChapterId;
+    const isChapterAdmin = profile.role === 'admin' && sameChapter;
+    const isChapterExec =
+      sameChapter &&
+      profile.chapter_role != null &&
+      EXECUTIVE_ROLES.includes(
+        profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]
+      );
+    const isExec = isChapterAdmin || isChapterExec;
+
+    if (!isExec) {
       return NextResponse.json(
-        { error: 'You do not have access to this event' },
+        { error: 'Only chapter executives can view the check-in QR' },
         { status: 403 }
       );
     }

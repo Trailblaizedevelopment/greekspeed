@@ -90,10 +90,8 @@ export async function GET(
       managedChapterIds = await getManagedChapterIds(supabase, user.id);
     }
     const isChapterMember = profile.chapter_id === id;
-    const canManage = 
-      profile.role === 'admin' ||
-      profile.is_developer || 
-      canManageChapterForContext(profile, id, managedChapterIds);
+    const canManage =
+      profile.is_developer || canManageChapterForContext(profile, id, managedChapterIds);
 
     // Allow read if member of chapter OR manager/admin/developer
     if (!isChapterMember && !canManage) {
@@ -152,9 +150,7 @@ export async function PATCH(
       managedChapterIds = await getManagedChapterIds(supabase, user.id);
     }
     const canUpdate =
-      profile.role === 'admin' ||
-      profile.is_developer ||
-      canManageChapterForContext(profile, id, managedChapterIds);
+      profile.is_developer || canManageChapterForContext(profile, id, managedChapterIds);
 
     if (!canUpdate) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
