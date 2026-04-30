@@ -101,16 +101,19 @@ export async function GET(request: NextRequest) {
     const requestedChapterId = searchParams.get('chapter_id')?.trim() || null;
 
     const isDeveloper = profile.is_developer === true;
-    const isAdmin = profile.role === 'admin';
     const isGovernance = profile.role === 'governance';
     let managedChapterIds: string[] | undefined;
     if (isGovernance) {
       managedChapterIds = await getManagedChapterIds(supabase, user.id);
     }
+    const isHomeChapterAdmin =
+      profile.role === 'admin' &&
+      !!profile.chapter_id &&
+      profile.chapter_id === requestedChapterId;
     const canRequestChapter =
       requestedChapterId &&
       (isDeveloper ||
-        isAdmin ||
+        isHomeChapterAdmin ||
         (isGovernance && managedChapterIds?.includes(requestedChapterId)));
     const effectiveChapterId = canRequestChapter ? requestedChapterId! : profile.chapter_id;
 
@@ -151,10 +154,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Recruitment CRM feature is not enabled for this chapter' }, { status: 403 });
     }
 
-    const isExec = profile.chapter_role && EXECUTIVE_ROLES.includes(profile.chapter_role as any);
+    const isChapterAdminForEffective =
+      profile.role === 'admin' && profile.chapter_id === effectiveChapterId;
+    const isExec =
+      profile.chapter_id === effectiveChapterId &&
+      !!profile.chapter_role &&
+      EXECUTIVE_ROLES.includes(profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]);
     const canViewAsGovernance = isGovernance && managedChapterIds?.includes(effectiveChapterId);
 
-    if (!isDeveloper && !isAdmin && !isExec && !canViewAsGovernance) {
+    if (!isDeveloper && !isChapterAdminForEffective && !isExec && !canViewAsGovernance) {
       return NextResponse.json({
         error: 'Insufficient permissions. Only execs and admins can view recruits.',
       }, { status: 403 });

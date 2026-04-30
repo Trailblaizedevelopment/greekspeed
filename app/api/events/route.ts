@@ -8,8 +8,8 @@ import {
   filterEventsForAudience,
   parseAudienceBooleans,
   validateAudienceSelection,
-  type EventAudienceViewer,
 } from '@/lib/utils/eventAudienceVisibility';
+import { buildEventAudienceViewerForChapter } from '@/lib/api/buildEventAudienceViewer';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Chapter ID is required' }, { status: 400 });
     }
 
-    let audienceViewer: EventAudienceViewer | null = null;
+    let audienceViewer: Awaited<ReturnType<typeof buildEventAudienceViewerForChapter>> | null = null;
 
     // TRA-584: Logged-in users must pass the same chapter access rules as the feed (marketing pending → 403).
     // Unauthenticated callers keep prior behavior (e.g. public profile upcoming events).
@@ -57,11 +57,17 @@ export async function GET(request: NextRequest) {
         return access.response;
       }
 
-      audienceViewer = {
-        role: accessProfile.role ?? null,
-        chapter_role: accessProfile.chapter_role ?? null,
-        is_developer: accessProfile.is_developer ?? false,
-      };
+      audienceViewer = await buildEventAudienceViewerForChapter(
+        auth.supabase,
+        auth.user.id,
+        chapterId,
+        {
+          chapter_id: accessProfile.chapter_id,
+          role: accessProfile.role,
+          chapter_role: accessProfile.chapter_role,
+          is_developer: accessProfile.is_developer,
+        }
+      );
     }
 
     let query = supabase
@@ -122,7 +128,7 @@ export async function GET(request: NextRequest) {
       };
     }) || [];
 
-    const filtered = filterEventsForAudience(eventsWithCounts, audienceViewer);
+    const filtered = filterEventsForAudience(eventsWithCounts, audienceViewer, chapterId);
 
     if (scope === 'upcoming') {
       filtered.sort(compareEventsByStartAsc);

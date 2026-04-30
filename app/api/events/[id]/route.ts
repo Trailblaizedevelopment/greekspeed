@@ -4,6 +4,7 @@ import { normalizeEventTimeField } from '@/lib/utils/eventScheduleDisplay';
 import { authenticateApiRequest } from '@/lib/api/authenticateApiRequest';
 import { assertAuthenticatedChapterReadAccess } from '@/lib/api/chapterScopedAccess';
 import { assertEventVisibleToViewer, validateAudienceSelection } from '@/lib/utils/eventAudienceVisibility';
+import { buildEventAudienceViewerForChapter } from '@/lib/api/buildEventAudienceViewer';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -61,17 +62,23 @@ export async function GET(
         return access.response;
       }
 
-      const viewer = {
-        role: accessProfile.role ?? null,
-        chapter_role: accessProfile.chapter_role ?? null,
-        is_developer: accessProfile.is_developer ?? false,
-      };
-      if (!assertEventVisibleToViewer(event, viewer)) {
+      const viewer = await buildEventAudienceViewerForChapter(
+        auth.supabase,
+        auth.user.id,
+        event.chapter_id as string,
+        {
+          chapter_id: accessProfile.chapter_id,
+          role: accessProfile.role,
+          chapter_role: accessProfile.chapter_role,
+          is_developer: accessProfile.is_developer,
+        }
+      );
+      if (!assertEventVisibleToViewer(event, viewer, event.chapter_id as string)) {
         return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       }
     } else {
       if (
-        !assertEventVisibleToViewer(event, null)
+        !assertEventVisibleToViewer(event, null, event.chapter_id as string)
       ) {
         return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       }

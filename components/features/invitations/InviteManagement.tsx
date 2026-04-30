@@ -62,6 +62,7 @@ export function InviteManagement({ chapterId, className }: InviteManagementProps
   const showMembershipRequestsCta = canSeeMembershipRequestsNav(permissionProfile, {
     isDeveloper,
     activeChapterId,
+    scopeChapterId: chapterId,
   });
 
   useEffect(() => {

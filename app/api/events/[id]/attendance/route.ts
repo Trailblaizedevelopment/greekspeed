@@ -67,22 +67,18 @@ export async function GET(
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
 
-    const isAdmin = profile.role === 'admin';
+    const eventChapterId = event.chapter_id as string;
+    const sameChapter = profile.chapter_id === eventChapterId;
+    const isChapterAdmin = profile.role === 'admin' && sameChapter;
     const isChapterExec =
-      profile.chapter_role && EXECUTIVE_ROLES.includes(profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]);
-    const isExec = isAdmin || isChapterExec;
+      sameChapter &&
+      !!profile.chapter_role &&
+      EXECUTIVE_ROLES.includes(profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]);
+    const isExec = isChapterAdmin || isChapterExec;
 
     if (!isExec) {
       return NextResponse.json(
         { error: 'Only chapter exec can view attendance' },
-        { status: 403 }
-      );
-    }
-
-    // Non-admin execs must be in the same chapter as the event
-    if (!isAdmin && event.chapter_id !== profile.chapter_id) {
-      return NextResponse.json(
-        { error: 'You do not have access to this event' },
         { status: 403 }
       );
     }

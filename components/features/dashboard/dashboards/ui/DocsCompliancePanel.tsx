@@ -10,7 +10,9 @@ import { toast } from 'react-toastify';
 import { AllDocumentsModal } from './AllDocumentsModal';
 import { DocumentDetailDrawer } from './DocumentDetailDrawer';
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useActiveChapter } from '@/lib/contexts/ActiveChapterContext';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
+import { resolveEffectiveRoleForActiveContext } from '@/lib/utils/effectiveDashboardRole';
 
 // Use the same interface as ChapterDocumentManager
 interface ChapterDocument {
@@ -39,6 +41,8 @@ export function DocsCompliancePanel() {
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const { profile, isDeveloper } = useProfile();
   const chapterId = useScopedChapterId();
+  const { activeChapterId, memberSpaces } = useActiveChapter();
+  const effectiveRole = resolveEffectiveRoleForActiveContext(profile, activeChapterId, memberSpaces);
 
   // Load documents on component mount (limit to 3)
   useEffect(() => {
@@ -46,7 +50,7 @@ export function DocsCompliancePanel() {
       loadDocuments();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapterId, profile?.role, isDeveloper]);
+  }, [chapterId, profile?.role, isDeveloper, effectiveRole, activeChapterId, memberSpaces]);
 
   const loadDocuments = async () => {
     try {
@@ -61,13 +65,13 @@ export function DocsCompliancePanel() {
       // Build visibility filter based on user role
       let visibilityFilter = [];
 
-      if (isDeveloper || profile?.role === 'admin') {
-        // Developers/admins can see all documents in the selected chapter
+      if (isDeveloper || effectiveRole === 'admin') {
+        // Developers / home-chapter exec admins can see all documents in the selected chapter
         visibilityFilter = ['chapter_all', 'active_members', 'alumni', 'admins'];
-      } else if (profile?.role === 'active_member') {
+      } else if (effectiveRole === 'active_member') {
         // Active members can see documents visible to chapter_all or active_members
         visibilityFilter = ['chapter_all', 'active_members'];
-      } else if (profile?.role === 'alumni') {
+      } else if (effectiveRole === 'alumni') {
         // Alumni can see documents visible to chapter_all or alumni
         visibilityFilter = ['chapter_all', 'alumni'];
       } else {
@@ -78,7 +82,7 @@ export function DocsCompliancePanel() {
       // User role-based access
       console.log('User access details:', {
         userId: profile?.id,
-        userRole: profile?.role,
+        userRole: effectiveRole,
         chapterId,
         visibilityFilter: visibilityFilter
       });
@@ -103,7 +107,7 @@ export function DocsCompliancePanel() {
         // Documents loaded with role-based access
         console.log('Documents loaded:', {
           totalDocuments: documents?.length || 0,
-          userRole: profile?.role,
+          userRole: effectiveRole,
           visibilityFilter: visibilityFilter
         });
 

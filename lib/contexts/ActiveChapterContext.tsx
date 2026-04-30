@@ -5,7 +5,13 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type MemberSpaceSummary = { id: string; name: string };
+export type MemberSpaceSummary = {
+  id: string;
+  name: string;
+  /** From `space_memberships.status` when sourced from member-spaces API */
+  membership_status?: 'active' | 'alumni' | 'inactive';
+  membership_role?: string;
+};
 
 interface ActiveChapterContextType {
   activeChapterId: string | null;

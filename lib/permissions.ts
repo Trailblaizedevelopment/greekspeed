@@ -53,7 +53,8 @@ export function canManageChapterForContext(
   managedChapterIds?: string[]
 ): boolean {
   if (!profile?.role) return false;
-  if (profile.role === 'admin') return true;
+  // Chapter exec `admin` applies only to the user's home chapter (`profiles.chapter_id`),
+  // not every space they can open via multi-membership (see TRA-661 follow-up).
   if (profile.role === 'governance') {
     if (managedChapterIds == null) return false;
     return managedChapterIds.includes(chapterId) || profile.chapter_id === chapterId;
@@ -70,7 +71,6 @@ export function canManageMembersForContext(
   managedChapterIds?: string[]
 ): boolean {
   if (!profile?.role) return false;
-  if (profile.role === 'admin') return true;
   if (profile.role === 'governance') {
     if (managedChapterIds == null) return false;
     return managedChapterIds.includes(chapterId) || profile.chapter_id === chapterId;

@@ -4,23 +4,30 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useProfile } from '@/lib/contexts/ProfileContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { UsersTab } from '@/components/user-management/UsersTab';
 
 export default function AdminMembersPage() {
   const { profile } = useProfile();
   const router = useRouter();
+  const chapterId = useScopedChapterId();
 
   if (!profile) return null;
-  const isAdmin = profile.role === 'admin';
-  const chapterId = profile.chapter_id || null;
 
-  if (!isAdmin || !chapterId) {
+  const isChapterAdminForContext =
+    chapterId &&
+    profile.chapter_id === chapterId &&
+    profile.role === 'admin';
+
+  if (!isChapterAdminForContext || !chapterId) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">Admin role and chapter required.</p>
+          <p className="text-gray-600">
+            Chapter admin access is only available for your home chapter in the current space.
+          </p>
         </div>
       </div>
     );
@@ -44,7 +51,7 @@ export default function AdminMembersPage() {
               chapterContext={{
                 chapterId: chapterId,
                 chapterName: profile.chapter || 'Current Chapter',
-                isChapterAdmin: true
+                isChapterAdmin: true,
               }}
             />
           </CardContent>
@@ -53,5 +60,3 @@ export default function AdminMembersPage() {
     </div>
   );
 }
-
-

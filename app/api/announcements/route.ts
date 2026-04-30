@@ -188,7 +188,11 @@ export async function POST(request: NextRequest) {
     }
 
     const allowedChapterRoles = ['president', 'vice_president', 'secretary', 'treasurer', 'executive_board'];
-    const isSystemAdmin = profile.role === 'admin';
+    /** Chapter-scoped exec admin (`profiles.role`), not global across all memberships. */
+    const isSystemAdmin =
+      profile.role === 'admin' &&
+      !!profile.chapter_id &&
+      canManageChapterForContext(profile as ProfileForPermission, profile.chapter_id);
     const isGovernance = profile.role === 'governance';
     const hasChapterRole = profile.chapter_role && allowedChapterRoles.includes(profile.chapter_role);
 

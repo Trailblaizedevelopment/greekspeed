@@ -6,8 +6,10 @@ import { Users, GraduationCap, UserPlus, Calendar, Lock, X, ChevronRight, Loader
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useProfile } from '@/lib/contexts/ProfileContext';
+import { useActiveChapter } from '@/lib/contexts/ActiveChapterContext';
 import { useChapterMembers } from '@/lib/hooks/useChapterMembers';
 import { useScopedChapterId } from '@/lib/hooks/useScopedChapterId';
+import { resolveEffectiveRoleForActiveContext } from '@/lib/utils/effectiveDashboardRole';
 import { AddMemberForm } from '@/components/chapter/AddMemberForm';
 import { EventForm } from '@/components/ui/EventForm'; // Add this import
 import { FeatureGuard } from '@/components/shared/FeatureGuard'; // Add this import
@@ -15,6 +17,7 @@ import { AddRecruitForm } from '@/components/features/recruitment/AddRecruitForm
 import type { Recruit } from '@/types/recruitment';
 import { useRouter } from 'next/navigation';
 import { EXECUTIVE_ROLES } from '@/lib/permissions';
+import type { ChapterRole } from '@/types/profile';
 
 
 interface MyChapterSidebarProps {
@@ -35,16 +38,20 @@ export function MyChapterSidebar({ onNavigate, activeSection, searchTerm, onSear
   // Get current user's profile to check role and chapter
   const { profile } = useProfile();
   const chapterId = useScopedChapterId();
-  
+  const { activeChapterId, memberSpaces } = useActiveChapter();
+
   // Fetch chapter members to calculate stats dynamically, excluding alumni
   const { members, loading: membersLoading } = useChapterMembers(chapterId || undefined, true);
-  
-  // Check if user is admin (same pattern as other components)
-  const isAdmin = profile?.role === 'admin';
-  // Check if user can submit recruits (active_member or admin)
-  const canSubmitRecruit = profile?.role === 'active_member' || profile?.role === 'admin';
-  // Check if user is exec (admin or exec chapter_role) - can view recruitment page
-  const isExec = isAdmin || (profile?.chapter_role && EXECUTIVE_ROLES.includes(profile.chapter_role as any));
+
+  const effectiveRole = resolveEffectiveRoleForActiveContext(profile, activeChapterId, memberSpaces);
+  const atHomeChapter = !!(chapterId && profile?.chapter_id === chapterId);
+  const isAdmin = effectiveRole === 'admin';
+  const canSubmitRecruit = effectiveRole === 'active_member' || effectiveRole === 'admin';
+  const isExec =
+    isAdmin ||
+    (atHomeChapter &&
+      profile?.chapter_role &&
+      EXECUTIVE_ROLES.includes(profile.chapter_role as ChapterRole));
 
   // Calculate stats dynamically from the fetched members
   const stats = {

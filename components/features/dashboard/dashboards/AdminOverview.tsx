@@ -205,9 +205,12 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
 
   // Remove the manual tab configuration - MobileBottomNavigation will auto-detect role
 
-  // Check if user is an executive member
-  const isExecutiveMember = profile?.role === 'admin' ||
-    (profile?.chapter_role && EXECUTIVE_ROLES.includes(profile.chapter_role as any));
+  const atHomeChapter = !!(chapterId && profile?.chapter_id === chapterId);
+  const isExecutiveMember =
+    (profile?.role === 'admin' && atHomeChapter) ||
+    (atHomeChapter &&
+      profile?.chapter_role &&
+      EXECUTIVE_ROLES.includes(profile.chapter_role as (typeof EXECUTIVE_ROLES)[number]));
 
   const renderMobileContent = () => {
     switch (activeMobileTab) {
