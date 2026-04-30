@@ -4,6 +4,8 @@ import { Users, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { AdvancedFilterControls } from "./AdvancedFilterControls";
+import type { MemberSearchFilters, FilterPreset, AvailableFilterOptions } from "@/types/memberFilters";
 
 export interface MyChapterMemberStats {
   total: number;
@@ -19,6 +21,15 @@ interface MyChapterMobileFiltersPanelProps {
   onClearFilters: () => void;
   stats: MyChapterMemberStats;
   statsLoading?: boolean;
+  filters: MemberSearchFilters;
+  onFiltersChange: (updates: Partial<MemberSearchFilters>) => void;
+  availableOptions: AvailableFilterOptions;
+  advancedFilterCount: number;
+  presets: FilterPreset[];
+  onSavePreset: (name: string) => FilterPreset;
+  onApplyPreset: (preset: FilterPreset) => void;
+  onRenamePreset: (id: string, name: string) => void;
+  onDeletePreset: (id: string) => void;
 }
 
 const sections = [
@@ -53,6 +64,15 @@ export function MyChapterMobileFiltersPanel({
   onClearFilters,
   stats,
   statsLoading,
+  filters,
+  onFiltersChange,
+  availableOptions,
+  advancedFilterCount,
+  presets,
+  onSavePreset,
+  onApplyPreset,
+  onRenamePreset,
+  onDeletePreset,
 }: MyChapterMobileFiltersPanelProps) {
   return (
     <div className="space-y-6">
@@ -108,8 +128,23 @@ export function MyChapterMobileFiltersPanel({
         </div>
       </div>
 
+      <div className="border-t border-gray-200 pt-4">
+        <AdvancedFilterControls
+          filters={filters}
+          onFiltersChange={onFiltersChange}
+          availableOptions={availableOptions}
+          advancedFilterCount={advancedFilterCount}
+          presets={presets}
+          onSavePreset={onSavePreset}
+          onApplyPreset={onApplyPreset}
+          onRenamePreset={onRenamePreset}
+          onDeletePreset={onDeletePreset}
+          compact
+        />
+      </div>
+
       <Button type="button" variant="ghost" className="w-full text-gray-600" onClick={onClearFilters}>
-        Clear search & reset view
+        Clear all filters & reset view
       </Button>
     </div>
   );
