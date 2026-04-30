@@ -130,6 +130,17 @@ export interface CrowdedClientConfig {
   token: string;
 }
 
+/**
+ * Crowded’s published Postman docs use `X-API-Key`; many hosts also accept `Authorization: Bearer`.
+ * We send both so intents and other routes work across environments without a second env flag.
+ */
+export function crowdedApiAuthHeaders(token: string): Record<string, string> {
+  return {
+    'X-API-Key': token,
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
 }
@@ -218,9 +229,35 @@ export function normalizeCrowdedCollectionSingleResponse(
     typeof data.createdAt === 'string' && data.createdAt
       ? data.createdAt
       : new Date().toISOString();
-  const linkRaw = data.link;
-  const link =
-    typeof linkRaw === 'string' && linkRaw.trim().length > 0 ? linkRaw.trim() : undefined;
+
+  /** Crowded collection GET/POST shapes vary; member checkout is usually on intents, but some envs return a link here. */
+  const attrs =
+    data.attributes && typeof data.attributes === 'object' && !Array.isArray(data.attributes)
+      ? (data.attributes as Record<string, unknown>)
+      : {};
+  const merged: Record<string, unknown> = { ...attrs, ...data };
+  const linkCandidates = [
+    merged.link,
+    merged.shareLink,
+    merged.share_url,
+    merged.checkoutUrl,
+    merged.checkout_url,
+    merged.publicUrl,
+    merged.public_url,
+    merged.collectionUrl,
+    merged.paymentUrl,
+    merged.payment_url,
+  ];
+  let link: string | undefined;
+  for (const c of linkCandidates) {
+    if (typeof c === 'string') {
+      const t = c.trim();
+      if (t.length > 0 && (t.startsWith('http://') || t.startsWith('https://'))) {
+        link = t;
+        break;
+      }
+    }
+  }
 
   const out: CrowdedCollection = {
     id,
@@ -340,7 +377,7 @@ export class CrowdedClient {
       ...init,
       headers: {
         Accept: 'application/json',
-        Authorization: `Bearer ${this.config.token}`,
+        ...crowdedApiAuthHeaders(this.config.token),
         ...init.headers,
       },
     });

@@ -14,6 +14,7 @@ import { Event } from '@/types/events';
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
 import { DuesStatusCard } from './ui/DuesStatusCard';
+import { MyDonationSharesCard } from './ui/MyDonationSharesCard';
 import { FeatureGuard } from '@/components/shared/FeatureGuard';
 import { MobileBottomNavigation } from './ui/MobileBottomNavigation'; // Changed import
 import { MobileAdminTasksPage } from './ui/MobileAdminTasksPage';
@@ -225,6 +226,9 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
                 </FeatureGuard>
               )}
             </div>
+            <FeatureGuard flagName="crowded_integration_enabled">
+              <MyDonationSharesCard />
+            </FeatureGuard>
             <div className="w-full">
               <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
             </div>
@@ -291,6 +295,9 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
               <FeatureGuard flagName="financial_tools_enabled">
                 <DuesStatusCard />
               </FeatureGuard>
+              <FeatureGuard flagName="crowded_integration_enabled">
+                <MyDonationSharesCard />
+              </FeatureGuard>
               {/* Add DocsCompliancePanel for tablet view */}
               <DocsCompliancePanel />
             </div>
@@ -308,6 +315,9 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
           <div className="col-span-3 col-start-1 row-start-1 space-y-6">
             <FeatureGuard flagName="financial_tools_enabled">
               <DuesStatusCard />
+            </FeatureGuard>
+            <FeatureGuard flagName="crowded_integration_enabled">
+              <MyDonationSharesCard />
             </FeatureGuard>
             <OperationsFeed />
           </div>

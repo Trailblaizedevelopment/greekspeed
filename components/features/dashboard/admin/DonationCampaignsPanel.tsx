@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  ExternalLink,
   FileSearch,
   Loader2,
   MoreVertical,
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -84,7 +85,7 @@ export interface DonationCampaignsPanelProps {
 }
 
 export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaignsPanelProps) {
-  const { listQuery, createMutation } = useDonationCampaigns(chapterId, enabled);
+  const { listQuery, createMutation, syncShareLinkMutation } = useDonationCampaigns(chapterId, enabled);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<DonationCampaignCreateKind>('open');
   const [goalUsd, setGoalUsd] = useState('');
@@ -416,6 +417,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                           <TableHead className="hidden sm:table-cell">Role</TableHead>
                                           <TableHead className="tabular-nums">Paid</TableHead>
                                           <TableHead>Status</TableHead>
+                                          <TableHead className="whitespace-nowrap w-[1%]">Crowded link</TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
@@ -449,6 +451,97 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                               >
                                                 Not paid
                                               </Badge>
+                                            </TableCell>
+                                            <TableCell
+                                              className="text-right sm:text-left"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {(() => {
+                                                const shareUrl =
+                                                  rec.crowded_checkout_url?.trim() ||
+                                                  row.crowded_share_url?.trim();
+                                                const canSync = Boolean(row.crowded_collection_id?.trim());
+                                                const syncing =
+                                                  syncShareLinkMutation.isPending &&
+                                                  syncShareLinkMutation.variables?.campaignId === row.id &&
+                                                  syncShareLinkMutation.variables?.recipientId === rec.id;
+                                                const siblingSyncing =
+                                                  syncShareLinkMutation.isPending &&
+                                                  syncShareLinkMutation.variables?.campaignId === row.id &&
+                                                  !syncing;
+
+                                                if (shareUrl) {
+                                                  return (
+                                                    <a
+                                                      href={shareUrl}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className={cn(
+                                                        buttonVariants({
+                                                          variant: 'outline',
+                                                          size: 'sm',
+                                                        }),
+                                                        'h-8 gap-1.5 inline-flex items-center justify-center no-underline whitespace-nowrap'
+                                                      )}
+                                                    >
+                                                      <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                                      Open
+                                                    </a>
+                                                  );
+                                                }
+
+                                                return (
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 gap-1.5 rounded-full text-xs"
+                                                    disabled={!canSync || syncing || siblingSyncing}
+                                                    title={
+                                                      canSync
+                                                        ? 'Fetch share URL from Crowded and save it for members'
+                                                        : 'Missing Crowded collection on this drive'
+                                                    }
+                                                    onClick={() => {
+                                                      syncShareLinkMutation.mutate(
+                                                        { campaignId: row.id, recipientId: rec.id },
+                                                        {
+                                                        onSuccess: (d) => {
+                                                          if (d.source === 'intent') {
+                                                            toast.success(
+                                                              d.alreadySet
+                                                                ? 'Checkout link was already saved for this member'
+                                                                : 'Crowded Collect checkout link created — member can pay from Trailblaize or the link; a Collect request should appear in Crowded for this contact.'
+                                                            );
+                                                          } else {
+                                                            toast.success(
+                                                              d.alreadySet
+                                                                ? 'Checkout link was already saved'
+                                                                : 'Checkout link saved — members can open it from their dashboard'
+                                                            );
+                                                          }
+                                                        },
+                                                        onError: (err) => {
+                                                          toast.error(
+                                                            err instanceof Error
+                                                              ? err.message
+                                                              : 'Could not fetch link from Crowded'
+                                                          );
+                                                        },
+                                                      }
+                                                      );
+                                                    }}
+                                                  >
+                                                    {syncing ? (
+                                                      <Loader2
+                                                        className="h-3.5 w-3.5 animate-spin shrink-0"
+                                                        aria-hidden
+                                                      />
+                                                    ) : null}
+                                                    Create link
+                                                  </Button>
+                                                );
+                                              })()}
                                             </TableCell>
                                           </TableRow>
                                         ))}

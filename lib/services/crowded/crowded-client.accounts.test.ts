@@ -224,7 +224,7 @@ describe('CrowdedClient.bulkCreateAccounts', () => {
     delete process.env.CROWDED_VALIDATE_RESPONSES;
   });
 
-  it('POSTs JSON to /api/v1/chapters/:id/accounts with Bearer token', async () => {
+  it('POSTs JSON to /api/v1/chapters/:id/accounts with X-API-Key and Bearer', async () => {
     const expectedUrl = buildCrowdedUrl('https://crowded.test', `/chapters/${chapterId}/accounts`);
     const payload = {
       data: {
@@ -256,6 +256,7 @@ describe('CrowdedClient.bulkCreateAccounts', () => {
       assert.equal(init?.method, 'POST');
       const headers = init?.headers as Record<string, string>;
       assert.equal(headers['Content-Type'], 'application/json');
+      assert.equal(headers['X-API-Key'], 'test-token');
       assert.equal(headers.Authorization, 'Bearer test-token');
       assert.equal(init?.body, JSON.stringify(payload));
       return new Response(JSON.stringify(responseBody), { status: 200 });

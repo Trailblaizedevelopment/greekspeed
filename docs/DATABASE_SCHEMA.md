@@ -323,6 +323,7 @@ Treasurer-linked chapter members for a donation drive (must map to a Crowded con
 - `donation_campaign_id` (UUID, Foreign Key → `donation_campaigns.id`, ON DELETE CASCADE)
 - `profile_id` (UUID, Foreign Key → `profiles.id`, ON DELETE CASCADE)
 - `crowded_contact_id` (TEXT) — Crowded Collect **contact** id at share time
+- `crowded_checkout_url` (TEXT, nullable) — per-recipient checkout from **POST …/collections/:id/intents** (`data.paymentUrl`) when campaign has no collection-level `crowded_share_url`
 - `created_at` (TIMESTAMPTZ)
 - **Unique:** `(donation_campaign_id, profile_id)`
 

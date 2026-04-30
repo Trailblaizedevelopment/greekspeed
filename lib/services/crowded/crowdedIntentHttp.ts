@@ -4,6 +4,8 @@
  * Body: { data: { contactId, requestedAmount, payerIp, userConsented, successUrl?, failureUrl? } }
  */
 
+import { crowdedApiAuthHeaders } from './crowded-client';
+
 export type CrowdedCreateIntentData = {
   contactId: string;
   requestedAmount: number;
@@ -37,7 +39,7 @@ export async function crowdedFetchJson(params: {
   const res = await fetch(url, {
     method: params.method,
     headers: {
-      Authorization: `Bearer ${crowdedBearerToken()}`,
+      ...crowdedApiAuthHeaders(crowdedBearerToken()),
       Accept: 'application/json',
       ...(params.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },

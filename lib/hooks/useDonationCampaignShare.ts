@@ -96,6 +96,7 @@ export function useShareDonationMutation(chapterId: string | undefined) {
       void queryClient.invalidateQueries({
         queryKey: ['donation-share-candidates', cid, vars.campaignId],
       });
+      void queryClient.invalidateQueries({ queryKey: ['my-donation-campaign-shares'] });
     },
   });
 }

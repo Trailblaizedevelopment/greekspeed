@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
 import { DuesStatusCard } from './ui/DuesStatusCard';
+import { MyDonationSharesCard } from './ui/MyDonationSharesCard';
 import { Event } from '@/types/events';
 import { MyTasksCard } from './ui/MyTasksCard';
 import { AnnouncementsCard } from './ui/AnnouncementsCard';
@@ -134,6 +135,9 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
       case 'home':
         return (
           <div className="space-y-4">
+            <FeatureGuard flagName="crowded_integration_enabled">
+              <MyDonationSharesCard />
+            </FeatureGuard>
             {/* Primary Feature: Social Feed */}
             <div className="w-full">
               <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
@@ -159,6 +163,9 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
       default:
         return (
           <div className="space-y-4">
+            <FeatureGuard flagName="crowded_integration_enabled">
+              <MyDonationSharesCard />
+            </FeatureGuard>
             {/* Primary Feature: Social Feed */}
             <div className="w-full">
               <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
@@ -223,6 +230,9 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
               <FeatureGuard flagName="financial_tools_enabled">
                 <DuesStatusCard />
               </FeatureGuard>
+              <FeatureGuard flagName="crowded_integration_enabled">
+                <MyDonationSharesCard />
+              </FeatureGuard>
               {/* Important: Announcements visible on tablet since left sidebar is hidden */}
               <AnnouncementsCard />
             </div>
@@ -241,6 +251,9 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
             <div className="space-y-6">
               <FeatureGuard flagName="financial_tools_enabled">
                 <DuesStatusCard />
+              </FeatureGuard>
+              <FeatureGuard flagName="crowded_integration_enabled">
+                <MyDonationSharesCard />
               </FeatureGuard>
               <AnnouncementsCard />
               <MyTasksCard />

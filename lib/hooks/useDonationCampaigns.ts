@@ -16,6 +16,9 @@ export type CreateDonationCampaignPayload = {
 
 type CreateResponse = { data: DonationCampaign; error?: string; code?: string; issues?: unknown };
 
+/** `recipientId` is only for per-row loading UI; the API uses `campaignId` from the URL. */
+export type SyncDonationShareLinkVariables = { campaignId: string; recipientId: string };
+
 export function useDonationCampaigns(chapterId: string | null | undefined, enabled: boolean) {
   const queryClient = useQueryClient();
   const cid = chapterId?.trim() ?? '';
@@ -80,5 +83,47 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
     },
   });
 
-  return { listQuery, createMutation };
+  const syncShareLinkMutation = useMutation({
+    mutationFn: async (
+      vars: SyncDonationShareLinkVariables
+    ): Promise<{ crowdedShareUrl: string; alreadySet: boolean; source: 'collection' | 'intent' }> => {
+      const res = await fetch(`/api/chapters/${cid}/donations/campaigns/${vars.campaignId}/share-link`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ donationCampaignRecipientId: vars.recipientId }),
+      });
+      const json = (await res.json()) as {
+        data?: { crowdedShareUrl: string; alreadySet: boolean; source?: 'collection' | 'intent' };
+        error?: string;
+        code?: string;
+      };
+
+      if (!res.ok) {
+        const msg =
+          typeof json.error === 'string' ? json.error : `Request failed (${res.status})`;
+        const err = new Error(msg) as Error & { status?: number; code?: string };
+        err.status = res.status;
+        if (typeof json.code === 'string') err.code = json.code;
+        throw err;
+      }
+
+      if (!json.data?.crowdedShareUrl) {
+        throw new Error('Invalid response from server');
+      }
+
+      return {
+        crowdedShareUrl: json.data.crowdedShareUrl,
+        alreadySet: Boolean(json.data.alreadySet),
+        source: json.data.source === 'intent' ? 'intent' : 'collection',
+      };
+    },
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ['donation-campaigns', cid] });
+      void queryClient.invalidateQueries({ queryKey: ['my-donation-campaign-shares'] });
+      void queryClient.invalidateQueries({ queryKey: ['donation-recipients', cid, vars.campaignId] });
+    },
+  });
+
+  return { listQuery, createMutation, syncShareLinkMutation };
 }

@@ -15,6 +15,8 @@ import { useProfile } from '@/lib/contexts/ProfileContext';
 import { useRouter } from 'next/navigation';
 import { MobileBottomNavigation } from './ui/MobileBottomNavigation';
 import { cn } from '@/lib/utils';
+import { FeatureGuard } from '@/components/shared/FeatureGuard';
+import { MyDonationSharesCard } from './ui/MyDonationSharesCard';
 
 interface Profile {
   id: string;
@@ -49,6 +51,9 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
       case 'home':
         return (
           <div className="space-y-4">
+            <FeatureGuard flagName="crowded_integration_enabled">
+              <MyDonationSharesCard />
+            </FeatureGuard>
             {/* Social Feed - Primary feature for alumni */}
             <div className="w-full">
               <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
@@ -62,6 +67,9 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
       default:
         return (
           <div className="space-y-4">
+            <FeatureGuard flagName="crowded_integration_enabled">
+              <MyDonationSharesCard />
+            </FeatureGuard>
             <div className="w-full">
               <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
             </div>
@@ -121,8 +129,11 @@ export function AlumniOverview({ initialFeed, fallbackChapterId }: AlumniOvervie
           </div>
 
           {/* Left Sidebar - Networking Spotlight */}
-          <div className="col-span-3 col-start-1 row-start-1">
+          <div className="col-span-3 col-start-1 row-start-1 space-y-4">
             <NetworkingSpotlightCard />
+            <FeatureGuard flagName="crowded_integration_enabled">
+              <MyDonationSharesCard />
+            </FeatureGuard>
           </div>
 
           {/* Right Sidebar - Personal Alumni Profile */}

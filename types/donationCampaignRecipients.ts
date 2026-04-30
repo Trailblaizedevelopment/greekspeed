@@ -4,6 +4,8 @@ export interface DonationCampaignRecipient {
   donation_campaign_id: string;
   profile_id: string;
   crowded_contact_id: string;
+  /** Crowded collect intent checkout URL for this row (see migration `donation_recipient_crowded_checkout_url`). */
+  crowded_checkout_url?: string | null;
   created_at: string;
 }
 
