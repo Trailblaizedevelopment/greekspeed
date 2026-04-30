@@ -48,6 +48,88 @@ async function loadSpaceUniquenessSets(supabase: SupabaseClient): Promise<{
 }
 
 /**
+ * Fills denormalized `spaces` columns from directory FKs and optional display stats (create-user / shell flows).
+ * Mutates `insertPayload` in place before insert.
+ */
+async function enrichShellSpaceInsertPayload(
+  supabase: SupabaseClient,
+  insertPayload: Record<string, unknown>,
+  opts: {
+    school_id: string | null;
+    national_organization_id: string | null;
+    /** Overrides `spaces.location` when set; otherwise uses school directory location when present. */
+    location?: string | null;
+    member_count?: number | null;
+    founded_year?: number | null;
+  }
+): Promise<void> {
+  const sid = opts.school_id?.trim();
+  if (sid && z.string().uuid().safeParse(sid).success) {
+    const { data: s } = await supabase
+      .from('schools')
+      .select('name,short_name,location')
+      .eq('id', sid)
+      .maybeSingle();
+    if (s) {
+      const uni = String(s.name ?? '').trim();
+      if (uni) {
+        insertPayload.university = uni;
+      }
+      const short = (s.short_name as string | null)?.trim();
+      insertPayload.school = short || uni || insertPayload.school;
+      const loc = s.location != null ? String(s.location).trim() : '';
+      if (loc) {
+        insertPayload.school_location = loc;
+      }
+    }
+  }
+
+  const oid = opts.national_organization_id?.trim();
+  if (oid && z.string().uuid().safeParse(oid).success) {
+    const { data: o } = await supabase
+      .from('national_organizations')
+      .select('name,short_name')
+      .eq('id', oid)
+      .maybeSingle();
+    if (o?.name) {
+      insertPayload.national_fraternity = String(o.name).trim();
+    }
+  }
+
+  const explicitLoc = opts.location?.trim();
+  const schoolLoc =
+    typeof insertPayload.school_location === 'string' ? insertPayload.school_location.trim() : '';
+  const locationLine = explicitLoc || schoolLoc;
+  if (locationLine) {
+    insertPayload.location = locationLine.slice(0, 500);
+  }
+
+  if (
+    typeof opts.member_count === 'number' &&
+    Number.isFinite(opts.member_count) &&
+    opts.member_count >= 0
+  ) {
+    insertPayload.member_count = Math.min(Math.floor(opts.member_count), 2_000_000);
+  } else {
+    insertPayload.member_count = 0;
+  }
+
+  if (
+    typeof opts.founded_year === 'number' &&
+    Number.isFinite(opts.founded_year) &&
+    opts.founded_year >= 1800 &&
+    opts.founded_year <= 2100
+  ) {
+    insertPayload.founded_year = Math.floor(opts.founded_year);
+  }
+
+  if (typeof insertPayload.description !== 'string') {
+    insertPayload.description = '';
+  }
+  insertPayload.chapter_status = 'inactive';
+}
+
+/**
  * Find an existing simulation-style space by exact name or slug, or create one (TRA-665).
  * Uses the same naming rules as `scripts/import-data-seeds.ts`.
  */
@@ -65,6 +147,12 @@ export async function findOrCreateSpaceFromSimulationLabel(
     initial_logo_data_url?: string | null;
     /** Profile id for `chapter_branding` audit columns when seeding a logo. */
     branding_actor_user_id?: string | null;
+    /** City / region line for `spaces.location` (optional; also derived from linked school). */
+    location?: string | null;
+    /** Approximate active member count for listings (defaults to 0 when omitted). */
+    member_count?: number | null;
+    /** Four-digit founded year when known. */
+    founded_year?: number | null;
   }
 ): Promise<{ ok: true; id: string; created: boolean } | { ok: false; error: string }> {
   const raw = params.rawName.trim();
@@ -108,6 +196,14 @@ export async function findOrCreateSpaceFromSimulationLabel(
   if (oid && z.string().uuid().safeParse(oid).success) {
     insertPayload.national_organization_id = oid;
   }
+
+  await enrichShellSpaceInsertPayload(supabase, insertPayload, {
+    school_id: sid && z.string().uuid().safeParse(sid).success ? sid : null,
+    national_organization_id: oid && z.string().uuid().safeParse(oid).success ? oid : null,
+    location: params.location ?? null,
+    member_count: params.member_count ?? null,
+    founded_year: params.founded_year ?? null,
+  });
 
   const { data: inserted, error } = await supabase.from('spaces').insert(insertPayload).select('id').single();
 

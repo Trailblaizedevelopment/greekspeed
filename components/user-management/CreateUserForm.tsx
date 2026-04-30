@@ -55,6 +55,10 @@ type ExtraSpaceRow =
       orgLink: DeveloperReferenceSelection | null;
       /** Optional data URL sent as new_space.image_data_url for shell branding logo. */
       spaceImageDataUrl: string | null;
+      /** Optional listing fields persisted on `spaces` when the shell is created. */
+      memberCount: string;
+      foundedYear: string;
+      locationLine: string;
     };
 
 export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper = false }: CreateUserFormProps) {
@@ -98,6 +102,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
   const [newShellSchoolLink, setNewShellSchoolLink] = useState<DeveloperReferenceSelection | null>(null);
   const [newShellOrgLink, setNewShellOrgLink] = useState<DeveloperReferenceSelection | null>(null);
   const [newShellSpaceImageDataUrl, setNewShellSpaceImageDataUrl] = useState<string | null>(null);
+  const [newShellMemberCount, setNewShellMemberCount] = useState('');
+  const [newShellFoundedYear, setNewShellFoundedYear] = useState('');
+  const [newShellLocationLine, setNewShellLocationLine] = useState('');
   const [spaceLogoCropSrc, setSpaceLogoCropSrc] = useState<string | null>(null);
   const [showSpaceLogoCropper, setShowSpaceLogoCropper] = useState(false);
   const pendingSpaceLogoCropTargetRef = useRef<
@@ -114,6 +121,16 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
 
   // Chapters for non-developer chapter picker and governance checkboxes
   const { chapters, loading: chaptersLoading } = useChapters();
+
+  const parseOptionalBoundedInt = (raw: string, min: number, max: number): number | undefined => {
+    const t = raw.trim();
+    if (!t) return undefined;
+    const n = parseInt(t, 10);
+    if (!Number.isFinite(n)) return undefined;
+    const i = Math.floor(n);
+    if (i < min || i > max) return undefined;
+    return i;
+  };
 
   const { height: visualHeight, offsetTop } = useVisualViewportHeight();
   const [innerHeight, setInnerHeight] = useState(
@@ -213,6 +230,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
           const school_id = row.schoolLink?.kind === 'school' ? row.schoolLink.id : undefined;
           const national_organization_id =
             row.orgLink?.kind === 'national_organization' ? row.orgLink.id : undefined;
+          const mc = parseOptionalBoundedInt(row.memberCount, 0, 2_000_000);
+          const fy = parseOptionalBoundedInt(row.foundedYear, 1800, 2100);
+          const loc = row.locationLine.trim().slice(0, 500);
           return {
             new_space: {
               name: row.name.trim(),
@@ -220,6 +240,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
               ...(school_id ? { school_id } : {}),
               ...(national_organization_id ? { national_organization_id } : {}),
               ...(row.spaceImageDataUrl ? { image_data_url: row.spaceImageDataUrl } : {}),
+              ...(mc !== undefined ? { member_count: mc } : {}),
+              ...(fy !== undefined ? { founded_year: fy } : {}),
+              ...(loc ? { location: loc } : {}),
             },
             is_space_icon: row.asSpaceIcon,
           };
@@ -250,12 +273,18 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
         const shellSchoolId = newShellSchoolLink?.kind === 'school' ? newShellSchoolLink.id : undefined;
         const shellOrgId =
           newShellOrgLink?.kind === 'national_organization' ? newShellOrgLink.id : undefined;
+        const shellMc = parseOptionalBoundedInt(newShellMemberCount, 0, 2_000_000);
+        const shellFy = parseOptionalBoundedInt(newShellFoundedYear, 1800, 2100);
+        const shellLoc = newShellLocationLine.trim().slice(0, 500);
         body.newSpace = {
           name: formData.newSpaceName.trim(),
           ...(categoryNorm ? { category: categoryNorm } : {}),
           ...(shellSchoolId ? { school_id: shellSchoolId } : {}),
           ...(shellOrgId ? { national_organization_id: shellOrgId } : {}),
           ...(newShellSpaceImageDataUrl ? { image_data_url: newShellSpaceImageDataUrl } : {}),
+          ...(shellMc !== undefined ? { member_count: shellMc } : {}),
+          ...(shellFy !== undefined ? { founded_year: shellFy } : {}),
+          ...(shellLoc ? { location: shellLoc } : {}),
         };
       } else {
         body.chapter = formData.chapter?.trim() || null;
@@ -291,6 +320,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setNewShellSchoolLink(null);
       setNewShellOrgLink(null);
       setNewShellSpaceImageDataUrl(null);
+      setNewShellMemberCount('');
+      setNewShellFoundedYear('');
+      setNewShellLocationLine('');
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -365,6 +397,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
       setNewShellSchoolLink(null);
       setNewShellOrgLink(null);
       setNewShellSpaceImageDataUrl(null);
+      setNewShellMemberCount('');
+      setNewShellFoundedYear('');
+      setNewShellLocationLine('');
       setBio('');
       setPhone('');
       setAvatarDataUrl(null);
@@ -730,6 +765,44 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                       disabled={loading}
                     />
                   </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="new_shell_location">Location (optional)</Label>
+                      <Input
+                        id="new_shell_location"
+                        value={newShellLocationLine}
+                        onChange={(e) => setNewShellLocationLine(e.target.value)}
+                        placeholder="e.g. Miami, FL"
+                        disabled={loading}
+                        maxLength={500}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        When you link a school, we also copy its directory location onto the space if this is blank.
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="new_shell_members">Active members (optional)</Label>
+                      <Input
+                        id="new_shell_members"
+                        inputMode="numeric"
+                        value={newShellMemberCount}
+                        onChange={(e) => setNewShellMemberCount(e.target.value.replace(/\D/g, ''))}
+                        placeholder="e.g. 42"
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="new_shell_founded">Founded year (optional)</Label>
+                      <Input
+                        id="new_shell_founded"
+                        inputMode="numeric"
+                        value={newShellFoundedYear}
+                        onChange={(e) => setNewShellFoundedYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        placeholder="e.g. 1910"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
                     <Label className="text-sm">Space image (optional)</Label>
                     <p className="text-xs text-muted-foreground">
@@ -957,6 +1030,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                                   schoolLink: null,
                                   orgLink: null,
                                   spaceImageDataUrl: null,
+                                  memberCount: '',
+                                  foundedYear: '',
+                                  locationLine: '',
                                 }
                               : r
                           )
@@ -1060,6 +1136,65 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
                           }
                           disabled={loading}
                         />
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="space-y-1">
+                          <Label htmlFor={`extra-loc-${row.id}`}>Location (optional)</Label>
+                          <Input
+                            id={`extra-loc-${row.id}`}
+                            value={row.locationLine}
+                            onChange={(e) =>
+                              setExtraSpaceRows((prev) =>
+                                prev.map((r) =>
+                                  r.id === row.id && r.kind === 'new'
+                                    ? { ...r, locationLine: e.target.value }
+                                    : r
+                                )
+                              )
+                            }
+                            placeholder="e.g. Miami, FL"
+                            disabled={loading}
+                            maxLength={500}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor={`extra-mem-${row.id}`}>Active members (optional)</Label>
+                          <Input
+                            id={`extra-mem-${row.id}`}
+                            inputMode="numeric"
+                            value={row.memberCount}
+                            onChange={(e) =>
+                              setExtraSpaceRows((prev) =>
+                                prev.map((r) =>
+                                  r.id === row.id && r.kind === 'new'
+                                    ? { ...r, memberCount: e.target.value.replace(/\D/g, '') }
+                                    : r
+                                )
+                              )
+                            }
+                            placeholder="e.g. 42"
+                            disabled={loading}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor={`extra-found-${row.id}`}>Founded year (optional)</Label>
+                          <Input
+                            id={`extra-found-${row.id}`}
+                            inputMode="numeric"
+                            value={row.foundedYear}
+                            onChange={(e) =>
+                              setExtraSpaceRows((prev) =>
+                                prev.map((r) =>
+                                  r.id === row.id && r.kind === 'new'
+                                    ? { ...r, foundedYear: e.target.value.replace(/\D/g, '').slice(0, 4) }
+                                    : r
+                                )
+                              )
+                            }
+                            placeholder="e.g. 1910"
+                            disabled={loading}
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-3">
                         <Label className="text-sm">Space image (optional)</Label>
@@ -1284,6 +1419,9 @@ export function CreateUserForm({ onClose, onSuccess, chapterContext, isDeveloper
     setNewShellSchoolLink(null);
     setNewShellOrgLink(null);
     setNewShellSpaceImageDataUrl(null);
+    setNewShellMemberCount('');
+    setNewShellFoundedYear('');
+    setNewShellLocationLine('');
     pendingSpaceLogoCropTargetRef.current = null;
     setSpaceLogoCropSrc(null);
     setShowSpaceLogoCropper(false);

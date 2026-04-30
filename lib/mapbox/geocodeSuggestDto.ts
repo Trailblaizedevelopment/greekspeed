@@ -27,6 +27,31 @@ interface MapboxGeocodeV6Feature {
   properties?: MapboxGeocodeV6FeatureProperties;
 }
 
+export function extractMapboxIdFromGeocodeV6Feature(raw: unknown): string | null {
+  const f = raw as MapboxGeocodeV6Feature;
+  const id = typeof f.properties?.mapbox_id === 'string' ? f.properties.mapbox_id.trim() : '';
+  return id.length > 0 ? id : null;
+}
+
+/** Prefer `placeFirst` order, then append unique features from `fullTypes` (dedupe by mapbox_id). */
+export function mergeGeocodeV6FeaturesPlaceFirst(placeFirst: unknown[], fullTypes: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  for (const item of placeFirst) {
+    const id = extractMapboxIdFromGeocodeV6Feature(item);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(item);
+  }
+  for (const item of fullTypes) {
+    const id = extractMapboxIdFromGeocodeV6Feature(item);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(item);
+  }
+  return out;
+}
+
 export function mapGeocodeV6FeaturesToSuggestions(features: unknown[]): GeocodingSuggestion[] {
   const out: GeocodingSuggestion[] = [];
   for (const raw of features) {
