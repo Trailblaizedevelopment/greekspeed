@@ -94,22 +94,6 @@ function emptyExtraNew(): BulkExtraSpaceRow {
   };
 }
 
-function createEmptyRow(chapterContext?: BulkCreateUsersModalProps['chapterContext']): BulkUserRow {
-  return {
-    id: newRowId(),
-    firstName: '',
-    lastName: '',
-    email: '',
-    role: 'active_member',
-    chapterRole: 'member',
-    chapterRoleCustom: false,
-    homeSpaceId: chapterContext?.chapterId ?? '',
-    homeSpaceLabel: chapterContext?.chapterName ?? '',
-    homeAsSpaceIcon: false,
-    extraSpaceRows: [],
-  };
-}
-
 export interface BulkCreateUsersModalProps {
   open: boolean;
   onClose: () => void;
@@ -130,10 +114,61 @@ export interface BulkUserRow {
   role: RoleChoice;
   chapterRole: string;
   chapterRoleCustom: boolean;
+  /** Developer + no chapterContext: pick existing UUID home or create a new shell (API: newSpace + is_space_icon). */
+  homeAttachMode: 'existing' | 'new';
   homeSpaceId: string;
   homeSpaceLabel: string;
   homeAsSpaceIcon: boolean;
+  newHomeSpaceName: string;
+  newHomeSpaceCategory: string;
+  newHomeSchoolLink: DeveloperReferenceSelection | null;
+  newHomeOrgLink: DeveloperReferenceSelection | null;
+  newHomeSpaceImageDataUrl: string | null;
+  newHomeMemberCount: string;
+  newHomeFoundedYear: string;
+  newHomeLocationPlace: CanonicalPlaceConfirmed | null;
   extraSpaceRows: BulkExtraSpaceRow[];
+}
+
+function emptyNewHomeFields(): Pick<
+  BulkUserRow,
+  | 'newHomeSpaceName'
+  | 'newHomeSpaceCategory'
+  | 'newHomeSchoolLink'
+  | 'newHomeOrgLink'
+  | 'newHomeSpaceImageDataUrl'
+  | 'newHomeMemberCount'
+  | 'newHomeFoundedYear'
+  | 'newHomeLocationPlace'
+> {
+  return {
+    newHomeSpaceName: '',
+    newHomeSpaceCategory: '',
+    newHomeSchoolLink: null,
+    newHomeOrgLink: null,
+    newHomeSpaceImageDataUrl: null,
+    newHomeMemberCount: '',
+    newHomeFoundedYear: '',
+    newHomeLocationPlace: null,
+  };
+}
+
+function createEmptyRow(chapterContext?: BulkCreateUsersModalProps['chapterContext']): BulkUserRow {
+  return {
+    id: newRowId(),
+    firstName: '',
+    lastName: '',
+    email: '',
+    role: 'active_member',
+    chapterRole: 'member',
+    chapterRoleCustom: false,
+    homeAttachMode: 'existing',
+    homeSpaceId: chapterContext?.chapterId ?? '',
+    homeSpaceLabel: chapterContext?.chapterName ?? '',
+    homeAsSpaceIcon: false,
+    ...emptyNewHomeFields(),
+    extraSpaceRows: [],
+  };
 }
 
 function isUuid(s: string): boolean {
@@ -197,12 +232,49 @@ function collectRowsForSubmit(rows: BulkUserRow[]): { ok: true; data: BulkUserRo
   return { ok: true, data: complete };
 }
 
-function validateRowSpaces(row: BulkUserRow, displayIndex: number, isDeveloper: boolean): string | null {
-  if (!isUuid(row.homeSpaceId)) {
-    return `User row ${displayIndex}: select a valid home space (UUID).`;
+function buildNewHomeSpacePayload(row: BulkUserRow): Record<string, unknown> | null {
+  const name = row.newHomeSpaceName.trim();
+  if (!name) return null;
+  const cat = normalizeSpaceTypeInput(row.newHomeSpaceCategory);
+  const school_id = row.newHomeSchoolLink?.kind === 'school' ? row.newHomeSchoolLink.id : undefined;
+  const national_organization_id =
+    row.newHomeOrgLink?.kind === 'national_organization' ? row.newHomeOrgLink.id : undefined;
+  const mc = parseOptionalBoundedInt(row.newHomeMemberCount, 0, 2_000_000);
+  const fy = parseOptionalBoundedInt(row.newHomeFoundedYear, 1800, 2100);
+  const loc = row.newHomeLocationPlace
+    ? formatCanonicalPlaceDisplayForApp(row.newHomeLocationPlace).trim().slice(0, 500)
+    : '';
+  return {
+    name,
+    ...(cat ? { category: cat } : {}),
+    ...(school_id ? { school_id } : {}),
+    ...(national_organization_id ? { national_organization_id } : {}),
+    ...(row.newHomeSpaceImageDataUrl ? { image_data_url: row.newHomeSpaceImageDataUrl } : {}),
+    ...(mc !== undefined ? { member_count: mc } : {}),
+    ...(fy !== undefined ? { founded_year: fy } : {}),
+    ...(loc ? { location: loc } : {}),
+  };
+}
+
+function validateRowSpaces(
+  row: BulkUserRow,
+  displayIndex: number,
+  isDeveloper: boolean,
+  chapterLocked: boolean
+): string | null {
+  if (chapterLocked || !isDeveloper) {
+    if (!isUuid(row.homeSpaceId)) {
+      return `User row ${displayIndex}: select a valid home space (UUID).`;
+    }
+  } else if (row.homeAttachMode === 'existing') {
+    if (!isUuid(row.homeSpaceId)) {
+      return `User row ${displayIndex}: select an existing home space or choose “Create new space”.`;
+    }
+  } else if (!row.newHomeSpaceName.trim()) {
+    return `User row ${displayIndex}: enter a display name for the new home space or choose “Existing space”.`;
   }
-  if (!isDeveloper) return null;
-  if (row.homeAsSpaceIcon && !isUuid(row.homeSpaceId)) {
+
+  if (isDeveloper && row.homeAttachMode === 'existing' && row.homeAsSpaceIcon && !isUuid(row.homeSpaceId)) {
     return `User row ${displayIndex}: Space Icon on home requires a selected space.`;
   }
   for (let i = 0; i < row.extraSpaceRows.length; i += 1) {
@@ -256,9 +328,15 @@ function buildAdditionalSpaceMemberships(row: BulkUserRow): Record<string, unkno
     .filter(Boolean) as Record<string, unknown>[];
 }
 
-function buildCreateUserBody(row: BulkUserRow, isDeveloper: boolean): Record<string, unknown> {
-  const chapter = row.homeSpaceId.trim();
+function buildCreateUserBody(
+  row: BulkUserRow,
+  isDeveloper: boolean,
+  chapterLocked: boolean
+): Record<string, unknown> {
   const additional = isDeveloper ? buildAdditionalSpaceMemberships(row) : [];
+  const canNewHomeShell = isDeveloper && !chapterLocked && row.homeAttachMode === 'new';
+  const newHomePayload = canNewHomeShell ? buildNewHomeSpacePayload(row) : null;
+
   const body: Record<string, unknown> = {
     email: row.email,
     firstName: row.firstName,
@@ -266,11 +344,18 @@ function buildCreateUserBody(row: BulkUserRow, isDeveloper: boolean): Record<str
     role: row.role,
     chapter_role: row.chapterRole.trim() || 'member',
     is_developer: false,
-    chapter,
     ...(additional.length > 0 ? { additional_space_memberships: additional } : {}),
   };
-  if (isDeveloper && row.homeAsSpaceIcon) {
+
+  if (canNewHomeShell && newHomePayload) {
+    body.chapter = null;
+    body.newSpace = newHomePayload;
     body.is_space_icon = true;
+  } else {
+    body.chapter = row.homeSpaceId.trim();
+    if (isDeveloper && row.homeAsSpaceIcon) {
+      body.is_space_icon = true;
+    }
   }
   return body;
 }
@@ -301,16 +386,18 @@ export function BulkCreateUsersModal({
   }, []);
 
   useEffect(() => {
-    if (chapterContext) {
-      setRows((prev) =>
-        prev.map((r) => ({
-          ...r,
-          homeSpaceId: chapterContext.chapterId,
-          homeSpaceLabel: chapterContext.chapterName,
-        }))
-      );
-    }
-  }, [chapterContext?.chapterId, chapterContext?.chapterName]);
+    if (!chapterContext) return;
+    setRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        homeAttachMode: 'existing' as const,
+        homeSpaceId: chapterContext.chapterId,
+        homeSpaceLabel: chapterContext.chapterName,
+        homeAsSpaceIcon: false,
+        ...emptyNewHomeFields(),
+      }))
+    );
+  }, [chapterContext]);
 
   useEffect(() => {
     if (!open) {
@@ -320,11 +407,21 @@ export function BulkCreateUsersModal({
     }
   }, [open, chapterContext]);
 
+  const chapterLocked = Boolean(chapterContext);
+
   const canSubmitPreview = useMemo(() => {
     const r = collectRowsForSubmit(rows);
     if (!r.ok || r.data.length === 0) return false;
-    return r.data.every((row) => isUuid(row.homeSpaceId));
-  }, [rows]);
+    return r.data.every((row) => {
+      if (chapterLocked || !isDeveloper) {
+        return isUuid(row.homeSpaceId);
+      }
+      if (row.homeAttachMode === 'existing') {
+        return isUuid(row.homeSpaceId);
+      }
+      return row.newHomeSpaceName.trim().length > 0;
+    });
+  }, [rows, chapterLocked, isDeveloper]);
 
   if (!open) {
     return null;
@@ -357,7 +454,7 @@ export function BulkCreateUsersModal({
       return;
     }
     for (let i = 0; i < collected.data.length; i += 1) {
-      const err = validateRowSpaces(collected.data[i]!, i + 1, isDeveloper);
+      const err = validateRowSpaces(collected.data[i]!, i + 1, isDeveloper, chapterLocked);
       if (err) {
         alert(err);
         return;
@@ -373,7 +470,7 @@ export function BulkCreateUsersModal({
     for (let i = 0; i < collected.data.length; i += 1) {
       const row = collected.data[i]!;
       setProgress({ current: i + 1, total: collected.data.length });
-      const body = buildCreateUserBody(row, isDeveloper);
+      const body = buildCreateUserBody(row, isDeveloper, chapterLocked);
 
       try {
         const response = await fetch('/api/developer/create-user', {
@@ -442,7 +539,6 @@ export function BulkCreateUsersModal({
     const useCustomChapter =
       row.chapterRoleCustom || (row.chapterRole.trim() !== '' && !isPresetChapterRole(row.chapterRole));
     const chapterSelectValue = useCustomChapter ? '__custom__' : row.chapterRole || 'member';
-    const homeReady = isUuid(row.homeSpaceId);
 
     return (
       <div
@@ -568,6 +664,180 @@ export function BulkCreateUsersModal({
               <Label className="text-xs font-medium text-gray-700">Home space (chapter)</Label>
               {chapterContext ? (
                 <Input value={chapterContext.chapterName} disabled className="bg-gray-100" />
+              ) : isDeveloper ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={row.homeAttachMode === 'existing' ? 'default' : 'outline'}
+                      className="rounded-full"
+                      onClick={() =>
+                        updateRow(row.id, { homeAttachMode: 'existing', ...emptyNewHomeFields() })
+                      }
+                      disabled={submitting}
+                    >
+                      Existing space
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={row.homeAttachMode === 'new' ? 'default' : 'outline'}
+                      className="rounded-full"
+                      onClick={() =>
+                        updateRow(row.id, {
+                          homeAttachMode: 'new',
+                          homeSpaceId: '',
+                          homeSpaceLabel: '',
+                          homeAsSpaceIcon: false,
+                        })
+                      }
+                      disabled={submitting}
+                    >
+                      Create new space
+                    </Button>
+                  </div>
+                  {row.homeAttachMode === 'existing' ? (
+                    <>
+                      <DeveloperSpaceSelectCombobox
+                        id={`bulk-home-${row.id}`}
+                        value={row.homeSpaceId}
+                        selectedLabel={row.homeSpaceLabel}
+                        onValueChange={(spaceId, spaceName) => {
+                          updateRow(row.id, { homeSpaceId: spaceId, homeSpaceLabel: spaceName });
+                        }}
+                        disabled={submitting}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Primary chapter for this user. Search the full space directory.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <div>
+                        <Label htmlFor={`bulk-newhome-name-${row.id}`}>New space display name *</Label>
+                        <Input
+                          id={`bulk-newhome-name-${row.id}`}
+                          value={row.newHomeSpaceName}
+                          onChange={(e) => updateRow(row.id, { newHomeSpaceName: e.target.value })}
+                          placeholder="Display name"
+                          disabled={submitting}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Organization type (optional)</Label>
+                        <SearchableSelect
+                          value={row.newHomeSpaceCategory}
+                          onValueChange={(v) => updateRow(row.id, { newHomeSpaceCategory: v })}
+                          options={SPACE_TYPE_SEARCHABLE_OPTIONS}
+                          placeholder="Select or type…"
+                          searchPlaceholder="Search types…"
+                          allowCustom
+                          customMaxLength={200}
+                          disabled={submitting}
+                          portalContainerRef={spaceSelectPortalRef}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <DeveloperReferenceSearchField
+                          label="School (optional)"
+                          labelHint="Optional school_id on the new shell space."
+                          kind="schools"
+                          accessToken={session?.access_token}
+                          value={row.newHomeSchoolLink?.kind === 'school' ? row.newHomeSchoolLink : null}
+                          onChange={(next) =>
+                            updateRow(row.id, {
+                              newHomeSchoolLink: next?.kind === 'school' ? next : null,
+                            })
+                          }
+                          disabled={submitting}
+                        />
+                        <DeveloperReferenceSearchField
+                          label="National organization (optional)"
+                          labelHint="Optional national_organization_id on the new shell space."
+                          kind="national-organizations"
+                          accessToken={session?.access_token}
+                          value={
+                            row.newHomeOrgLink?.kind === 'national_organization' ? row.newHomeOrgLink : null
+                          }
+                          onChange={(next) =>
+                            updateRow(row.id, {
+                              newHomeOrgLink:
+                                next?.kind === 'national_organization' ? next : null,
+                            })
+                          }
+                          disabled={submitting}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="space-y-1 sm:col-span-3">
+                          <LocationPicker
+                            label="Location (optional)"
+                            fieldId={`bulk-newhome-loc-${row.id}`}
+                            country="us"
+                            suggestionsPortalRef={spaceSelectPortalRef}
+                            value={row.newHomeLocationPlace}
+                            onChange={(place) => updateRow(row.id, { newHomeLocationPlace: place })}
+                            disabled={submitting}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Same Mapbox search and confirm flow as profile edit (US).
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor={`bulk-newhome-mc-${row.id}`}>Active members (optional)</Label>
+                          <Input
+                            id={`bulk-newhome-mc-${row.id}`}
+                            inputMode="numeric"
+                            value={row.newHomeMemberCount}
+                            onChange={(e) =>
+                              updateRow(row.id, {
+                                newHomeMemberCount: e.target.value.replace(/\D/g, ''),
+                              })
+                            }
+                            placeholder="e.g. 42"
+                            disabled={submitting}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor={`bulk-newhome-fy-${row.id}`}>Founded year (optional)</Label>
+                          <Input
+                            id={`bulk-newhome-fy-${row.id}`}
+                            inputMode="numeric"
+                            value={row.newHomeFoundedYear}
+                            onChange={(e) =>
+                              updateRow(row.id, {
+                                newHomeFoundedYear: e.target.value.replace(/\D/g, '').slice(0, 4),
+                              })
+                            }
+                            placeholder="e.g. 1910"
+                            disabled={submitting}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Space image (optional)</Label>
+                        <Input
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/gif"
+                          className="max-w-xs cursor-pointer text-sm file:mr-2"
+                          disabled={submitting}
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!f) return;
+                            const r = await fileToImageDataUrl(f);
+                            if (!r.ok) {
+                              alert(r.error);
+                              return;
+                            }
+                            updateRow(row.id, { newHomeSpaceImageDataUrl: r.dataUrl });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <>
                   <DeveloperSpaceSelectCombobox
@@ -584,13 +854,13 @@ export function BulkCreateUsersModal({
               )}
             </div>
 
-            {isDeveloper ? (
+            {isDeveloper && (chapterContext || row.homeAttachMode === 'existing') ? (
               <div className="flex items-start gap-2 rounded-md border border-gray-200 bg-white/90 p-3">
                 <Checkbox
                   id={`bulk-home-icon-${row.id}`}
                   checked={row.homeAsSpaceIcon}
                   onCheckedChange={(c) => updateRow(row.id, { homeAsSpaceIcon: Boolean(c) })}
-                  disabled={submitting || !homeReady}
+                  disabled={submitting || !isUuid(row.homeSpaceId)}
                 />
                 <div className="min-w-0">
                   <Label htmlFor={`bulk-home-icon-${row.id}`} className="cursor-pointer text-sm font-medium">
@@ -601,6 +871,11 @@ export function BulkCreateUsersModal({
                   </p>
                 </div>
               </div>
+            ) : isDeveloper && !chapterContext && row.homeAttachMode === 'new' ? (
+              <p className="rounded-md border border-dashed border-gray-200 bg-gray-50/80 px-3 py-2 text-xs text-muted-foreground">
+                Creating a new home space uses the same API path as Create User: this user is set as Space Icon on the
+                new shell (required to provision the space).
+              </p>
             ) : null}
 
             {isDeveloper ? (
