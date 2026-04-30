@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Users, Plus, Search, Edit, Trash2, Eye } from 'lucide-react';
 import { CreateUserForm } from './CreateUserForm';
+import { BulkCreateUsersModal } from './BulkCreateUsersModal';
 import { DeleteUserModal } from './DeleteUserModal';
 import { getRoleDisplayName } from '@/lib/permissions';
 import { EditUserModal } from './EditUserModal';
@@ -57,6 +58,7 @@ export function UsersTab({
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showBulkCreateModal, setShowBulkCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -200,15 +202,26 @@ export function UsersTab({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold">User Management</h2>
           <p className="text-gray-600">Create and manage user accounts</p>
         </div>
-        <Button onClick={() => setShowCreateForm(true)} className="flex items-center space-x-2 rounded-full">
-          <Plus className="h-4 w-4" />
-          <span>Create User</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowBulkCreateModal(true)}
+            className="flex items-center gap-2 rounded-full"
+          >
+            <Users className="h-4 w-4" />
+            <span>Bulk create</span>
+          </Button>
+          <Button onClick={() => setShowCreateForm(true)} className="flex items-center gap-2 rounded-full">
+            <Plus className="h-4 w-4" />
+            <span>Create User</span>
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -325,6 +338,16 @@ export function UsersTab({
           isDeveloper={isDeveloper}
         />
       )}
+
+      {showBulkCreateModal ? (
+        <BulkCreateUsersModal
+          open={showBulkCreateModal}
+          onClose={() => setShowBulkCreateModal(false)}
+          onSuccess={fetchUsers}
+          chapterContext={chapterContext}
+          isDeveloper={isDeveloper}
+        />
+      ) : null}
 
       {/* Delete User Modal */}
       <DeleteUserModal
