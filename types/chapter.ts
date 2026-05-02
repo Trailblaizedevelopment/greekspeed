@@ -26,6 +26,12 @@ export interface Chapter {
   crowded_chapter_id?: string | null;
   /** Optional Crowded org UUID for org-level API calls */
   crowded_organization_id?: string | null;
+  /** Stripe Connect account id (`acct_…`) when chapter completes onboarding (TRA-683). */
+  stripe_connect_account_id?: string | null;
+  /** Cached from Stripe Account; treasurer onboarding progress. */
+  stripe_connect_details_submitted?: boolean;
+  /** Cached from Stripe Account; gates creating Stripe-backed campaigns. */
+  stripe_charges_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }

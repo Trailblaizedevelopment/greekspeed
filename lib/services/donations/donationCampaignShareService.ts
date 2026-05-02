@@ -308,7 +308,7 @@ export async function listDonationCampaignRecipients(params: {
       id: raw.id as string,
       donation_campaign_id: raw.donation_campaign_id as string,
       profile_id: pid,
-      crowded_contact_id: raw.crowded_contact_id as string,
+      crowded_contact_id: (raw.crowded_contact_id as string | null | undefined) ?? null,
       crowded_checkout_url: (raw.crowded_checkout_url as string | null | undefined) ?? null,
       created_at: raw.created_at as string,
       profile: {

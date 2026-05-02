@@ -114,9 +114,13 @@ export async function GET(
       return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
     }
     
-    // Return flags (should already have defaults from database, but ensure it's never null)
+    const mergedFlags: ChapterFeatureFlags = {
+      ...DEFAULT_FEATURE_FLAGS,
+      ...((chapter.feature_flags || {}) as ChapterFeatureFlags),
+    };
+
     return NextResponse.json({
-      feature_flags: chapter.feature_flags || DEFAULT_FEATURE_FLAGS,
+      feature_flags: mergedFlags,
     });
     
   } catch (error) {
@@ -216,9 +220,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update feature flags' }, { status: 500 });
     }
     
+    const responseFlags: ChapterFeatureFlags = {
+      ...DEFAULT_FEATURE_FLAGS,
+      ...((updatedChapter.feature_flags || {}) as ChapterFeatureFlags),
+    };
+
     return NextResponse.json({
       success: true,
-      feature_flags: updatedChapter.feature_flags || DEFAULT_FEATURE_FLAGS,
+      feature_flags: responseFlags,
     });
     
   } catch (error) {

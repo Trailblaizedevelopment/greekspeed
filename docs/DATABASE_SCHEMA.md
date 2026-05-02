@@ -54,9 +54,9 @@ const { data } = await supabase
 ```
 
 ### `chapters`
-Greek life chapters (fraternities/sororities).
+Greek life chapters (fraternities/sororities). **`public.chapters` is a VIEW** over `public.spaces` (`WITH (security_invoker = true)`), exposing a chapter-shaped column set. Physical row data (including Crowded ids, `feature_flags`, and Stripe Connect donation columns from **TRA-683**) lives on **`public.spaces`**; the API still queries `chapters` for compatibility.
 
-**Key Columns:**
+**Key Columns (via view; stored on `spaces` unless noted):**
 - `id` (UUID, Primary Key)
 - `name` (TEXT)
 - `type` (TEXT) - "fraternity" or "sorority"
@@ -64,6 +64,10 @@ Greek life chapters (fraternities/sororities).
 - `founded_year` (INTEGER, nullable)
 - `crowded_chapter_id` (UUID, nullable) — Crowded API chapter identifier for this row (sandbox vs production per environment); used for chapter-scoped Crowded calls (e.g. contacts, accounts)
 - `crowded_organization_id` (UUID, nullable) — optional Crowded organization UUID for org-level API calls
+- `feature_flags` (JSONB) — chapter toggles including `stripe_donations_enabled` (Stripe Connect donations, **TRA-683**); see `types/featureFlags.ts`
+- `stripe_connect_account_id` (TEXT, nullable) — Stripe Connect account id (`acct_…`) when the chapter completes Express onboarding
+- `stripe_connect_details_submitted` (BOOLEAN, default false) — cached mirror of Stripe Account `details_submitted`
+- `stripe_charges_enabled` (BOOLEAN, default false) — cached mirror of Stripe Account `charges_enabled` (gates treasurer Stripe donation setup)
 - `created_at` (TIMESTAMPTZ)
 - `updated_at` (TIMESTAMPTZ)
 
@@ -304,6 +308,8 @@ Chapter-scoped donation drives / Crowded collections that are **not** tied to a 
 - `title` (TEXT)
 - `kind` (TEXT) — `fixed` | `open` | `fundraiser` (DB check); `fixed` (legacy) required positive `requested_amount_cents`; `open` and `fundraiser` require positive `goal_amount_cents`
 - `crowded_collection_id` (TEXT, nullable) — Crowded collection id once created; unique when set
+- `stripe_product_id` (TEXT, nullable) — Stripe Product id on the **connected** account for Stripe-backed campaigns (**TRA-683**)
+- `stripe_price_id` (TEXT, nullable) — Stripe Price id for Checkout when campaign is Stripe-backed
 - `goal_amount_cents` (BIGINT, nullable) — **minor units (cents)** sent to Crowded as `goalAmount`
 - `requested_amount_cents` (BIGINT, nullable) — legacy `fixed` only; new creates set `null`
 - `crowded_share_url` (TEXT, nullable) — share/checkout URL from Crowded `data.link` when returned
@@ -316,20 +322,35 @@ Chapter-scoped donation drives / Crowded collections that are **not** tied to a 
 **API:** `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — `POST` accepts **`kind`: `open` | `fundraiser`** only, creates the Crowded collection, sets `requested_amount_cents` to `null`; `collect.payment.*` webhooks resolve `crowded_collection_id` against this table when no `dues_cycles` row matches.
 
 ### `donation_campaign_recipients`
-Treasurer-linked chapter members for a donation drive (must map to a Crowded contact in app logic).
+Treasurer-linked chapter members for a donation drive. Crowded flows require a Crowded contact id at share time; Stripe-backed rows may leave `crowded_contact_id` null (**TRA-683**).
 
 **Key Columns:**
 - `id` (UUID, Primary Key)
 - `donation_campaign_id` (UUID, Foreign Key → `donation_campaigns.id`, ON DELETE CASCADE)
 - `profile_id` (UUID, Foreign Key → `profiles.id`, ON DELETE CASCADE)
-- `crowded_contact_id` (TEXT) — Crowded Collect **contact** id at share time
+- `crowded_contact_id` (TEXT, nullable) — Crowded Collect **contact** id at share time; null when recipient is Stripe-only
 - `crowded_checkout_url` (TEXT, nullable) — per-recipient checkout from **POST …/collections/:id/intents** (`data.paymentUrl`) when campaign has no collection-level `crowded_share_url`
+- `stripe_checkout_url` (TEXT, nullable) — Stripe Checkout Session URL for this recipient (**TRA-683**)
+- `stripe_checkout_session_id` (TEXT, nullable) — Stripe `cs_…` id for idempotency and support
+- `paid_at` (TIMESTAMPTZ, nullable) — when the recipient’s payment succeeded
+- `amount_paid_cents` (BIGINT, nullable) — settled amount in minor units when paid
 - `created_at` (TIMESTAMPTZ)
 - **Unique:** `(donation_campaign_id, profile_id)`
 
 **RLS:** Chapter members may **SELECT** rows for campaigns in their chapter; exec roles / admin / governance may **INSERT** and **DELETE** (same pattern as other chapter-scoped admin tables).
 
 **API:** `GET` `/api/chapters/[id]/donations/campaigns/[campaignId]/recipients`, `GET` `…/share-candidates`, and `POST` `…/share` (see app routes).
+
+### `stripe_webhook_events`
+Idempotency ledger for Stripe webhook delivery (**TRA-683**). Insert a row (or rely on unique `stripe_event_id`) before applying donation/dues side effects so duplicate events are ignored.
+
+**Key Columns:**
+- `id` (UUID, Primary Key)
+- `stripe_event_id` (TEXT, NOT NULL, UNIQUE) — Stripe `evt_…` id
+- `event_type` (TEXT, NOT NULL) — e.g. `checkout.session.completed`
+- `received_at` (TIMESTAMPTZ)
+
+**RLS:** Enabled with **no** policies for `anon` / `authenticated` — only the **service role** (Next.js webhook route) may read/write. Revoked from client roles in migration.
 
 ### `dues_assignments`
 Dues/payment assignments.

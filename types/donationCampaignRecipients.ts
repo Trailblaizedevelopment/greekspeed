@@ -3,9 +3,14 @@ export interface DonationCampaignRecipient {
   id: string;
   donation_campaign_id: string;
   profile_id: string;
-  crowded_contact_id: string;
+  /** Crowded Collect contact id; null for Stripe-only recipient rows (TRA-683). */
+  crowded_contact_id: string | null;
   /** Crowded collect intent checkout URL for this row (see migration `donation_recipient_crowded_checkout_url`). */
   crowded_checkout_url?: string | null;
+  stripe_checkout_url?: string | null;
+  stripe_checkout_session_id?: string | null;
+  paid_at?: string | null;
+  amount_paid_cents?: number | null;
   created_at: string;
 }
 

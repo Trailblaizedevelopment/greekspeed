@@ -17,6 +17,10 @@ export interface DonationCampaign {
   title: string;
   kind: DonationCampaignKind;
   crowded_collection_id: string | null;
+  /** Stripe Product on the chapter connected account (Stripe-backed campaigns). */
+  stripe_product_id?: string | null;
+  /** Stripe Price for Checkout line items (Stripe-backed campaigns). */
+  stripe_price_id?: string | null;
   goal_amount_cents: number | null;
   requested_amount_cents: number | null;
   crowded_share_url: string | null;
