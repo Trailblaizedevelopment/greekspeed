@@ -14,6 +14,10 @@ export type CreateStripeDonationCampaignOnConnectParams = {
   goalAmountCents: number;
   /** `open` → customer-chosen amount between min and goal (cap); `fundraiser` → fixed Price at goal. */
   kind: DonationCampaignCreateKind;
+  /** Optional; Stripe Product `description` (Checkout / Payment Link polish). */
+  description?: string | null;
+  /** Public https URL; Stripe Product `images` (single entry when set). */
+  heroImageUrl?: string | null;
 };
 
 /**
@@ -54,17 +58,35 @@ export async function createStripeDonationCampaignOnConnect(
   const accountOpts = { stripeAccount: connectAccountId } as const;
   const base = getBaseUrl().replace(/\/$/, '');
 
+  const desc = params.description?.trim() || undefined;
+  const heroTrim = params.heroImageUrl?.trim() || '';
+  let productImages: string[] | undefined;
+  if (heroTrim) {
+    try {
+      if (new URL(heroTrim).protocol === 'https:') {
+        productImages = [heroTrim];
+      }
+    } catch {
+      /* invalid URL — schema should block; skip images */
+    }
+  }
+
   let productId: string | null = null;
   try {
-    const product = await stripe.products.create(
-      {
-        name: title,
-        metadata: {
-          trailblaize_chapter_id: params.trailblaizeChapterId,
-        },
+    const productCreate: Stripe.ProductCreateParams = {
+      name: title,
+      metadata: {
+        trailblaize_chapter_id: params.trailblaizeChapterId,
       },
-      accountOpts
-    );
+    };
+    if (desc) {
+      productCreate.description = desc;
+    }
+    if (productImages?.length) {
+      productCreate.images = productImages;
+    }
+
+    const product = await stripe.products.create(productCreate, accountOpts);
     productId = product.id;
 
     const priceParams: Stripe.PriceCreateParams =

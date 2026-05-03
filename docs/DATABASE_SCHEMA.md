@@ -313,13 +313,15 @@ Chapter-scoped donation drives / Crowded collections that are **not** tied to a 
 - `goal_amount_cents` (BIGINT, nullable) — **minor units (cents)** sent to Crowded as `goalAmount`
 - `requested_amount_cents` (BIGINT, nullable) — legacy `fixed` only; new creates set `null`
 - `crowded_share_url` (TEXT, nullable) — share/checkout URL from Crowded `data.link` when returned
+- `description` (TEXT, nullable) — optional copy for member / treasurer UI; also sent to Stripe Product `description` on Connect-backed creates
+- `hero_image_url` (TEXT, nullable) — public **https** image URL for hero art; passed to Stripe Product `images` on Connect-backed creates when valid
 - `metadata` (JSONB) — e.g. `showOnPublicFundraisingChannels` for fundraiser drives
 - `created_by` (UUID, Foreign Key → `profiles.id`)
 - `created_at`, `updated_at` (TIMESTAMPTZ)
 
 **RLS:** Same pattern as `dues_cycles` — chapter members may **SELECT**; presidents, VPs, treasurers, secretaries, admins, and governance (via `governance_chapters`) may **INSERT/UPDATE/DELETE**.
 
-**API:** `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — `POST` accepts **`kind`: `open` | `fundraiser`** only, creates the Crowded collection, sets `requested_amount_cents` to `null`; `collect.payment.*` webhooks resolve `crowded_collection_id` against this table when no `dues_cycles` row matches.
+**API:** `GET` / `POST` `/api/chapters/[id]/donations/campaigns` — `POST` accepts **`kind`: `open` | `fundraiser`** only, optional **`description`** / **`heroImageUrl`** (https), creates the Crowded collection or Stripe Product+Price+Payment Link, sets `requested_amount_cents` to `null`; `collect.payment.*` webhooks resolve `crowded_collection_id` against this table when no `dues_cycles` row matches.
 
 ### `donation_campaign_recipients`
 Treasurer-linked chapter members for a donation drive. Crowded flows require a Crowded contact id at share time; Stripe-backed rows may leave `crowded_contact_id` null (**TRA-683**).

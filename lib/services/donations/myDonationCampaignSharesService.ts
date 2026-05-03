@@ -44,7 +44,7 @@ export async function listMyDonationCampaignShares(params: {
   const { data: campaigns, error: campError } = await params.supabase
     .from('donation_campaigns')
     .select(
-      'id, chapter_id, title, kind, goal_amount_cents, requested_amount_cents, crowded_share_url, crowded_collection_id, stripe_price_id'
+      'id, chapter_id, title, kind, description, hero_image_url, goal_amount_cents, requested_amount_cents, crowded_share_url, crowded_collection_id, stripe_price_id'
     )
     .in('id', campaignIds)
     .eq('chapter_id', chapterId);
@@ -60,6 +60,8 @@ export async function listMyDonationCampaignShares(params: {
         id: c.id as string,
         title: c.title as string,
         kind: c.kind as DonationCampaignKind,
+        description: (c.description as string | null | undefined) ?? null,
+        hero_image_url: (c.hero_image_url as string | null | undefined) ?? null,
         goal_amount_cents: c.goal_amount_cents as number | null,
         requested_amount_cents: c.requested_amount_cents as number | null,
         crowded_share_url: c.crowded_share_url as string | null,
@@ -93,6 +95,8 @@ export async function listMyDonationCampaignShares(params: {
       campaignId: campaign.id,
       title: campaign.title,
       kind: campaign.kind,
+      description: campaign.description,
+      heroImageUrl: campaign.hero_image_url,
       goalAmountCents: campaign.goal_amount_cents,
       requestedAmountCents: campaign.requested_amount_cents,
       checkoutUrl,

@@ -33,6 +33,10 @@ export interface DonationCampaign {
   goal_amount_cents: number | null;
   requested_amount_cents: number | null;
   crowded_share_url: string | null;
+  /** Optional longer copy for UI; also used for Stripe Product.description when applicable. */
+  description?: string | null;
+  /** Public https URL for hero art; Stripe Product.images when applicable. */
+  hero_image_url?: string | null;
   metadata: Record<string, unknown>;
   created_by: string;
   created_at: string;

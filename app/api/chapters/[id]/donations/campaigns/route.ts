@@ -72,6 +72,8 @@ export async function POST(
     }
 
     const body = parsed.data;
+    const descriptionStored = body.description?.trim() || null;
+    const heroImageUrlStored = body.heroImageUrl?.trim() || null;
 
     if (ctx.createBackend === 'stripe') {
       const stripe = getStripeServer();
@@ -93,6 +95,8 @@ export async function POST(
         title: body.title,
         goalAmountCents: body.goalAmountCents,
         kind: body.kind,
+        description: descriptionStored,
+        heroImageUrl: heroImageUrlStored,
       });
       if (!stripeRes.ok) {
         return NextResponse.json({ error: stripeRes.error }, { status: stripeRes.httpStatus });
@@ -105,6 +109,8 @@ export async function POST(
         crowded_collection_id: null,
         goal_amount_cents: body.goalAmountCents,
         requested_amount_cents: null,
+        description: descriptionStored,
+        hero_image_url: heroImageUrlStored,
         crowded_share_url: stripeRes.paymentLinkUrl,
         stripe_product_id: stripeRes.stripeProductId,
         stripe_price_id: stripeRes.stripePriceId,
@@ -212,6 +218,8 @@ export async function POST(
       crowded_collection_id: crowdedCollectionId,
       goal_amount_cents: body.goalAmountCents,
       requested_amount_cents: null,
+      description: descriptionStored,
+      hero_image_url: heroImageUrlStored,
       crowded_share_url: crowdedShareUrl,
       metadata: ({
         ...(body.metadata ?? {}),

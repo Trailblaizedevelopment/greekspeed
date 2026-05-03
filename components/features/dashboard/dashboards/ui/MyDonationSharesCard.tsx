@@ -63,11 +63,22 @@ export function MyDonationSharesCard() {
               const hasLink = Boolean(payUrl);
               const isStripe = row.paymentProvider === 'stripe';
 
+              const hero = row.heroImageUrl?.trim();
+              const desc = row.description?.trim();
+
               return (
                 <li
                   key={row.recipientId}
                   className="rounded-lg border border-gray-100 bg-gray-50/80 p-3 space-y-2"
                 >
+                  {hero ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- chapter-provided https URL
+                    <img
+                      src={hero}
+                      alt=""
+                      className="w-full max-h-36 rounded-md object-cover border border-gray-200/80"
+                    />
+                  ) : null}
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-medium text-gray-900 text-sm leading-snug">{row.title}</p>
                     <span
@@ -79,6 +90,9 @@ export function MyDonationSharesCard() {
                       {kindLabel(row.kind)}
                     </span>
                   </div>
+                  {desc ? (
+                    <p className="text-xs text-gray-600 line-clamp-4 whitespace-pre-wrap">{desc}</p>
+                  ) : null}
                   {(goal || requested) && (
                     <p className="text-xs text-gray-600">
                       {requested && (

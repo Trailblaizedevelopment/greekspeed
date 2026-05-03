@@ -9,6 +9,7 @@ import {
   FileSearch,
   Loader2,
   MoreVertical,
+  Plus,
   RefreshCw,
   Search,
   Share2,
@@ -18,7 +19,6 @@ import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,9 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectItem } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -41,14 +38,10 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
 import { useDonationRecipients } from '@/lib/hooks/useDonationCampaignShare';
-import {
-  isDonationCampaignStripeDrive,
-  type DonationCampaign,
-  type DonationCampaignCreateKind,
-} from '@/types/donationCampaigns';
-import { STRIPE_OPEN_DONATION_MIN_CENTS } from '@/lib/services/donations/createStripeDonationCampaignOnConnect';
+import { isDonationCampaignStripeDrive, type DonationCampaign } from '@/types/donationCampaigns';
 import type { DonationCampaignRecipientRow } from '@/types/donationCampaignRecipients';
 import { DonationShareDialog } from '@/components/features/dashboard/admin/DonationShareDialog';
+import { CreateDonationCampaignWizard } from '@/components/features/dashboard/admin/CreateDonationCampaignWizard';
 
 const money = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -123,11 +116,6 @@ function donationProgressSummary(
   };
 }
 
-const KIND_OPTIONS: { value: DonationCampaignCreateKind; label: string }[] = [
-  { value: 'open', label: 'Open amount (goal only)' },
-  { value: 'fundraiser', label: 'Fundraiser' },
-];
-
 function recipientDisplayName(r: DonationCampaignRecipientRow['profile']): string {
   const fn = (r.first_name ?? '').trim();
   const ln = (r.last_name ?? '').trim();
@@ -163,10 +151,7 @@ export function DonationCampaignsPanel({
 }: DonationCampaignsPanelProps) {
   const queryClient = useQueryClient();
   const { listQuery, createMutation, syncShareLinkMutation } = useDonationCampaigns(chapterId, enabled);
-  const [title, setTitle] = useState('');
-  const [kind, setKind] = useState<DonationCampaignCreateKind>('open');
-  const [goalUsd, setGoalUsd] = useState('');
-  const [publicFundraising, setPublicFundraising] = useState(true);
+  const [createWizardOpen, setCreateWizardOpen] = useState(false);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [shareForCampaign, setShareForCampaign] = useState<DonationCampaign | null>(null);
 
@@ -200,165 +185,42 @@ export function DonationCampaignsPanel({
     }
   }, []);
 
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    const t = title.trim();
-    if (!t) {
-      toast.error('Enter a title');
-      return;
-    }
-
-    const g = Number(goalUsd);
-    if (!Number.isFinite(g) || g <= 0) {
-      toast.error('Enter a valid goal greater than zero');
-      return;
-    }
-    const goalAmountCents = Math.round(g * 100);
-    if (goalAmountCents < 1) {
-      toast.error('Goal is too small');
-      return;
-    }
-    if (stripeDonationsPrimary && kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
-      toast.error(
-        `Open Stripe drives need a goal above $${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} (that goal is the maximum donors can pay).`
-      );
-      return;
-    }
-
-    createMutation.mutate(
-      {
-        title: t,
-        kind,
-        goalAmountCents,
-        ...(kind === 'fundraiser' ? { showOnPublicFundraisingChannels: publicFundraising } : {}),
-      },
-      {
-        onSuccess: () => {
-          toast.success('Donation drive created');
-          setTitle('');
-          setGoalUsd('');
-        },
-        onError: (err: Error & { status?: number; code?: string }) => {
-          toast.error(err.message || 'Could not create drive');
-        },
-      }
-    );
-  };
-
   const campaigns = listQuery.data ?? [];
   const tableColSpan = 6;
 
   return (
     <Card className="mt-6 border border-gray-200 bg-white shadow-sm">
       <CardHeader className="border-b border-gray-100 pb-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <div>
-              <CardTitle className="text-lg text-gray-900">Donations</CardTitle>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {stripeDonationsPrimary
-                  ? 'Create chapter donation drives with Stripe (Payment Link on your connected account).'
-                  : 'Create donations for your chapter as open amount collections or fundraisers.'}
-              </p>
-            </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <CardTitle className="text-lg text-gray-900">Donations</CardTitle>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {stripeDonationsPrimary
+                ? 'Create chapter donation drives with Stripe (Payment Link on your connected account).'
+                : 'Create donations for your chapter as open amount collections or fundraisers.'}
+            </p>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0 gap-1.5 rounded-full border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5 sm:self-start"
+            disabled={listQuery.isLoading}
+            onClick={() => setCreateWizardOpen(true)}
+          >
+            <Plus className="h-4 w-4 shrink-0" aria-hidden />
+            Create donation drive
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="donation-drive-title">Donation title</Label>
-              <Input
-                id="donation-drive-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Spring philanthropy drive"
-                maxLength={500}
-                disabled={createMutation.isPending}
-                className="max-w-md"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="donation-drive-kind">Drive type</Label>
-              <Select
-                value={kind}
-                onValueChange={(v) => setKind(v as DonationCampaignCreateKind)}
-                disabled={createMutation.isPending}
-                placeholder="Drive type"
-              >
-                {KIND_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2 max-w-xs">
-              <Label htmlFor="donation-drive-goal">Goal (USD)</Label>
-              <Input
-                id="donation-drive-goal"
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                min={0.01}
-                value={goalUsd}
-                onChange={(e) => setGoalUsd(e.target.value)}
-                placeholder="0.00"
-                disabled={createMutation.isPending}
-              />
-              <p className="text-xs text-gray-500">
-                {stripeDonationsPrimary ? (
-                  kind === 'open' ? (
-                    <>
-                      Donors choose any amount from ${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} up to this
-                      goal (Stripe <span className="font-medium text-gray-700">custom amount</span> cap).
-                    </>
-                  ) : (
-                    'Becomes the fixed donation amount (Stripe Price).'
-                  )
-                ) : (
-                  <>
-                    Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
-                  </>
-                )}
-              </p>
-            </div>
-            {kind === 'fundraiser' ? (
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer max-w-md">
-                <Checkbox
-                  checked={publicFundraising}
-                  onCheckedChange={(c) => setPublicFundraising(Boolean(c))}
-                  disabled={createMutation.isPending}
-                  id="donation-public-channels"
-                />
-                <span>
-                  {stripeDonationsPrimary
-                    ? 'Show on public fundraising channels (metadata only for Stripe drives)'
-                    : 'Show on public fundraising channels (Crowded)'}
-                </span>
-              </label>
-            ) : null}
-          </div>
-
-          <Button
-            type="submit"
-            disabled={createMutation.isPending || listQuery.isLoading}
-            className="bg-brand-primary hover:bg-brand-primary-hover rounded-full"
-          >
-            {createMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
-                Creating…
-              </>
-            ) : (
-              'Create'
-            )}
-          </Button>
-        </form>
+        <CreateDonationCampaignWizard
+          open={createWizardOpen}
+          onOpenChange={setCreateWizardOpen}
+          stripeDonationsPrimary={stripeDonationsPrimary}
+          isPending={createMutation.isPending}
+          mutateAsync={createMutation.mutateAsync}
+        />
 
         <div>
           <h3 className="text-sm font-medium text-gray-900 mb-3">Your donations</h3>
@@ -372,8 +234,8 @@ export function DonationCampaignsPanel({
           ) : campaigns.length === 0 ? (
             <p className="text-sm text-gray-500 py-4 border border-dashed border-gray-200 rounded-lg px-4">
               {stripeDonationsPrimary
-                ? 'No donation drives yet. Create one above — a Stripe Payment Link is generated on your connected account when Connect is ready.'
-                : 'No donation drives yet. Create one above — it will appear in Crowded Collect for your chapter.'}
+                ? 'No donation drives yet. Use Create donation drive — a Stripe Payment Link is generated on your connected account when Connect is ready.'
+                : 'No donation drives yet. Use Create donation drive — it will appear in Crowded Collect for your chapter.'}
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -469,6 +331,23 @@ export function DonationCampaignsPanel({
                           <TableRow className="border-0 hover:bg-transparent">
                             <TableCell colSpan={tableColSpan} className="p-0 border-t border-gray-200">
                               <div className="bg-gray-50/95 px-4 sm:px-6 py-4">
+                                {(row.description?.trim() || row.hero_image_url?.trim()) && (
+                                  <div className="mb-4 flex flex-col gap-3 rounded-lg border border-gray-200/80 bg-white p-3 sm:flex-row sm:items-start">
+                                    {row.hero_image_url?.trim() ? (
+                                      // eslint-disable-next-line @next/next/no-img-element -- external treasurer-provided URL
+                                      <img
+                                        src={row.hero_image_url.trim()}
+                                        alt=""
+                                        className="h-28 w-full shrink-0 rounded-md object-cover sm:h-24 sm:w-40"
+                                      />
+                                    ) : null}
+                                    {row.description?.trim() ? (
+                                      <p className="text-sm text-gray-700 whitespace-pre-wrap min-w-0 flex-1">
+                                        {row.description.trim()}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                )}
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-4">
                                   <p className="text-sm text-gray-600">
                                     Shared with{' '}

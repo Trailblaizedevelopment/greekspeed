@@ -12,6 +12,10 @@ export type CreateDonationCampaignPayload = {
   goalAmountCents: number;
   /** Crowded `showOnPublicFundraisingChannels` — only for `fundraiser`. */
   showOnPublicFundraisingChannels?: boolean;
+  /** Optional; stored on `donation_campaigns` and Stripe Product when using Connect. */
+  description?: string;
+  /** Public https URL; stored on `donation_campaigns` and Stripe Product.images when using Connect. */
+  heroImageUrl?: string;
 };
 
 type CreateResponse = { data: DonationCampaign; error?: string; code?: string; issues?: unknown };
@@ -55,6 +59,10 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
       if (payload.kind === 'fundraiser' && payload.showOnPublicFundraisingChannels !== undefined) {
         body.showOnPublicFundraisingChannels = payload.showOnPublicFundraisingChannels;
       }
+      const d = payload.description?.trim();
+      if (d) body.description = d;
+      const h = payload.heroImageUrl?.trim();
+      if (h) body.heroImageUrl = h;
 
       const res = await fetch(`/api/chapters/${cid}/donations/campaigns`, {
         method: 'POST',

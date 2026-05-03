@@ -11,6 +11,10 @@ export interface MyDonationCampaignShare {
   campaignId: string;
   title: string;
   kind: DonationCampaignKind;
+  /** Optional copy from `donation_campaigns.description`. */
+  description?: string | null;
+  /** Public https URL from `donation_campaigns.hero_image_url`. */
+  heroImageUrl?: string | null;
   goalAmountCents: number | null;
   requestedAmountCents: number | null;
   /** Per-recipient Stripe Checkout URL or campaign Payment Link for Stripe-backed drives. */
