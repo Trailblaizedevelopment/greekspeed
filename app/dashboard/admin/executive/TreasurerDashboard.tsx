@@ -1106,10 +1106,9 @@ export function TreasurerDashboard() {
           </div>
         </div>
 
-        {!crowdedFlagLoading && crowdedIntegrationEnabled && profile?.chapter_id && (
+        {profile?.chapter_id?.trim() ? (
           <>
-          {profile?.chapter_id?.trim() ? (
-            <>
+            {!crowdedFlagLoading && crowdedIntegrationEnabled ? (
               <CrowdedCollectionsAdminPanel
                 chapterId={profile.chapter_id.trim()}
                 cycles={cycles}
@@ -1121,14 +1120,19 @@ export function TreasurerDashboard() {
                   await loadDuesData();
                 }}
               />
+            ) : null}
+            {!crowdedFlagLoading &&
+            !financialToolsFlagLoading &&
+            !stripeDonationsFlagLoading &&
+            (crowdedIntegrationEnabled || (financialToolsEnabled && stripeDonationsEnabled)) ? (
               <DonationCampaignsPanel
                 chapterId={profile.chapter_id.trim()}
-                enabled={crowdedIntegrationEnabled && Boolean(profile.chapter_id?.trim())}
+                enabled
+                stripeDonationsPrimary={Boolean(financialToolsEnabled && stripeDonationsEnabled)}
               />
-            </>
-          ) : null}
+            ) : null}
           </>
-        )}
+        ) : null}
         </>
       )}
 

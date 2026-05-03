@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createCrowdedClientFromEnv, CrowdedApiError } from '@/lib/services/crowded/crowded-client';
-import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
+import { applyStripeDonationShareToRecipient } from '@/lib/services/donations/applyStripeDonationShareToRecipient';
 import { createDonationCampaignRecipientCheckoutUrl } from '@/lib/services/donations/createDonationCampaignRecipientCheckoutUrl';
+import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
 import { syncDonationCampaignCrowdedShareUrl } from '@/lib/services/donations/syncDonationCampaignCrowdedShareUrl';
 import { clientIpFromRequest } from '@/lib/utils/clientIpFromRequest';
 import { getBaseUrl } from '@/lib/utils/urlUtils';
@@ -32,7 +33,7 @@ export async function PATCH(
 ) {
   try {
     const { id: trailblaizeChapterId, campaignId } = await params;
-    const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
+    const ctx = await resolveDonationCampaignsApiContext(request, trailblaizeChapterId);
     if (!ctx.ok) {
       return ctx.response;
     }
@@ -57,6 +58,70 @@ export async function PATCH(
 
     const donationCampaignRecipientId = parsedBody.data.donationCampaignRecipientId?.trim();
 
+    const { data: campaign, error: campErr } = await ctx.supabase
+      .from('donation_campaigns')
+      .select('id, chapter_id, crowded_collection_id, crowded_share_url, stripe_price_id')
+      .eq('id', campaignId)
+      .eq('chapter_id', trailblaizeChapterId)
+      .maybeSingle();
+
+    if (campErr || !campaign) {
+      return NextResponse.json({ error: 'Donation campaign not found' }, { status: 404 });
+    }
+
+    const isStripeDrive =
+      Boolean((campaign.stripe_price_id as string | null)?.trim()) &&
+      !(campaign.crowded_collection_id as string | null)?.trim();
+
+    if (isStripeDrive) {
+      const paymentUrl = (campaign.crowded_share_url as string | null)?.trim();
+      if (!paymentUrl) {
+        return NextResponse.json(
+          { error: 'This Stripe drive is missing its payment link — recreate the drive or contact support.' },
+          { status: 422 }
+        );
+      }
+
+      if (donationCampaignRecipientId) {
+        const applied = await applyStripeDonationShareToRecipient({
+          supabase: ctx.supabase,
+          trailblaizeChapterId,
+          donationCampaignId: campaignId,
+          donationCampaignRecipientId,
+          paymentLinkUrl: paymentUrl,
+        });
+        if (!applied.ok) {
+          return NextResponse.json(
+            { error: applied.error, code: applied.code },
+            { status: applied.httpStatus >= 400 && applied.httpStatus < 600 ? applied.httpStatus : 502 }
+          );
+        }
+        return NextResponse.json({
+          data: {
+            crowdedShareUrl: applied.paymentUrl,
+            alreadySet: applied.alreadySet,
+            source: 'collection' as const,
+          },
+        });
+      }
+
+      return NextResponse.json({
+        data: {
+          crowdedShareUrl: paymentUrl,
+          alreadySet: true,
+          source: 'collection' as const,
+        },
+      });
+    }
+
+    const crowdedChapterId = ctx.crowdedChapterId;
+    if (!crowdedChapterId) {
+      return NextResponse.json(
+        { error: 'Chapter is not linked to Crowded — cannot sync Crowded share link for this drive.' },
+        { status: 400 }
+      );
+    }
+
     let crowded;
     try {
       crowded = createCrowdedClientFromEnv();
@@ -72,7 +137,7 @@ export async function PATCH(
       supabase: ctx.supabase,
       crowded,
       trailblaizeChapterId,
-      crowdedChapterId: ctx.crowdedChapterId,
+      crowdedChapterId,
       donationCampaignId: campaignId,
     });
 
@@ -95,7 +160,7 @@ export async function PATCH(
         supabase: ctx.supabase,
         crowded,
         trailblaizeChapterId,
-        crowdedChapterId: ctx.crowdedChapterId,
+        crowdedChapterId,
         donationCampaignId: campaignId,
         donationCampaignRecipientId,
         payerIp: clientIpFromRequest(request),

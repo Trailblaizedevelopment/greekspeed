@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCrowdedClientFromEnv, CrowdedApiError } from '@/lib/services/crowded/crowded-client';
 import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
-import { listDonationShareCandidates } from '@/lib/services/donations/donationCampaignShareService';
+import {
+  listDonationShareCandidates,
+  listDonationShareCandidatesForStripeCampaign,
+} from '@/lib/services/donations/donationCampaignShareService';
+import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
 
 export async function GET(
   request: NextRequest,
@@ -9,6 +13,39 @@ export async function GET(
 ) {
   try {
     const { id: trailblaizeChapterId, campaignId } = await params;
+
+    const donationCtx = await resolveDonationCampaignsApiContext(request, trailblaizeChapterId);
+    if (!donationCtx.ok) {
+      return donationCtx.response;
+    }
+
+    const { data: campaign, error: campErr } = await donationCtx.supabase
+      .from('donation_campaigns')
+      .select('stripe_price_id, crowded_collection_id')
+      .eq('id', campaignId)
+      .eq('chapter_id', trailblaizeChapterId)
+      .maybeSingle();
+
+    if (campErr || !campaign) {
+      return NextResponse.json({ error: 'Donation campaign not found' }, { status: 404 });
+    }
+
+    const isStripeDrive =
+      Boolean((campaign?.stripe_price_id as string | null)?.trim()) &&
+      !(campaign?.crowded_collection_id as string | null)?.trim();
+
+    if (isStripeDrive) {
+      const result = await listDonationShareCandidatesForStripeCampaign({
+        supabase: donationCtx.supabase,
+        trailblaizeChapterId,
+        donationCampaignId: campaignId,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 404 });
+      }
+      return NextResponse.json({ data: result.candidates });
+    }
+
     const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
     if (!ctx.ok) {
       return ctx.response;

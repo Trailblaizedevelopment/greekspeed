@@ -2,6 +2,7 @@
  * Chapter donation / Crowded collect campaigns (`public.donation_campaigns`).
  * API: `GET` / `POST` `/api/chapters/[id]/donations/campaigns`.
  * **POST** only accepts {@link DonationCampaignCreateKind}; `fixed` may still appear on rows created before that policy.
+ * When Stripe Connect is ready for the chapter, **POST** creates Product + Price + Payment Link on the connected account (TRA-685); otherwise Crowded collection creation is used when Crowded is enabled.
  */
 
 /** Stored row `kind` — may include legacy `fixed` from earlier releases. */

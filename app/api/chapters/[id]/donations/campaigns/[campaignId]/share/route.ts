@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createCrowdedClientFromEnv, CrowdedApiError } from '@/lib/services/crowded/crowded-client';
 import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
-import { addDonationCampaignRecipients } from '@/lib/services/donations/donationCampaignShareService';
+import {
+  addDonationCampaignRecipients,
+  addDonationCampaignRecipientsForStripeCampaign,
+} from '@/lib/services/donations/donationCampaignShareService';
+import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
 
 const shareBodySchema = z.object({
   profileIds: z.array(z.string().uuid()).min(1).max(500),
@@ -14,9 +18,10 @@ export async function POST(
 ) {
   try {
     const { id: trailblaizeChapterId, campaignId } = await params;
-    const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
-    if (!ctx.ok) {
-      return ctx.response;
+
+    const donationCtx = await resolveDonationCampaignsApiContext(request, trailblaizeChapterId);
+    if (!donationCtx.ok) {
+      return donationCtx.response;
     }
 
     let json: unknown;
@@ -32,6 +37,49 @@ export async function POST(
         { error: 'Invalid request', issues: parsed.error.flatten() },
         { status: 400 }
       );
+    }
+
+    const { data: campaign, error: campErr } = await donationCtx.supabase
+      .from('donation_campaigns')
+      .select('stripe_price_id, crowded_collection_id')
+      .eq('id', campaignId)
+      .eq('chapter_id', trailblaizeChapterId)
+      .maybeSingle();
+
+    if (campErr || !campaign) {
+      return NextResponse.json({ error: 'Donation campaign not found' }, { status: 404 });
+    }
+
+    const isStripeDrive =
+      Boolean((campaign?.stripe_price_id as string | null)?.trim()) &&
+      !(campaign?.crowded_collection_id as string | null)?.trim();
+
+    if (isStripeDrive) {
+      const result = await addDonationCampaignRecipientsForStripeCampaign({
+        supabase: donationCtx.supabase,
+        trailblaizeChapterId,
+        donationCampaignId: campaignId,
+        profileIds: parsed.data.profileIds,
+      });
+
+      if (!result.ok) {
+        const status =
+          result.code === 'NOT_FOUND'
+            ? 404
+            : result.code === 'EMPTY_SELECTION'
+              ? 400
+              : result.code === 'INVALID_MEMBERS'
+                ? 400
+                : 400;
+        return NextResponse.json({ error: result.error, code: result.code }, { status });
+      }
+
+      return NextResponse.json({ data: { saved: result.saved } }, { status: 200 });
+    }
+
+    const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
+    if (!ctx.ok) {
+      return ctx.response;
     }
 
     let crowdedClient;

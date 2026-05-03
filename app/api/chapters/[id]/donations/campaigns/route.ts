@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateCrowdedApiRequest } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
-import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 import { buildCrowdedDonationCollectionRequest } from '@/lib/services/donations/buildCrowdedDonationCollectionBody';
+import { createStripeDonationCampaignOnConnect } from '@/lib/services/donations/createStripeDonationCampaignOnConnect';
 import { donationCampaignPostBodySchema } from '@/lib/services/donations/donationCampaignSchemas';
+import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
+import { getStripeServer } from '@/lib/services/stripe/stripeServerClient';
 import type { DonationCampaign } from '@/types/donationCampaigns';
 
 export async function GET(
@@ -13,7 +15,7 @@ export async function GET(
   try {
     const { id: trailblaizeChapterId } = await params;
 
-    const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
+    const ctx = await resolveDonationCampaignsApiContext(request, trailblaizeChapterId);
     if (!ctx.ok) {
       return ctx.response;
     }
@@ -49,7 +51,7 @@ export async function POST(
     }
     const creatorId = auth.user.id;
 
-    const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
+    const ctx = await resolveDonationCampaignsApiContext(request, trailblaizeChapterId);
     if (!ctx.ok) {
       return ctx.response;
     }
@@ -70,6 +72,77 @@ export async function POST(
     }
 
     const body = parsed.data;
+
+    if (ctx.createBackend === 'stripe') {
+      const stripe = getStripeServer();
+      if (!stripe) {
+        return NextResponse.json({ error: 'Stripe is not configured on the server' }, { status: 503 });
+      }
+      const connectId = ctx.stripeConnectAccountId;
+      if (!connectId) {
+        return NextResponse.json(
+          { error: 'Chapter has no Stripe Connect account — complete Connect onboarding first.' },
+          { status: 400 }
+        );
+      }
+
+      const stripeRes = await createStripeDonationCampaignOnConnect({
+        stripe,
+        connectAccountId: connectId,
+        trailblaizeChapterId,
+        title: body.title,
+        goalAmountCents: body.goalAmountCents,
+      });
+      if (!stripeRes.ok) {
+        return NextResponse.json({ error: stripeRes.error }, { status: stripeRes.httpStatus });
+      }
+
+      const insertRow = {
+        chapter_id: trailblaizeChapterId,
+        title: body.title.trim(),
+        kind: body.kind,
+        crowded_collection_id: null,
+        goal_amount_cents: body.goalAmountCents,
+        requested_amount_cents: null,
+        crowded_share_url: stripeRes.paymentLinkUrl,
+        stripe_product_id: stripeRes.stripeProductId,
+        stripe_price_id: stripeRes.stripePriceId,
+        metadata: ({
+          ...(body.metadata ?? {}),
+          payment_provider: 'stripe',
+          stripe_payment_link_id: stripeRes.stripePaymentLinkId,
+          ...(body.kind === 'fundraiser' && body.showOnPublicFundraisingChannels !== undefined
+            ? { showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels }
+            : {}),
+        }) as Record<string, unknown>,
+        created_by: creatorId,
+      };
+
+      const { data: row, error: insertErr } = await ctx.supabase
+        .from('donation_campaigns')
+        .insert(insertRow)
+        .select('*')
+        .single();
+
+      if (insertErr) {
+        console.error('donation_campaigns insert error (Stripe):', insertErr);
+        return NextResponse.json(
+          { error: 'Failed to save campaign after Stripe create', details: insertErr.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ data: row as DonationCampaign }, { status: 201 });
+    }
+
+    /* Crowded path */
+    const crowdedChapterId = ctx.crowdedChapterId;
+    if (!crowdedChapterId) {
+      return NextResponse.json(
+        { error: 'Chapter is not linked to Crowded (missing crowded_chapter_id)' },
+        { status: 400 }
+      );
+    }
 
     let crowdedBody;
     try {
@@ -97,7 +170,7 @@ export async function POST(
 
     let crowdedResult;
     try {
-      crowdedResult = await crowdedClient.createCollection(ctx.crowdedChapterId, crowdedBody);
+      crowdedResult = await crowdedClient.createCollection(crowdedChapterId, crowdedBody);
     } catch (err) {
       if (err instanceof CrowdedApiError) {
         console.error('Crowded createCollection failed:', {
@@ -141,6 +214,7 @@ export async function POST(
       crowded_share_url: crowdedShareUrl,
       metadata: ({
         ...(body.metadata ?? {}),
+        payment_provider: 'crowded',
         ...(body.kind === 'fundraiser' && body.showOnPublicFundraisingChannels !== undefined
           ? { showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels }
           : {}),

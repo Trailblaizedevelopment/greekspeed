@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveCrowdedChapterApiContext } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 import { listDonationCampaignRecipients } from '@/lib/services/donations/donationCampaignShareService';
+import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id: trailblaizeChapterId, campaignId } = await params;
-    const ctx = await resolveCrowdedChapterApiContext(request, trailblaizeChapterId);
+    const ctx = await resolveDonationCampaignsApiContext(request, trailblaizeChapterId);
     if (!ctx.ok) {
       return ctx.response;
     }

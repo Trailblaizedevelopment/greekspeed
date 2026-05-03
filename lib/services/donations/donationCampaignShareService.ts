@@ -248,6 +248,150 @@ export async function listDonationShareCandidates(params: {
   return { ok: true, candidates };
 }
 
+/**
+ * Share picker for **Stripe-backed** drives: all chapter actives/admins and alumni (no Crowded contact required).
+ */
+export async function listDonationShareCandidatesForStripeCampaign(params: {
+  supabase: SupabaseClient;
+  trailblaizeChapterId: string;
+  donationCampaignId: string;
+}): Promise<{ ok: true; candidates: DonationShareCandidate[] } | { ok: false; error: string }> {
+  const { data: campaign, error: cErr } = await params.supabase
+    .from('donation_campaigns')
+    .select('id, chapter_id, stripe_price_id, crowded_collection_id')
+    .eq('id', params.donationCampaignId)
+    .eq('chapter_id', params.trailblaizeChapterId)
+    .maybeSingle();
+
+  if (cErr || !campaign) {
+    return { ok: false, error: 'Donation campaign not found' };
+  }
+
+  const isStripe =
+    Boolean((campaign.stripe_price_id as string | null)?.trim()) &&
+    !(campaign.crowded_collection_id as string | null)?.trim();
+  if (!isStripe) {
+    return { ok: false, error: 'This drive is not a Stripe-backed campaign' };
+  }
+
+  const { data: members, error: membersError } = await params.supabase
+    .from('profiles')
+    .select('id, email, first_name, last_name, full_name, avatar_url, role')
+    .eq('chapter_id', params.trailblaizeChapterId)
+    .in('role', ['admin', 'active_member'])
+    .order('full_name');
+
+  if (membersError) {
+    return { ok: false, error: membersError.message || 'Failed to load members' };
+  }
+
+  const candidates: DonationShareCandidate[] = (members ?? []).map((m) => ({
+    profileId: m.id as string,
+    contactId: null,
+    email: (m.email as string | null) ?? null,
+    displayName: displayNameFromProfile({
+      first_name: m.first_name as string | null,
+      last_name: m.last_name as string | null,
+      full_name: m.full_name as string | null,
+    }),
+    avatarUrl: (m.avatar_url as string | null) ?? null,
+    isAlumni: false,
+    pendingCrowdedContact: false,
+  }));
+
+  const { data: alumniRows, error: alumniErr } = await params.supabase
+    .from('profiles')
+    .select('id, email, first_name, last_name, full_name, avatar_url, role')
+    .eq('chapter_id', params.trailblaizeChapterId)
+    .eq('role', 'alumni')
+    .order('full_name');
+
+  if (alumniErr) {
+    return { ok: false, error: alumniErr.message || 'Failed to load alumni' };
+  }
+
+  for (const m of alumniRows ?? []) {
+    candidates.push({
+      profileId: m.id as string,
+      contactId: null,
+      email: (m.email as string | null) ?? null,
+      displayName: displayNameFromProfile({
+        first_name: m.first_name as string | null,
+        last_name: m.last_name as string | null,
+        full_name: m.full_name as string | null,
+      }),
+      avatarUrl: (m.avatar_url as string | null) ?? null,
+      isAlumni: true,
+      pendingCrowdedContact: false,
+    });
+  }
+
+  candidates.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }));
+
+  return { ok: true, candidates };
+}
+
+export async function addDonationCampaignRecipientsForStripeCampaign(params: {
+  supabase: SupabaseClient;
+  trailblaizeChapterId: string;
+  donationCampaignId: string;
+  profileIds: string[];
+}): Promise<{ ok: true; saved: number } | { ok: false; error: string; code?: string }> {
+  const { data: campaign, error: cErr } = await params.supabase
+    .from('donation_campaigns')
+    .select('id, chapter_id, stripe_price_id, crowded_collection_id')
+    .eq('id', params.donationCampaignId)
+    .eq('chapter_id', params.trailblaizeChapterId)
+    .maybeSingle();
+
+  if (cErr || !campaign) {
+    return { ok: false, error: 'Donation campaign not found', code: 'NOT_FOUND' };
+  }
+
+  const isStripe =
+    Boolean((campaign.stripe_price_id as string | null)?.trim()) &&
+    !(campaign.crowded_collection_id as string | null)?.trim();
+  if (!isStripe) {
+    return { ok: false, error: 'This drive is not a Stripe-backed campaign', code: 'NOT_FOUND' };
+  }
+
+  const ids = [...new Set(params.profileIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) {
+    return { ok: false, error: 'No members selected', code: 'EMPTY_SELECTION' };
+  }
+
+  const { data: profiles, error: profErr } = await params.supabase
+    .from('profiles')
+    .select('id, chapter_id')
+    .eq('chapter_id', params.trailblaizeChapterId)
+    .in('id', ids);
+
+  if (profErr || !profiles || profiles.length === 0) {
+    return { ok: false, error: 'No valid chapter members for selection', code: 'INVALID_MEMBERS' };
+  }
+
+  if (profiles.length !== ids.length) {
+    return { ok: false, error: 'One or more selected members are not in this chapter', code: 'INVALID_MEMBERS' };
+  }
+
+  const rows = profiles.map((p) => ({
+    donation_campaign_id: params.donationCampaignId,
+    profile_id: p.id as string,
+    crowded_contact_id: null as string | null,
+  }));
+
+  const { data: savedRows, error: insErr } = await params.supabase
+    .from('donation_campaign_recipients')
+    .upsert(rows, { onConflict: 'donation_campaign_id,profile_id' })
+    .select('id');
+
+  if (insErr) {
+    return { ok: false, error: insErr.message || 'Failed to save recipients' };
+  }
+
+  return { ok: true, saved: savedRows?.length ?? 0 };
+}
+
 export async function listDonationCampaignRecipients(params: {
   supabase: SupabaseClient;
   donationCampaignId: string;
@@ -264,7 +408,9 @@ export async function listDonationCampaignRecipients(params: {
 
   const { data: recs, error } = await params.supabase
     .from('donation_campaign_recipients')
-    .select('id, donation_campaign_id, profile_id, crowded_contact_id, crowded_checkout_url, created_at')
+    .select(
+      'id, donation_campaign_id, profile_id, crowded_contact_id, crowded_checkout_url, stripe_checkout_url, created_at'
+    )
     .eq('donation_campaign_id', params.donationCampaignId)
     .order('created_at', { ascending: true });
 
@@ -310,6 +456,7 @@ export async function listDonationCampaignRecipients(params: {
       profile_id: pid,
       crowded_contact_id: (raw.crowded_contact_id as string | null | undefined) ?? null,
       crowded_checkout_url: (raw.crowded_checkout_url as string | null | undefined) ?? null,
+      stripe_checkout_url: (raw.stripe_checkout_url as string | null | undefined) ?? null,
       created_at: raw.created_at as string,
       profile: {
         id: pid,

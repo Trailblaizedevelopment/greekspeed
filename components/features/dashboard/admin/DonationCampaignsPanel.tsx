@@ -80,11 +80,20 @@ function recipientInitials(r: DonationCampaignRecipientRow['profile']): string {
 
 export interface DonationCampaignsPanelProps {
   chapterId: string;
-  /** Same gate as other Crowded treasurer UI */
+  /** Panel is mounted; parent controls visibility via flags. */
   enabled: boolean;
+  /**
+   * When true, copy and labels describe Stripe (Connect + Payment Link).
+   * API still falls back to Crowded if Connect is not ready but Crowded is.
+   */
+  stripeDonationsPrimary?: boolean;
 }
 
-export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaignsPanelProps) {
+export function DonationCampaignsPanel({
+  chapterId,
+  enabled,
+  stripeDonationsPrimary = false,
+}: DonationCampaignsPanelProps) {
   const { listQuery, createMutation, syncShareLinkMutation } = useDonationCampaigns(chapterId, enabled);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<DonationCampaignCreateKind>('open');
@@ -158,7 +167,9 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
             <div>
               <CardTitle className="text-lg text-gray-900">Donations</CardTitle>
               <p className="text-sm text-gray-500 mt-0.5">
-                Create donations for your chapter as open amount collections or fundraisers.
+                {stripeDonationsPrimary
+                  ? 'Create chapter donation drives with Stripe (Payment Link on your connected account).'
+                  : 'Create donations for your chapter as open amount collections or fundraisers.'}
               </p>
             </div>
           </div>
@@ -211,7 +222,13 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                 disabled={createMutation.isPending}
               />
               <p className="text-xs text-gray-500">
-                Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
+                {stripeDonationsPrimary
+                  ? 'Becomes the fixed donation amount (Stripe Price) in cents.'
+                  : (
+                      <>
+                        Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
+                      </>
+                    )}
               </p>
             </div>
             {kind === 'fundraiser' ? (
@@ -222,7 +239,11 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                   disabled={createMutation.isPending}
                   id="donation-public-channels"
                 />
-                <span>Show on public fundraising channels (Crowded)</span>
+                <span>
+                  {stripeDonationsPrimary
+                    ? 'Show on public fundraising channels (metadata only for Stripe drives)'
+                    : 'Show on public fundraising channels (Crowded)'}
+                </span>
               </label>
             ) : null}
           </div>
@@ -254,7 +275,9 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
             <p className="text-sm text-red-600 py-2">{listQuery.error.message}</p>
           ) : campaigns.length === 0 ? (
             <p className="text-sm text-gray-500 py-4 border border-dashed border-gray-200 rounded-lg px-4">
-              No donation drives yet. Create one above — it will appear in Crowded Collect for your chapter.
+              {stripeDonationsPrimary
+                ? 'No donation drives yet. Create one above — a Stripe Payment Link is generated on your connected account when Connect is ready.'
+                : 'No donation drives yet. Create one above — it will appear in Crowded Collect for your chapter.'}
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -265,7 +288,9 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                     <TableHead className="whitespace-nowrap">Type</TableHead>
                     <TableHead className="tabular-nums whitespace-nowrap">Goal</TableHead>
                     <TableHead className="hidden sm:table-cell">Created</TableHead>
-                    <TableHead className="w-[120px] text-right">Copy ID</TableHead>
+                    <TableHead className="w-[120px] text-right">
+                      {stripeDonationsPrimary ? 'Copy price' : 'Copy ID'}
+                    </TableHead>
                     <TableHead className="w-12 px-2" aria-label="Expand row" />
                   </TableRow>
                 </TableHeader>
@@ -313,11 +338,24 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                               variant="outline"
                               size="sm"
                               className="h-8 gap-1 px-2 rounded-full"
-                              disabled={!row.crowded_collection_id?.trim()}
-                              onClick={() =>
-                                copyText(row.crowded_collection_id!.trim(), 'Crowded collection ID copied')
+                              disabled={
+                                !(row.stripe_price_id?.trim() || row.crowded_collection_id?.trim())
                               }
-                              aria-label="Copy Crowded collection ID"
+                              onClick={() => {
+                                const id =
+                                  row.stripe_price_id?.trim() || row.crowded_collection_id?.trim() || '';
+                                copyText(
+                                  id,
+                                  row.stripe_price_id?.trim()
+                                    ? 'Stripe price ID copied'
+                                    : 'Crowded collection ID copied'
+                                );
+                              }}
+                              aria-label={
+                                row.stripe_price_id?.trim()
+                                  ? 'Copy Stripe price ID'
+                                  : 'Copy Crowded collection ID'
+                              }
                             >
                               <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               <span className="hidden sm:inline text-xs">Copy ID</span>
@@ -417,7 +455,9 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                           <TableHead className="hidden sm:table-cell">Role</TableHead>
                                           <TableHead className="tabular-nums">Paid</TableHead>
                                           <TableHead>Status</TableHead>
-                                          <TableHead className="whitespace-nowrap w-[1%]">Crowded link</TableHead>
+                                          <TableHead className="whitespace-nowrap w-[1%]">
+                                            {stripeDonationsPrimary ? 'Pay link' : 'Crowded link'}
+                                          </TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
@@ -458,9 +498,13 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                             >
                                               {(() => {
                                                 const shareUrl =
+                                                  rec.stripe_checkout_url?.trim() ||
                                                   rec.crowded_checkout_url?.trim() ||
                                                   row.crowded_share_url?.trim();
-                                                const canSync = Boolean(row.crowded_collection_id?.trim());
+                                                const canSync = Boolean(
+                                                  row.stripe_price_id?.trim() ||
+                                                    row.crowded_collection_id?.trim()
+                                                );
                                                 const syncing =
                                                   syncShareLinkMutation.isPending &&
                                                   syncShareLinkMutation.variables?.campaignId === row.id &&
@@ -499,8 +543,12 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                                     disabled={!canSync || syncing || siblingSyncing}
                                                     title={
                                                       canSync
-                                                        ? 'Fetch share URL from Crowded and save it for members'
-                                                        : 'Missing Crowded collection on this drive'
+                                                        ? row.stripe_price_id?.trim()
+                                                          ? 'Save Stripe payment link for this member'
+                                                          : 'Fetch share URL from Crowded and save it for members'
+                                                        : row.stripe_price_id?.trim()
+                                                          ? 'Missing Stripe price on this drive'
+                                                          : 'Missing Crowded collection on this drive'
                                                     }
                                                     onClick={() => {
                                                       syncShareLinkMutation.mutate(
@@ -511,13 +559,17 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                                             toast.success(
                                                               d.alreadySet
                                                                 ? 'Checkout link was already saved for this member'
-                                                                : 'Crowded Collect checkout link created — member can pay from Trailblaize or the link; a Collect request should appear in Crowded for this contact.'
+                                                                : stripeDonationsPrimary
+                                                                  ? 'Stripe payment link saved for this member.'
+                                                                  : 'Crowded Collect checkout link created — member can pay from Trailblaize or the link; a Collect request should appear in Crowded for this contact.'
                                                             );
                                                           } else {
                                                             toast.success(
                                                               d.alreadySet
                                                                 ? 'Checkout link was already saved'
-                                                                : 'Checkout link saved — members can open it from their dashboard'
+                                                                : stripeDonationsPrimary
+                                                                  ? 'Payment link saved — member can open it to pay with Stripe.'
+                                                                  : 'Checkout link saved — members can open it from their dashboard'
                                                             );
                                                           }
                                                         },
@@ -525,7 +577,9 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                                           toast.error(
                                                             err instanceof Error
                                                               ? err.message
-                                                              : 'Could not fetch link from Crowded'
+                                                              : stripeDonationsPrimary
+                                                                ? 'Could not save Stripe payment link'
+                                                                : 'Could not fetch link from Crowded'
                                                           );
                                                         },
                                                       }
@@ -561,9 +615,19 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                       No trackable payments to display yet
                                     </p>
                                     <p className="text-sm text-gray-500 mt-2 max-w-md leading-relaxed">
-                                      Use <span className="font-medium text-gray-700">Share</span> to link
-                                      chapter members who have a Crowded contact. Payment status will update when
-                                      Collect payments are wired.
+                                      {stripeDonationsPrimary ? (
+                                        <>
+                                          Use <span className="font-medium text-gray-700">Share</span> to add
+                                          chapter members, then <span className="font-medium text-gray-700">Create link</span>{' '}
+                                          to attach the Stripe payment URL for each row.
+                                        </>
+                                      ) : (
+                                        <>
+                                          Use <span className="font-medium text-gray-700">Share</span> to link
+                                          chapter members who have a Crowded contact. Payment status will update when
+                                          Collect payments are wired.
+                                        </>
+                                      )}
                                     </p>
                                   </div>
                                 )}
@@ -590,6 +654,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
           chapterId={chapterId}
           campaignId={shareForCampaign.id}
           campaignTitle={shareForCampaign.title}
+          stripeShareFlow={Boolean(shareForCampaign.stripe_price_id?.trim())}
         />
       ) : null}
     </Card>

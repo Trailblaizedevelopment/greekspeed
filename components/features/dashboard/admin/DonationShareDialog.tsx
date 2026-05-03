@@ -25,6 +25,8 @@ export interface DonationShareDialogProps {
   chapterId: string;
   campaignId: string;
   campaignTitle: string;
+  /** Stripe-backed drive: no Crowded contacts required. */
+  stripeShareFlow?: boolean;
 }
 
 type TabId = 'contacts' | 'tags';
@@ -44,6 +46,7 @@ export function DonationShareDialog({
   chapterId,
   campaignId,
   campaignTitle,
+  stripeShareFlow = false,
 }: DonationShareDialogProps) {
   const [tab, setTab] = useState<TabId>('contacts');
   const [step, setStep] = useState<'pick' | 'confirm'>('pick');
@@ -148,7 +151,9 @@ export function DonationShareDialog({
             </DialogTitle>
             <DialogDescription className="text-sm text-gray-500">
               {step === 'pick'
-                ? `Choose members to share “${campaignTitle}” with. Active members and admins need a Crowded contact; eligible alumni (email, E.164 phone, name on profile) appear here and get a Crowded contact when you confirm, if one does not exist yet.`
+                ? stripeShareFlow
+                  ? `Choose chapter members to link to “${campaignTitle}”. They can receive the Stripe payment link from the drive row (no Crowded contact required).`
+                  : `Choose members to share “${campaignTitle}” with. Active members and admins need a Crowded contact; eligible alumni (email, E.164 phone, name on profile) appear here and get a Crowded contact when you confirm, if one does not exist yet.`
                 : `Send payment link to ${selectedCount} contact${selectedCount === 1 ? '' : 's'}?`}
             </DialogDescription>
           </DialogHeader>
@@ -211,9 +216,9 @@ export function DonationShareDialog({
                   </p>
                 ) : (candidatesQuery.data?.length ?? 0) === 0 ? (
                   <p className="px-6 py-10 text-center text-sm text-gray-500">
-                    No one is available to share with yet. Link Crowded for active members and admins, or add
-                    alumni with a valid email, a mobile number Crowded can use (E.164), and first/last or full
-                    name on their profile.
+                    {stripeShareFlow
+                      ? 'No chapter members found for this drive.'
+                      : 'No one is available to share with yet. Link Crowded for active members and admins, or add alumni with a valid email, a mobile number Crowded can use (E.164), and first/last or full name on their profile.'}
                   </p>
                 ) : filtered.length === 0 ? (
                   <p className="px-6 py-10 text-center text-sm text-gray-500">
@@ -298,12 +303,22 @@ export function DonationShareDialog({
               </div>
               <h3 className="text-lg font-semibold text-gray-900">Confirmation</h3>
               <p className="mt-2 max-w-sm text-sm text-gray-600">
-                Link {selectedCount} member{selectedCount === 1 ? '' : 's'} to this donation in Trailblaize
-                (Crowded contact ids stored).
-                {selectedPendingCrowded
-                  ? ' New Crowded contacts will be created first for any selected alumni who do not have one yet.'
-                  : null}{' '}
-                Payment emails can be wired in a follow-up.
+                {stripeShareFlow ? (
+                  <>
+                    Link {selectedCount} member{selectedCount === 1 ? '' : 's'} to this donation in Trailblaize.
+                    Use <span className="font-medium text-gray-800">Create link</span> on each row to save the Stripe
+                    payment URL for that member.
+                  </>
+                ) : (
+                  <>
+                    Link {selectedCount} member{selectedCount === 1 ? '' : 's'} to this donation in Trailblaize
+                    (Crowded contact ids stored).
+                    {selectedPendingCrowded
+                      ? ' New Crowded contacts will be created first for any selected alumni who do not have one yet.'
+                      : null}{' '}
+                    Payment emails can be wired in a follow-up.
+                  </>
+                )}
               </p>
               <ul className="mt-4 max-h-28 w-full max-w-sm overflow-y-auto text-left text-xs text-gray-500">
                 {selectedList.slice(0, 8).map((c) => (
