@@ -86,7 +86,11 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
   const syncShareLinkMutation = useMutation({
     mutationFn: async (
       vars: SyncDonationShareLinkVariables
-    ): Promise<{ crowdedShareUrl: string; alreadySet: boolean; source: 'collection' | 'intent' }> => {
+    ): Promise<{
+      crowdedShareUrl: string;
+      alreadySet: boolean;
+      source: 'collection' | 'intent' | 'stripe_checkout';
+    }> => {
       const res = await fetch(`/api/chapters/${cid}/donations/campaigns/${vars.campaignId}/share-link`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -94,7 +98,11 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
         body: JSON.stringify({ donationCampaignRecipientId: vars.recipientId }),
       });
       const json = (await res.json()) as {
-        data?: { crowdedShareUrl: string; alreadySet: boolean; source?: 'collection' | 'intent' };
+        data?: {
+          crowdedShareUrl: string;
+          alreadySet: boolean;
+          source?: 'collection' | 'intent' | 'stripe_checkout';
+        };
         error?: string;
         code?: string;
       };
@@ -112,10 +120,14 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
         throw new Error('Invalid response from server');
       }
 
+      const src = json.data.source;
+      const source: 'collection' | 'intent' | 'stripe_checkout' =
+        src === 'intent' ? 'intent' : src === 'stripe_checkout' ? 'stripe_checkout' : 'collection';
+
       return {
         crowdedShareUrl: json.data.crowdedShareUrl,
         alreadySet: Boolean(json.data.alreadySet),
-        source: json.data.source === 'intent' ? 'intent' : 'collection',
+        source,
       };
     },
     onSuccess: (_data, vars) => {

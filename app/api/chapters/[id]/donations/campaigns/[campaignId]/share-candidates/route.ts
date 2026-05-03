@@ -6,6 +6,7 @@ import {
   listDonationShareCandidatesForStripeCampaign,
 } from '@/lib/services/donations/donationCampaignShareService';
 import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
+import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
 
 export async function GET(
   request: NextRequest,
@@ -30,11 +31,7 @@ export async function GET(
       return NextResponse.json({ error: 'Donation campaign not found' }, { status: 404 });
     }
 
-    const isStripeDrive =
-      Boolean((campaign?.stripe_price_id as string | null)?.trim()) &&
-      !(campaign?.crowded_collection_id as string | null)?.trim();
-
-    if (isStripeDrive) {
+    if (isDonationCampaignStripeDrive(campaign)) {
       const result = await listDonationShareCandidatesForStripeCampaign({
         supabase: donationCtx.supabase,
         trailblaizeChapterId,

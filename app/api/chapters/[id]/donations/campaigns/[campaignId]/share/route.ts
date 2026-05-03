@@ -7,6 +7,7 @@ import {
   addDonationCampaignRecipientsForStripeCampaign,
 } from '@/lib/services/donations/donationCampaignShareService';
 import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
+import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
 
 const shareBodySchema = z.object({
   profileIds: z.array(z.string().uuid()).min(1).max(500),
@@ -50,11 +51,7 @@ export async function POST(
       return NextResponse.json({ error: 'Donation campaign not found' }, { status: 404 });
     }
 
-    const isStripeDrive =
-      Boolean((campaign?.stripe_price_id as string | null)?.trim()) &&
-      !(campaign?.crowded_collection_id as string | null)?.trim();
-
-    if (isStripeDrive) {
+    if (isDonationCampaignStripeDrive(campaign)) {
       const result = await addDonationCampaignRecipientsForStripeCampaign({
         supabase: donationCtx.supabase,
         trailblaizeChapterId,

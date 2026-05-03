@@ -38,7 +38,12 @@ import {
 import { cn } from '@/lib/utils';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
 import { useDonationRecipients } from '@/lib/hooks/useDonationCampaignShare';
-import type { DonationCampaign, DonationCampaignCreateKind } from '@/types/donationCampaigns';
+import {
+  isDonationCampaignStripeDrive,
+  type DonationCampaign,
+  type DonationCampaignCreateKind,
+} from '@/types/donationCampaigns';
+import { STRIPE_OPEN_DONATION_MIN_CENTS } from '@/lib/services/donations/createStripeDonationCampaignOnConnect';
 import type { DonationCampaignRecipientRow } from '@/types/donationCampaignRecipients';
 import { DonationShareDialog } from '@/components/features/dashboard/admin/DonationShareDialog';
 
@@ -135,6 +140,12 @@ export function DonationCampaignsPanel({
       toast.error('Goal is too small');
       return;
     }
+    if (stripeDonationsPrimary && kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
+      toast.error(
+        `Open Stripe drives need a goal above $${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} (that goal is the maximum donors can pay).`
+      );
+      return;
+    }
 
     createMutation.mutate(
       {
@@ -222,13 +233,20 @@ export function DonationCampaignsPanel({
                 disabled={createMutation.isPending}
               />
               <p className="text-xs text-gray-500">
-                {stripeDonationsPrimary
-                  ? 'Becomes the fixed donation amount (Stripe Price) in cents.'
-                  : (
-                      <>
-                        Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
-                      </>
-                    )}
+                {stripeDonationsPrimary ? (
+                  kind === 'open' ? (
+                    <>
+                      Donors choose any amount from ${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} up to this
+                      goal (Stripe <span className="font-medium text-gray-700">custom amount</span> cap).
+                    </>
+                  ) : (
+                    'Becomes the fixed donation amount (Stripe Price).'
+                  )
+                ) : (
+                  <>
+                    Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
+                  </>
+                )}
               </p>
             </div>
             {kind === 'fundraiser' ? (
@@ -497,14 +515,14 @@ export function DonationCampaignsPanel({
                                               onClick={(e) => e.stopPropagation()}
                                             >
                                               {(() => {
+                                                const rowIsStripeDrive = isDonationCampaignStripeDrive(row);
                                                 const shareUrl =
                                                   rec.stripe_checkout_url?.trim() ||
                                                   rec.crowded_checkout_url?.trim() ||
                                                   row.crowded_share_url?.trim();
-                                                const canSync = Boolean(
-                                                  row.stripe_price_id?.trim() ||
-                                                    row.crowded_collection_id?.trim()
-                                                );
+                                                const canSync =
+                                                  rowIsStripeDrive ||
+                                                  Boolean(row.crowded_collection_id?.trim());
                                                 const syncing =
                                                   syncShareLinkMutation.isPending &&
                                                   syncShareLinkMutation.variables?.campaignId === row.id &&
@@ -543,10 +561,10 @@ export function DonationCampaignsPanel({
                                                     disabled={!canSync || syncing || siblingSyncing}
                                                     title={
                                                       canSync
-                                                        ? row.stripe_price_id?.trim()
-                                                          ? 'Save Stripe payment link for this member'
+                                                        ? rowIsStripeDrive
+                                                          ? 'Create Stripe Checkout link for this member'
                                                           : 'Fetch share URL from Crowded and save it for members'
-                                                        : row.stripe_price_id?.trim()
+                                                        : rowIsStripeDrive
                                                           ? 'Missing Stripe price on this drive'
                                                           : 'Missing Crowded collection on this drive'
                                                     }
@@ -555,7 +573,13 @@ export function DonationCampaignsPanel({
                                                         { campaignId: row.id, recipientId: rec.id },
                                                         {
                                                         onSuccess: (d) => {
-                                                          if (d.source === 'intent') {
+                                                          if (d.source === 'stripe_checkout') {
+                                                            toast.success(
+                                                              d.alreadySet
+                                                                ? 'Checkout link was already saved for this member'
+                                                                : 'Stripe Checkout link created for this member — they can pay from the link.'
+                                                            );
+                                                          } else if (d.source === 'intent') {
                                                             toast.success(
                                                               d.alreadySet
                                                                 ? 'Checkout link was already saved for this member'
@@ -654,7 +678,7 @@ export function DonationCampaignsPanel({
           chapterId={chapterId}
           campaignId={shareForCampaign.id}
           campaignTitle={shareForCampaign.title}
-          stripeShareFlow={Boolean(shareForCampaign.stripe_price_id?.trim())}
+          stripeShareFlow={isDonationCampaignStripeDrive(shareForCampaign)}
         />
       ) : null}
     </Card>

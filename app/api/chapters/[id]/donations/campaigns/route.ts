@@ -92,6 +92,7 @@ export async function POST(
         trailblaizeChapterId,
         title: body.title,
         goalAmountCents: body.goalAmountCents,
+        kind: body.kind,
       });
       if (!stripeRes.ok) {
         return NextResponse.json({ error: stripeRes.error }, { status: stripeRes.httpStatus });

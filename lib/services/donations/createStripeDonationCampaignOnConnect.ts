@@ -1,5 +1,9 @@
 import type Stripe from 'stripe';
 import { getBaseUrl } from '@/lib/utils/urlUtils';
+import type { DonationCampaignCreateKind } from '@/types/donationCampaigns';
+
+/** Minimum cents for Stripe `custom_unit_amount` open drives ($1.00). */
+export const STRIPE_OPEN_DONATION_MIN_CENTS = 100;
 
 export type CreateStripeDonationCampaignOnConnectParams = {
   stripe: Stripe;
@@ -8,10 +12,13 @@ export type CreateStripeDonationCampaignOnConnectParams = {
   trailblaizeChapterId: string;
   title: string;
   goalAmountCents: number;
+  /** `open` → customer-chosen amount between min and goal (cap); `fundraiser` → fixed Price at goal. */
+  kind: DonationCampaignCreateKind;
 };
 
 /**
  * Creates Product + one-time Price + Payment Link on the **connected** account.
+ * **Fundraiser:** fixed `unit_amount` = goal. **Open:** Price uses `custom_unit_amount` (min → goal as max).
  * Returns ids and the public payment URL (stored on `donation_campaigns.crowded_share_url` for UI reuse).
  */
 export async function createStripeDonationCampaignOnConnect(
@@ -35,6 +42,15 @@ export async function createStripeDonationCampaignOnConnect(
     return { ok: false, error: 'goalAmountCents must be a positive integer', httpStatus: 400 };
   }
 
+  const goalCents = Math.round(params.goalAmountCents);
+  if (params.kind === 'open' && goalCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
+    return {
+      ok: false,
+      error: `Open amount drives need a goal greater than $${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} so donors can choose an amount below the cap.`,
+      httpStatus: 400,
+    };
+  }
+
   const accountOpts = { stripeAccount: connectAccountId } as const;
   const base = getBaseUrl().replace(/\/$/, '');
 
@@ -51,17 +67,32 @@ export async function createStripeDonationCampaignOnConnect(
     );
     productId = product.id;
 
-    const price = await stripe.prices.create(
-      {
-        product: product.id,
-        currency: 'usd',
-        unit_amount: Math.round(params.goalAmountCents),
-        metadata: {
-          trailblaize_chapter_id: params.trailblaizeChapterId,
-        },
-      },
-      accountOpts
-    );
+    const priceParams: Stripe.PriceCreateParams =
+      params.kind === 'open'
+        ? {
+            product: product.id,
+            currency: 'usd',
+            custom_unit_amount: {
+              enabled: true,
+              minimum: STRIPE_OPEN_DONATION_MIN_CENTS,
+              maximum: goalCents,
+            },
+            metadata: {
+              trailblaize_chapter_id: params.trailblaizeChapterId,
+              trailblaize_donation_kind: 'open',
+            },
+          }
+        : {
+            product: product.id,
+            currency: 'usd',
+            unit_amount: goalCents,
+            metadata: {
+              trailblaize_chapter_id: params.trailblaizeChapterId,
+              trailblaize_donation_kind: 'fundraiser',
+            },
+          };
+
+    const price = await stripe.prices.create(priceParams, accountOpts);
 
     const paymentLink = await stripe.paymentLinks.create(
       {

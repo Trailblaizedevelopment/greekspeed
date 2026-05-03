@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MyDonationCampaignShare } from '@/types/myDonationCampaignShares';
-import type { DonationCampaignKind } from '@/types/donationCampaigns';
+import { isDonationCampaignStripeDrive, type DonationCampaignKind } from '@/types/donationCampaigns';
 
 export async function listMyDonationCampaignShares(params: {
   supabase: SupabaseClient;
@@ -23,7 +23,7 @@ export async function listMyDonationCampaignShares(params: {
 
   const { data: recs, error: recError } = await params.supabase
     .from('donation_campaign_recipients')
-    .select('id, donation_campaign_id, created_at, crowded_checkout_url')
+    .select('id, donation_campaign_id, created_at, crowded_checkout_url, stripe_checkout_url')
     .eq('profile_id', params.userId)
     .order('created_at', { ascending: false });
 
@@ -44,7 +44,7 @@ export async function listMyDonationCampaignShares(params: {
   const { data: campaigns, error: campError } = await params.supabase
     .from('donation_campaigns')
     .select(
-      'id, chapter_id, title, kind, goal_amount_cents, requested_amount_cents, crowded_share_url, crowded_collection_id'
+      'id, chapter_id, title, kind, goal_amount_cents, requested_amount_cents, crowded_share_url, crowded_collection_id, stripe_price_id'
     )
     .in('id', campaignIds)
     .eq('chapter_id', chapterId);
@@ -64,6 +64,7 @@ export async function listMyDonationCampaignShares(params: {
         requested_amount_cents: c.requested_amount_cents as number | null,
         crowded_share_url: c.crowded_share_url as string | null,
         crowded_collection_id: c.crowded_collection_id as string | null,
+        stripe_price_id: c.stripe_price_id as string | null | undefined,
       },
     ])
   );
@@ -74,8 +75,18 @@ export async function listMyDonationCampaignShares(params: {
     const campaign = campaignMap.get(capId);
     if (!campaign) continue;
 
-    const recipientCheckout = (raw.crowded_checkout_url as string | null | undefined)?.trim() || null;
+    const recipientCrowded = (raw.crowded_checkout_url as string | null | undefined)?.trim() || null;
+    const recipientStripe = (raw.stripe_checkout_url as string | null | undefined)?.trim() || null;
     const campaignShare = campaign.crowded_share_url?.trim() || null;
+    const stripeDrive = isDonationCampaignStripeDrive({
+      stripe_price_id: campaign.stripe_price_id,
+      crowded_collection_id: campaign.crowded_collection_id,
+    });
+    const paymentProvider = stripeDrive ? ('stripe' as const) : ('crowded' as const);
+    const checkoutUrl = stripeDrive
+      ? recipientStripe || campaignShare || null
+      : recipientCrowded || campaignShare || null;
+
     rows.push({
       recipientId: raw.id as string,
       sharedAt: raw.created_at as string,
@@ -84,7 +95,9 @@ export async function listMyDonationCampaignShares(params: {
       kind: campaign.kind,
       goalAmountCents: campaign.goal_amount_cents,
       requestedAmountCents: campaign.requested_amount_cents,
-      crowdedShareUrl: recipientCheckout || campaignShare,
+      checkoutUrl,
+      paymentProvider,
+      crowdedShareUrl: checkoutUrl,
       crowdedCollectionId: campaign.crowded_collection_id,
     });
   }

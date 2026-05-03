@@ -14,6 +14,7 @@ import type {
   DonationCampaignRecipientRow,
   DonationShareCandidate,
 } from '@/types/donationCampaignRecipients';
+import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
 import { isProfileEligibleForAlumniCrowdedContact } from '@/lib/services/donations/alumniCrowdedContactEligibility';
 
 const CONTACT_PAGE_SIZE = 100;
@@ -267,10 +268,7 @@ export async function listDonationShareCandidatesForStripeCampaign(params: {
     return { ok: false, error: 'Donation campaign not found' };
   }
 
-  const isStripe =
-    Boolean((campaign.stripe_price_id as string | null)?.trim()) &&
-    !(campaign.crowded_collection_id as string | null)?.trim();
-  if (!isStripe) {
+  if (!isDonationCampaignStripeDrive(campaign)) {
     return { ok: false, error: 'This drive is not a Stripe-backed campaign' };
   }
 
@@ -310,7 +308,15 @@ export async function listDonationShareCandidatesForStripeCampaign(params: {
     return { ok: false, error: alumniErr.message || 'Failed to load alumni' };
   }
 
+  const seenAlumniEmails = new Set<string>();
   for (const m of alumniRows ?? []) {
+    const emailNorm =
+      typeof m.email === 'string' ? m.email.trim().toLowerCase() : '';
+    if (emailNorm) {
+      if (seenAlumniEmails.has(emailNorm)) continue;
+      seenAlumniEmails.add(emailNorm);
+    }
+
     candidates.push({
       profileId: m.id as string,
       contactId: null,
@@ -348,10 +354,7 @@ export async function addDonationCampaignRecipientsForStripeCampaign(params: {
     return { ok: false, error: 'Donation campaign not found', code: 'NOT_FOUND' };
   }
 
-  const isStripe =
-    Boolean((campaign.stripe_price_id as string | null)?.trim()) &&
-    !(campaign.crowded_collection_id as string | null)?.trim();
-  if (!isStripe) {
+  if (!isDonationCampaignStripeDrive(campaign)) {
     return { ok: false, error: 'This drive is not a Stripe-backed campaign', code: 'NOT_FOUND' };
   }
 

@@ -36,7 +36,8 @@ export function MyDonationSharesCard() {
           Donations for you
         </CardTitle>
         <p className="text-sm text-gray-500 font-normal">
-          Campaigns your chapter shared with you. Pay in Crowded when a link is available.
+          Campaigns your chapter shared with you. Open the pay link when your treasurer has added one (Stripe or
+          Crowded).
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -58,7 +59,9 @@ export function MyDonationSharesCard() {
             {data.map((row) => {
               const goal = formatUsdFromCents(row.goalAmountCents);
               const requested = formatUsdFromCents(row.requestedAmountCents);
-              const hasLink = Boolean(row.crowdedShareUrl?.trim());
+              const payUrl = row.checkoutUrl?.trim() || row.crowdedShareUrl?.trim();
+              const hasLink = Boolean(payUrl);
+              const isStripe = row.paymentProvider === 'stripe';
 
               return (
                 <li
@@ -93,7 +96,7 @@ export function MyDonationSharesCard() {
                   )}
                   {hasLink ? (
                     <a
-                      href={row.crowdedShareUrl!}
+                      href={payUrl!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={cn(
@@ -101,13 +104,14 @@ export function MyDonationSharesCard() {
                         'w-full sm:w-auto inline-flex items-center justify-center gap-2 no-underline'
                       )}
                     >
-                      Open in Crowded
+                      {isStripe ? 'Open Stripe checkout' : 'Open in Crowded'}
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   ) : (
                     <p className="text-xs text-gray-500">
-                      No Crowded checkout link on this campaign yet — your treasurer can add one or you may pay from
-                      your Crowded account when a collect request appears.
+                      {isStripe
+                        ? 'No checkout link yet — ask your treasurer to use Create link on your row in the donation drive.'
+                        : 'No Crowded checkout link on this campaign yet — your treasurer can add one or you may pay from your Crowded account when a collect request appears.'}
                     </p>
                   )}
                 </li>

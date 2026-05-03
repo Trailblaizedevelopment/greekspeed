@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createCrowdedClientFromEnv, CrowdedApiError } from '@/lib/services/crowded/crowded-client';
-import { applyStripeDonationShareToRecipient } from '@/lib/services/donations/applyStripeDonationShareToRecipient';
 import { createDonationCampaignRecipientCheckoutUrl } from '@/lib/services/donations/createDonationCampaignRecipientCheckoutUrl';
+import { createStripeDonationRecipientCheckoutSession } from '@/lib/services/donations/createStripeDonationRecipientCheckoutSession';
 import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
 import { syncDonationCampaignCrowdedShareUrl } from '@/lib/services/donations/syncDonationCampaignCrowdedShareUrl';
 import { clientIpFromRequest } from '@/lib/utils/clientIpFromRequest';
 import { getBaseUrl } from '@/lib/utils/urlUtils';
+import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
+import { getStripeServer } from '@/lib/services/stripe/stripeServerClient';
 
 const patchBodySchema = z.object({
   donationCampaignRecipientId: z.string().uuid().optional(),
@@ -69,40 +71,56 @@ export async function PATCH(
       return NextResponse.json({ error: 'Donation campaign not found' }, { status: 404 });
     }
 
-    const isStripeDrive =
-      Boolean((campaign.stripe_price_id as string | null)?.trim()) &&
-      !(campaign.crowded_collection_id as string | null)?.trim();
-
-    if (isStripeDrive) {
+    if (isDonationCampaignStripeDrive(campaign)) {
       const paymentUrl = (campaign.crowded_share_url as string | null)?.trim();
+
+      if (donationCampaignRecipientId) {
+        const stripe = getStripeServer();
+        if (!stripe) {
+          return NextResponse.json({ error: 'Stripe is not configured on the server' }, { status: 503 });
+        }
+        const connectId = ctx.stripeConnectAccountId?.trim();
+        if (!connectId) {
+          return NextResponse.json(
+            { error: 'Chapter has no Stripe Connect account — complete Connect onboarding first.' },
+            { status: 400 }
+          );
+        }
+
+        const baseUrl = getBaseUrl().replace(/\/$/, '');
+        const successUrl = `${baseUrl}/dashboard?donationPaid=1&session_id={CHECKOUT_SESSION_ID}`;
+        const cancelUrl = `${baseUrl}/dashboard?donationCanceled=1`;
+
+        const sessionRes = await createStripeDonationRecipientCheckoutSession({
+          supabase: ctx.supabase,
+          stripe,
+          connectAccountId: connectId,
+          trailblaizeChapterId,
+          donationCampaignId: campaignId,
+          donationCampaignRecipientId,
+          successUrl,
+          cancelUrl,
+        });
+        if (!sessionRes.ok) {
+          return NextResponse.json(
+            { error: sessionRes.error, code: sessionRes.code },
+            { status: sessionRes.httpStatus >= 400 && sessionRes.httpStatus < 600 ? sessionRes.httpStatus : 502 }
+          );
+        }
+        return NextResponse.json({
+          data: {
+            crowdedShareUrl: sessionRes.paymentUrl,
+            alreadySet: sessionRes.alreadySet,
+            source: 'stripe_checkout' as const,
+          },
+        });
+      }
+
       if (!paymentUrl) {
         return NextResponse.json(
           { error: 'This Stripe drive is missing its payment link — recreate the drive or contact support.' },
           { status: 422 }
         );
-      }
-
-      if (donationCampaignRecipientId) {
-        const applied = await applyStripeDonationShareToRecipient({
-          supabase: ctx.supabase,
-          trailblaizeChapterId,
-          donationCampaignId: campaignId,
-          donationCampaignRecipientId,
-          paymentLinkUrl: paymentUrl,
-        });
-        if (!applied.ok) {
-          return NextResponse.json(
-            { error: applied.error, code: applied.code },
-            { status: applied.httpStatus >= 400 && applied.httpStatus < 600 ? applied.httpStatus : 502 }
-          );
-        }
-        return NextResponse.json({
-          data: {
-            crowdedShareUrl: applied.paymentUrl,
-            alreadySet: applied.alreadySet,
-            source: 'collection' as const,
-          },
-        });
       }
 
       return NextResponse.json({
