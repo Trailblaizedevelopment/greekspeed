@@ -1,5 +1,6 @@
 import type Stripe from 'stripe';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { applyStripeDonationCheckoutSessionCompleted } from '@/lib/services/stripe/applyStripeDonationCheckoutSessionCompleted';
 
 export type StripeWebhookHandleResult =
   | { ok: true; eventId: string; type: string; detail: string }
@@ -59,14 +60,24 @@ export async function handleStripeWebhookEvent(
         };
       }
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const meta = session.metadata ?? {};
-        const purpose = typeof meta.purpose === 'string' ? meta.purpose : 'unknown';
+        const supabase = options?.supabase;
+        if (!supabase) {
+          return {
+            ok: true,
+            eventId: event.id,
+            type: event.type,
+            detail: 'checkout.session.completed (no supabase; skipped donation apply)',
+          };
+        }
+        const donationRes = await applyStripeDonationCheckoutSessionCompleted({ supabase, event });
+        if (!donationRes.ok) {
+          return { ok: false, error: donationRes.error };
+        }
         return {
           ok: true,
           eventId: event.id,
           type: event.type,
-          detail: `checkout.session.completed (purpose=${purpose}, session=${session.id})`,
+          detail: `checkout.session.completed: ${donationRes.detail}`,
         };
       }
       case 'payment_intent.succeeded': {

@@ -342,7 +342,7 @@ Treasurer-linked chapter members for a donation drive. Crowded flows require a C
 **API:** `GET` `/api/chapters/[id]/donations/campaigns/[campaignId]/recipients`, `GET` `…/share-candidates`, and `POST` `…/share` (see app routes).
 
 ### `stripe_webhook_events`
-Idempotency ledger for Stripe webhook delivery (**TRA-683**). Insert a row (or rely on unique `stripe_event_id`) before applying donation/dues side effects so duplicate events are ignored.
+Idempotency ledger for Stripe webhook delivery (**TRA-683**). Insert a row (or rely on unique `stripe_event_id`) before applying donation/dues side effects so duplicate events are ignored. For **`checkout.session.completed`** with donation metadata (`purpose=trailblaize_chapter_donation`), **TRA-689** credits `donation_campaign_recipients.amount_paid_cents` / `paid_at` after a successful insert (Connect sessions must be delivered to the same webhook endpoint / signing secret you configure for the platform or Connect).
 
 **Key Columns:**
 - `id` (UUID, Primary Key)

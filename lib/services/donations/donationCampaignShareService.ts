@@ -412,7 +412,7 @@ export async function listDonationCampaignRecipients(params: {
   const { data: recs, error } = await params.supabase
     .from('donation_campaign_recipients')
     .select(
-      'id, donation_campaign_id, profile_id, crowded_contact_id, crowded_checkout_url, stripe_checkout_url, created_at'
+      'id, donation_campaign_id, profile_id, crowded_contact_id, crowded_checkout_url, stripe_checkout_url, stripe_checkout_session_id, amount_paid_cents, paid_at, created_at'
     )
     .eq('donation_campaign_id', params.donationCampaignId)
     .order('created_at', { ascending: true });
@@ -460,6 +460,9 @@ export async function listDonationCampaignRecipients(params: {
       crowded_contact_id: (raw.crowded_contact_id as string | null | undefined) ?? null,
       crowded_checkout_url: (raw.crowded_checkout_url as string | null | undefined) ?? null,
       stripe_checkout_url: (raw.stripe_checkout_url as string | null | undefined) ?? null,
+      stripe_checkout_session_id: (raw.stripe_checkout_session_id as string | null | undefined) ?? null,
+      amount_paid_cents: (raw.amount_paid_cents as number | null | undefined) ?? null,
+      paid_at: (raw.paid_at as string | null | undefined) ?? null,
       created_at: raw.created_at as string,
       profile: {
         id: pid,

@@ -2,7 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
 
-const CHECKOUT_METADATA_PURPOSE = 'trailblaize_chapter_donation';
+/** Session + PaymentIntent metadata `purpose` value for chapter donation Checkout (webhook TRA-689). */
+export const STRIPE_CHECKOUT_DONATION_PURPOSE = 'trailblaize_chapter_donation';
 
 /**
  * Creates a Stripe Checkout Session on the **connected** account (same model as TRA-685 Payment Links:
@@ -88,7 +89,7 @@ export async function createStripeDonationRecipientCheckoutSession(params: {
         success_url: successWithSession,
         cancel_url: params.cancelUrl,
         metadata: {
-          purpose: CHECKOUT_METADATA_PURPOSE,
+          purpose: STRIPE_CHECKOUT_DONATION_PURPOSE,
           trailblaize_chapter_id: params.trailblaizeChapterId,
           trailblaize_donation_campaign_id: params.donationCampaignId,
           trailblaize_donation_recipient_id: params.donationCampaignRecipientId,
@@ -96,7 +97,7 @@ export async function createStripeDonationRecipientCheckoutSession(params: {
         },
         payment_intent_data: {
           metadata: {
-            purpose: CHECKOUT_METADATA_PURPOSE,
+            purpose: STRIPE_CHECKOUT_DONATION_PURPOSE,
             trailblaize_chapter_id: params.trailblaizeChapterId,
             trailblaize_donation_campaign_id: params.donationCampaignId,
             trailblaize_donation_recipient_id: params.donationCampaignRecipientId,

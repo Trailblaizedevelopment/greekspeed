@@ -501,14 +501,27 @@ export function DonationCampaignsPanel({
                                             <TableCell className="hidden sm:table-cell text-sm text-gray-600">
                                               Member
                                             </TableCell>
-                                            <TableCell className="tabular-nums text-sm text-gray-600">—</TableCell>
+                                            <TableCell className="tabular-nums text-sm text-gray-600">
+                                              {rec.paid_at && rec.amount_paid_cents != null
+                                                ? formatCents(rec.amount_paid_cents)
+                                                : '—'}
+                                            </TableCell>
                                             <TableCell>
-                                              <Badge
-                                                variant="secondary"
-                                                className="bg-amber-50 text-amber-900 border-amber-200 font-normal text-xs"
-                                              >
-                                                Not paid
-                                              </Badge>
+                                              {rec.paid_at ? (
+                                                <Badge
+                                                  variant="secondary"
+                                                  className="bg-emerald-50 text-emerald-900 border-emerald-200 font-normal text-xs"
+                                                >
+                                                  Paid
+                                                </Badge>
+                                              ) : (
+                                                <Badge
+                                                  variant="secondary"
+                                                  className="bg-amber-50 text-amber-900 border-amber-200 font-normal text-xs"
+                                                >
+                                                  Not paid
+                                                </Badge>
+                                              )}
                                             </TableCell>
                                             <TableCell
                                               className="text-right sm:text-left"
