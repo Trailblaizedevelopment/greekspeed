@@ -7,17 +7,14 @@ export const donationCampaignPostBodySchema = z
   .object({
     title: z.string().min(1).max(500),
     kind: donationCampaignCreateKindSchema,
-    /**
-     * **Minor units (cents)** for Crowded `goalAmount` — required for both `open` and `fundraiser`.
-     */
+    /** **Minor units (cents)** — goal cap for `open` donations; fixed amount for `fundraiser`. */
     goalAmountCents: z.number().int().positive(),
-    /** Crowded `showOnPublicFundraisingChannels` — defaults true when omitted for `fundraiser`; ignored for `open`. */
+    /** Stored in campaign metadata for `fundraiser`; ignored for `open`. */
     showOnPublicFundraisingChannels: z.boolean().optional(),
     /** Optional copy for UI and Stripe Product.description (Stripe path). */
     description: z.string().max(2000).optional(),
     /** Public https URL for hero image; Stripe Product.images[0] when using Connect. */
     heroImageUrl: z.string().max(2048).optional(),
-    crowdedShareUrl: z.string().url().max(2000).nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine((data, ctx) => {

@@ -8,7 +8,7 @@ function asMetadataRecord(value: unknown): Record<string, unknown> {
 }
 
 /**
- * When true, the drive appears in the chapter donation hub for any chapter member (not only recipients).
+ * When true, the donation appears in the chapter donation hub for any chapter member (not only recipients).
  * When false, it is only visible to members who appear in the recipients table.
  */
 export async function updateDonationCampaignChapterHubVisible(params: {

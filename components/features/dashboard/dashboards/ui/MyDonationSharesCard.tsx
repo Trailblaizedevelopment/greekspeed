@@ -77,7 +77,7 @@ export function MyDonationSharesCard({ chapterId, showBrowseButton = false }: My
             ) : null}
           </div>
           <p className="text-sm text-gray-500 font-normal">
-            Campaigns your chapter shared with you. Tap a row for details and checkout.
+            Donations your chapter shared with you. Tap a row for details and checkout.
           </p>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -91,7 +91,7 @@ export function MyDonationSharesCard({ chapterId, showBrowseButton = false }: My
               </Button>
             </div>
           ) : data.length === 0 ? (
-            <p className="text-sm text-gray-600">No donation campaigns have been shared with you yet.</p>
+            <p className="text-sm text-gray-600">No donations have been shared with you yet.</p>
           ) : (
             <ul className="space-y-2">
               {data.map((row) => {

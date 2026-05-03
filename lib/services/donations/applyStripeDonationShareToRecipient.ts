@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * For Stripe-backed drives, copies the chapter Payment Link onto the recipient row (`stripe_checkout_url`).
+ * For Stripe-backed donations, copies the chapter Payment Link onto the recipient row (`stripe_checkout_url`).
  */
 export async function applyStripeDonationShareToRecipient(params: {
   supabase: SupabaseClient;

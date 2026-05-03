@@ -10,7 +10,7 @@ export type EnsureStripeCheckoutSessionsResult = {
 
 /**
  * Ensures each recipient row has a Stripe Checkout session URL (idempotent per row).
- * Call after inserting/updating `donation_campaign_recipients` for a Stripe-backed drive.
+ * Call after inserting/updating `donation_campaign_recipients` for a Stripe-backed donation.
  */
 export async function ensureStripeCheckoutSessionsForRecipientIds(params: {
   supabase: SupabaseClient;

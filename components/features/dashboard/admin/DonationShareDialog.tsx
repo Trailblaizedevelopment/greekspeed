@@ -25,8 +25,6 @@ export interface DonationShareDialogProps {
   chapterId: string;
   campaignId: string;
   campaignTitle: string;
-  /** Stripe-backed drive: no Crowded contacts required. */
-  stripeShareFlow?: boolean;
 }
 
 type TabId = 'contacts' | 'tags';
@@ -46,7 +44,6 @@ export function DonationShareDialog({
   chapterId,
   campaignId,
   campaignTitle,
-  stripeShareFlow = false,
 }: DonationShareDialogProps) {
   const [tab, setTab] = useState<TabId>('contacts');
   const [step, setStep] = useState<'pick' | 'confirm'>('pick');
@@ -101,18 +98,6 @@ export function DonationShareDialog({
   }, [allFilteredSelected, filtered]);
 
   const selectedCount = selected.size;
-  const selectedList = useMemo(() => {
-    const list = candidatesQuery.data ?? [];
-    const map = new Map(list.map((c) => [c.profileId, c]));
-    return Array.from(selected)
-      .map((id) => map.get(id))
-      .filter(Boolean) as DonationShareCandidate[];
-  }, [candidatesQuery.data, selected]);
-
-  const selectedPendingCrowded = useMemo(
-    () => selectedList.some((c) => c.pendingCrowdedContact),
-    [selectedList]
-  );
 
   const handlePrimaryPick = () => {
     if (selectedCount === 0) {
@@ -129,12 +114,12 @@ export function DonationShareDialog({
         onSuccess: (result) => {
           const saved = result.saved;
           const sc = result.stripeCheckout;
-          if (stripeShareFlow && sc?.failures?.length) {
+          if (sc?.failures?.length) {
             const n = sc.failures.length;
             toast.warning(
               `Linked ${saved} member${saved === 1 ? '' : 's'}, but ${n} Stripe checkout link${n === 1 ? '' : 's'} failed (${sc.failures[0]?.error ?? 'unknown'}). Try again or contact support.`
             );
-          } else if (stripeShareFlow && sc) {
+          } else if (sc) {
             toast.success(
               saved === selectedCount
                 ? `Linked ${saved} member${saved === 1 ? '' : 's'} — personal Stripe checkout is ready on their dashboard.`
@@ -166,12 +151,8 @@ export function DonationShareDialog({
             </DialogTitle>
             <DialogDescription className="text-sm text-gray-500">
               {step === 'pick'
-                ? stripeShareFlow
-                  ? `Choose chapter members to link to “${campaignTitle}”. A personal Stripe Checkout link is created for each member when you confirm (no Crowded contact required).`
-                  : `Choose members to share “${campaignTitle}” with. Active members and admins need a Crowded contact; eligible alumni (email, E.164 phone, name on profile) appear here and get a Crowded contact when you confirm, if one does not exist yet.`
-                : stripeShareFlow
-                  ? `Create personal checkout links for ${selectedCount} member${selectedCount === 1 ? '' : 's'}?`
-                  : `Send payment link to ${selectedCount} contact${selectedCount === 1 ? '' : 's'}?`}
+                ? `Choose chapter members to link to “${campaignTitle}”. A personal Stripe Checkout link is created for each member when you confirm.`
+                : `Create personal checkout links for ${selectedCount} member${selectedCount === 1 ? '' : 's'}?`}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -233,9 +214,7 @@ export function DonationShareDialog({
                   </p>
                 ) : (candidatesQuery.data?.length ?? 0) === 0 ? (
                   <p className="px-6 py-10 text-center text-sm text-gray-500">
-                    {stripeShareFlow
-                      ? 'No chapter members found for this drive.'
-                      : 'No one is available to share with yet. Link Crowded for active members and admins, or add alumni with a valid email, a mobile number Crowded can use (E.164), and first/last or full name on their profile.'}
+                    No chapter members found for this donation.
                   </p>
                 ) : filtered.length === 0 ? (
                   <p className="px-6 py-10 text-center text-sm text-gray-500">
@@ -274,18 +253,16 @@ export function DonationShareDialog({
                                   {c.displayName}
                                 </span>
                                 {c.isAlumni ? (
-                                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide">
+                                  <Badge
+                                    variant="secondary"
+                                    className="shrink-0 px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide"
+                                  >
                                     Alumni
                                   </Badge>
                                 ) : null}
                               </span>
                               {c.email ? (
                                 <span className="block truncate text-xs text-gray-500">{c.email}</span>
-                              ) : null}
-                              {c.pendingCrowdedContact ? (
-                                <span className="mt-0.5 block text-[11px] text-amber-700">
-                                  Crowded contact will be created when you confirm.
-                                </span>
                               ) : null}
                             </span>
                           </label>
@@ -320,33 +297,9 @@ export function DonationShareDialog({
               </div>
               <h3 className="text-lg font-semibold text-gray-900">Confirmation</h3>
               <p className="mt-2 max-w-sm text-sm text-gray-600">
-                {stripeShareFlow ? (
-                  <>
-                    Link {selectedCount} member{selectedCount === 1 ? '' : 's'} to this donation in Trailblaize.
-                    Use <span className="font-medium text-gray-800">Create link</span> on each row to save the Stripe
-                    payment URL for that member.
-                  </>
-                ) : (
-                  <>
-                    Link {selectedCount} member{selectedCount === 1 ? '' : 's'} to this donation in Trailblaize
-                    (Crowded contact ids stored).
-                    {selectedPendingCrowded
-                      ? ' New Crowded contacts will be created first for any selected alumni who do not have one yet.'
-                      : null}{' '}
-                    Payment emails can be wired in a follow-up.
-                  </>
-                )}
+                Link {selectedCount} member{selectedCount === 1 ? '' : 's'} to this donation in Trailblaize. Stripe
+                Checkout links are created automatically for each member so they can pay from their dashboard.
               </p>
-              <ul className="mt-4 max-h-28 w-full max-w-sm overflow-y-auto text-left text-xs text-gray-500">
-                {selectedList.slice(0, 8).map((c) => (
-                  <li key={c.profileId} className="truncate py-0.5">
-                    • {c.displayName}
-                  </li>
-                ))}
-                {selectedList.length > 8 ? (
-                  <li className="py-0.5">…and {selectedList.length - 8} more</li>
-                ) : null}
-              </ul>
             </div>
             <DialogFooter className="flex flex-col gap-2 border-t border-gray-100 bg-white px-6 py-4 sm:flex-col">
               <Button

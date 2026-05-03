@@ -2,7 +2,7 @@ import type { DonationCampaignKind } from '@/types/donationCampaigns';
 
 export type DonationSharePaymentProvider = 'crowded' | 'stripe';
 
-/** Chapter member who has a settled payment on this drive (from `donation_campaign_recipients`). */
+/** Chapter member who has a settled payment on this donation (from `donation_campaign_recipients`). */
 export interface MyDonationCampaignContributor {
   profileId: string;
   displayName: string;
@@ -27,7 +27,7 @@ export interface MyDonationCampaignShare {
   heroImageUrl?: string | null;
   goalAmountCents: number | null;
   requestedAmountCents: number | null;
-  /** Per-recipient Stripe Checkout URL or campaign Payment Link for Stripe-backed drives. */
+  /** Per-recipient Stripe Checkout URL or campaign Payment Link for Stripe-backed donations. */
   checkoutUrl: string | null;
   paymentProvider: DonationSharePaymentProvider;
   /**

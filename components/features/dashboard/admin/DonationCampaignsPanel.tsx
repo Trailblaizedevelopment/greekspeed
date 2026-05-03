@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  ExternalLink,
   FileSearch,
   Loader2,
   MoreVertical,
@@ -18,7 +17,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
@@ -41,7 +40,7 @@ import { cn } from '@/lib/utils';
 import { isDonationChapterHubPublic } from '@/lib/services/donations/chapterDonationBrowseService';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
 import { useDonationRecipients } from '@/lib/hooks/useDonationCampaignShare';
-import { isDonationCampaignStripeDrive, type DonationCampaign } from '@/types/donationCampaigns';
+import type { DonationCampaign } from '@/types/donationCampaigns';
 import type { DonationCampaignRecipientRow } from '@/types/donationCampaignRecipients';
 import { DonationShareDialog } from '@/components/features/dashboard/admin/DonationShareDialog';
 import { CreateDonationCampaignWizard } from '@/components/features/dashboard/admin/CreateDonationCampaignWizard';
@@ -148,21 +147,14 @@ export interface DonationCampaignsPanelProps {
   chapterId: string;
   /** Panel is mounted; parent controls visibility via flags. */
   enabled: boolean;
-  /**
-   * When true, copy and labels describe Stripe (Connect + Payment Link).
-   * API still falls back to Crowded if Connect is not ready but Crowded is.
-   */
-  stripeDonationsPrimary?: boolean;
 }
 
-export function DonationCampaignsPanel({
-  chapterId,
-  enabled,
-  stripeDonationsPrimary = false,
-}: DonationCampaignsPanelProps) {
+export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaignsPanelProps) {
   const queryClient = useQueryClient();
-  const { listQuery, createMutation, syncShareLinkMutation, updateChapterHubVisibleMutation } =
-    useDonationCampaigns(chapterId, enabled);
+  const { listQuery, createMutation, updateChapterHubVisibleMutation } = useDonationCampaigns(
+    chapterId,
+    enabled
+  );
   const [createWizardOpen, setCreateWizardOpen] = useState(false);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [shareForCampaign, setShareForCampaign] = useState<DonationCampaign | null>(null);
@@ -209,9 +201,7 @@ export function DonationCampaignsPanel({
           <div className="min-w-0">
             <CardTitle className="text-lg text-gray-900">Donations</CardTitle>
             <p className="text-sm text-gray-500 mt-0.5">
-              {stripeDonationsPrimary
-                ? 'Create chapter donation drives with Stripe (Payment Link on your connected account).'
-                : 'Create donations for your chapter as open amount collections or fundraisers.'}
+              Create chapter donations with Stripe (Payment Link on your connected account).
             </p>
           </div>
           <Button
@@ -223,7 +213,7 @@ export function DonationCampaignsPanel({
             onClick={() => setCreateWizardOpen(true)}
           >
             <Plus className="h-4 w-4 shrink-0" aria-hidden />
-            Create donation drive
+            Create donation
           </Button>
         </div>
       </CardHeader>
@@ -231,7 +221,7 @@ export function DonationCampaignsPanel({
         <CreateDonationCampaignWizard
           open={createWizardOpen}
           onOpenChange={setCreateWizardOpen}
-          stripeDonationsPrimary={stripeDonationsPrimary}
+          chapterId={chapterId}
           isPending={createMutation.isPending}
           mutateAsync={createMutation.mutateAsync}
         />
@@ -247,9 +237,8 @@ export function DonationCampaignsPanel({
             <p className="text-sm text-red-600 py-2">{listQuery.error.message}</p>
           ) : campaigns.length === 0 ? (
             <p className="text-sm text-gray-500 py-4 border border-dashed border-gray-200 rounded-lg px-4">
-              {stripeDonationsPrimary
-                ? 'No donation drives yet. Use Create donation drive — a Stripe Payment Link is generated on your connected account when Connect is ready.'
-                : 'No donation drives yet. Use Create donation drive — it will appear in Crowded Collect for your chapter.'}
+              No donations yet. Use Create donation — a Stripe Payment Link is generated on your connected account
+              when Connect is ready.
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -260,9 +249,7 @@ export function DonationCampaignsPanel({
                     <TableHead className="whitespace-nowrap">Type</TableHead>
                     <TableHead className="tabular-nums whitespace-nowrap">Goal</TableHead>
                     <TableHead className="hidden sm:table-cell">Created</TableHead>
-                    <TableHead className="w-[120px] text-right">
-                      {stripeDonationsPrimary ? 'Copy price' : 'Copy ID'}
-                    </TableHead>
+                    <TableHead className="w-[120px] text-right">Copy price</TableHead>
                     <TableHead className="w-12 px-2" aria-label="Expand row" />
                   </TableRow>
                 </TableHeader>
@@ -310,27 +297,15 @@ export function DonationCampaignsPanel({
                               variant="outline"
                               size="sm"
                               className="h-8 gap-1 px-2 rounded-full"
-                              disabled={
-                                !(row.stripe_price_id?.trim() || row.crowded_collection_id?.trim())
-                              }
+                              disabled={!row.stripe_price_id?.trim()}
                               onClick={() => {
-                                const id =
-                                  row.stripe_price_id?.trim() || row.crowded_collection_id?.trim() || '';
-                                copyText(
-                                  id,
-                                  row.stripe_price_id?.trim()
-                                    ? 'Stripe price ID copied'
-                                    : 'Crowded collection ID copied'
-                                );
+                                const id = row.stripe_price_id?.trim() || '';
+                                copyText(id, 'Stripe price ID copied');
                               }}
-                              aria-label={
-                                row.stripe_price_id?.trim()
-                                  ? 'Copy Stripe price ID'
-                                  : 'Copy Crowded collection ID'
-                              }
+                              aria-label="Copy Stripe price ID"
                             >
                               <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="hidden sm:inline text-xs">Copy ID</span>
+                              <span className="hidden sm:inline text-xs">Copy price</span>
                             </Button>
                           </TableCell>
                           <TableCell className="w-12 px-2 text-gray-500" aria-hidden>
@@ -447,7 +422,7 @@ export function DonationCampaignsPanel({
                                             <span className="font-medium text-gray-900">Public</span>
                                             <span
                                               className="inline-flex shrink-0 text-gray-400 hover:text-gray-600"
-                                              title="Public: listed on the chapter donation hub for every chapter member. Private: only people you share with (this table) see the drive with their personal link."
+                                              title="Public: listed on the chapter donation hub for every chapter member. Private: only people you share with (this table) see the donation with their personal link."
                                               aria-label="Public vs private chapter listing"
                                             >
                                               <CircleHelp className="h-4 w-4" aria-hidden />
@@ -467,8 +442,8 @@ export function DonationCampaignsPanel({
                                                     onSuccess: () =>
                                                       toast.success(
                                                         next
-                                                          ? 'Drive is public on the chapter donation hub.'
-                                                          : 'Drive is private — only shared members see it on the hub.'
+                                                          ? 'Donation is public on the chapter donation hub.'
+                                                          : 'Donation is private — only shared members see it on the hub.'
                                                       ),
                                                     onError: (err) =>
                                                       toast.error(
@@ -550,8 +525,8 @@ export function DonationCampaignsPanel({
                                             />
                                           ) : (
                                             <p className="text-xs text-gray-500">
-                                              Totals include shared members (Stripe Checkout or Crowded) plus
-                                              optional public Stripe Payment Link checkouts for this drive.
+                                              Totals include shared members (Stripe Checkout) plus optional public
+                                              Stripe Payment Link checkouts for this donation.
                                             </p>
                                           )}
                                         </div>
@@ -583,11 +558,6 @@ export function DonationCampaignsPanel({
                                             Paid on
                                           </TableHead>
                                           <TableHead>Status</TableHead>
-                                          {!stripeDonationsPrimary ? (
-                                            <TableHead className="whitespace-nowrap w-[1%]">
-                                              Crowded link
-                                            </TableHead>
-                                          ) : null}
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
@@ -638,149 +608,6 @@ export function DonationCampaignsPanel({
                                                 </Badge>
                                               )}
                                             </TableCell>
-                                            {!stripeDonationsPrimary ? (
-                                              <TableCell
-                                                className="text-right sm:text-left"
-                                                onClick={(e) => e.stopPropagation()}
-                                              >
-                                                {(() => {
-                                                  const rowIsStripeDrive =
-                                                    isDonationCampaignStripeDrive(row);
-                                                  const perRecipientOpenUrl =
-                                                    rec.stripe_checkout_url?.trim() ||
-                                                    rec.crowded_checkout_url?.trim() ||
-                                                    (rowIsStripeDrive ? '' : row.crowded_share_url?.trim()) ||
-                                                    '';
-                                                  const canSync =
-                                                    rowIsStripeDrive ||
-                                                    Boolean(row.crowded_collection_id?.trim());
-                                                  const syncing =
-                                                    syncShareLinkMutation.isPending &&
-                                                    syncShareLinkMutation.variables?.campaignId === row.id &&
-                                                    syncShareLinkMutation.variables?.recipientId === rec.id;
-                                                  const siblingSyncing =
-                                                    syncShareLinkMutation.isPending &&
-                                                    syncShareLinkMutation.variables?.campaignId === row.id &&
-                                                    !syncing;
-
-                                                  const createLinkTitle = canSync
-                                                    ? rowIsStripeDrive
-                                                      ? 'Create or refresh Stripe Checkout for this member'
-                                                      : 'Fetch share URL from Crowded and save it for members'
-                                                    : rowIsStripeDrive
-                                                      ? 'Missing Stripe price on this drive'
-                                                      : 'Missing Crowded collection on this drive';
-
-                                                  const createLinkButton = (
-                                                    <Button
-                                                      key="create-link"
-                                                      type="button"
-                                                      variant="outline"
-                                                      size="sm"
-                                                      className="h-8 gap-1.5 rounded-full text-xs shrink-0"
-                                                      disabled={!canSync || syncing || siblingSyncing}
-                                                      title={createLinkTitle}
-                                                      onClick={() => {
-                                                        syncShareLinkMutation.mutate(
-                                                          { campaignId: row.id, recipientId: rec.id },
-                                                          {
-                                                            onSuccess: (d) => {
-                                                              if (d.source === 'stripe_checkout') {
-                                                                toast.success(
-                                                                  d.alreadySet
-                                                                    ? 'Checkout link was already saved for this member'
-                                                                    : 'Stripe Checkout link created for this member — they can pay from the link.'
-                                                                );
-                                                              } else if (d.source === 'intent') {
-                                                                toast.success(
-                                                                  d.alreadySet
-                                                                    ? 'Checkout link was already saved for this member'
-                                                                    : 'Crowded Collect checkout link created — member can pay from Trailblaize or the link; a Collect request should appear in Crowded for this contact.'
-                                                                );
-                                                              } else {
-                                                                toast.success(
-                                                                  d.alreadySet
-                                                                    ? 'Checkout link was already saved'
-                                                                    : 'Checkout link saved — members can open it from their dashboard'
-                                                                );
-                                                              }
-                                                            },
-                                                            onError: (err) => {
-                                                              toast.error(
-                                                                err instanceof Error
-                                                                  ? err.message
-                                                                  : 'Could not fetch link from Crowded'
-                                                              );
-                                                            },
-                                                          }
-                                                        );
-                                                      }}
-                                                    >
-                                                      {syncing ? (
-                                                        <Loader2
-                                                          className="h-3.5 w-3.5 animate-spin shrink-0"
-                                                          aria-hidden
-                                                        />
-                                                      ) : null}
-                                                      Create link
-                                                    </Button>
-                                                  );
-
-                                                  if (rowIsStripeDrive && canSync) {
-                                                    return (
-                                                      <div className="flex flex-wrap items-center justify-end gap-2">
-                                                        {perRecipientOpenUrl ? (
-                                                          <a
-                                                            href={perRecipientOpenUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className={cn(
-                                                              buttonVariants({
-                                                                variant: 'outline',
-                                                                size: 'sm',
-                                                              }),
-                                                              'h-8 gap-1.5 inline-flex items-center justify-center no-underline whitespace-nowrap'
-                                                            )}
-                                                          >
-                                                            <ExternalLink
-                                                              className="h-3.5 w-3.5 shrink-0"
-                                                              aria-hidden
-                                                            />
-                                                            Open
-                                                          </a>
-                                                        ) : null}
-                                                        {createLinkButton}
-                                                      </div>
-                                                    );
-                                                  }
-
-                                                  if (perRecipientOpenUrl) {
-                                                    return (
-                                                      <a
-                                                        href={perRecipientOpenUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className={cn(
-                                                          buttonVariants({
-                                                            variant: 'outline',
-                                                            size: 'sm',
-                                                          }),
-                                                          'h-8 gap-1.5 inline-flex items-center justify-center no-underline whitespace-nowrap'
-                                                        )}
-                                                      >
-                                                        <ExternalLink
-                                                          className="h-3.5 w-3.5 shrink-0"
-                                                          aria-hidden
-                                                        />
-                                                        Open
-                                                      </a>
-                                                    );
-                                                  }
-
-                                                  return createLinkButton;
-                                                })()}
-                                              </TableCell>
-                                            ) : null}
                                           </TableRow>
                                         ))}
                                       </TableBody>
@@ -799,19 +626,9 @@ export function DonationCampaignsPanel({
                                       No trackable payments to display yet
                                     </p>
                                     <p className="text-sm text-gray-500 mt-2 max-w-md leading-relaxed">
-                                      {stripeDonationsPrimary ? (
-                                        <>
-                                          Use <span className="font-medium text-gray-700">Share</span> to add
-                                          chapter members — a personal Stripe Checkout link is created for each
-                                          member automatically so they can pay from their dashboard.
-                                        </>
-                                      ) : (
-                                        <>
-                                          Use <span className="font-medium text-gray-700">Share</span> to link
-                                          chapter members who have a Crowded contact. Payment status will update when
-                                          Collect payments are wired.
-                                        </>
-                                      )}
+                                      Use <span className="font-medium text-gray-700">Share</span> to add chapter
+                                      members — a personal Stripe Checkout link is created for each member
+                                      automatically so they can pay from their dashboard.
                                     </p>
                                   </div>
                                 )}
@@ -838,7 +655,6 @@ export function DonationCampaignsPanel({
           chapterId={chapterId}
           campaignId={shareForCampaign.id}
           campaignTitle={shareForCampaign.title}
-          stripeShareFlow={isDonationCampaignStripeDrive(shareForCampaign)}
         />
       ) : null}
     </Card>

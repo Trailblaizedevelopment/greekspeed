@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Check, X, RotateCw } from 'lucide-react';
 import type { Area, Point } from 'react-easy-crop';
-import { AVATAR_CONSTRAINTS, BANNER_CONSTRAINTS } from '@/lib/constants/imageConstants';
+import { AVATAR_CONSTRAINTS, BANNER_CONSTRAINTS, DONATION_HERO_CONSTRAINTS } from '@/lib/constants/imageConstants';
 import { LOGO_CONSTRAINTS } from '@/lib/constants/logoConstants';
 
 // Type-safe wrapper for react-easy-crop to fix React 19 compatibility
@@ -31,7 +31,7 @@ const cropperStyles = `
   }
 `;
 
-export type CropType = 'avatar' | 'banner' | 'logo';
+export type CropType = 'avatar' | 'banner' | 'logo' | 'donation_hero';
 
 interface ImageCropperProps {
   /** Image source (data URL or URL) */
@@ -52,7 +52,7 @@ interface ImageCropperProps {
  * ImageCropper Component
  * 
  * Generic image cropping component that supports avatars (square), banners (wide),
- * and logos (horizontal) with appropriate aspect ratios and constraints.
+ * logos (horizontal), and donation hero images (square 1:1) with appropriate aspect ratios and constraints.
  */
 export function ImageCropper({
   imageSrc,
@@ -107,6 +107,18 @@ export function ImageCropper({
           title: 'Crop Logo',
           description: 'Crop your logo. Must be horizontal (width > height).',
         };
+      case 'donation_hero':
+        return {
+          aspectRatio: DONATION_HERO_CONSTRAINTS.ASPECT_RATIO,
+          minAspectRatio: DONATION_HERO_CONSTRAINTS.ASPECT_RATIO,
+          maxAspectRatio: DONATION_HERO_CONSTRAINTS.ASPECT_RATIO,
+          targetWidth: DONATION_HERO_CONSTRAINTS.RECOMMENDED_SIZE,
+          targetHeight: DONATION_HERO_CONSTRAINTS.RECOMMENDED_SIZE,
+          minSize: DONATION_HERO_CONSTRAINTS.CROP_AREA_MIN_SIZE,
+          recommendedDimensions: `${DONATION_HERO_CONSTRAINTS.RECOMMENDED_SIZE}x${DONATION_HERO_CONSTRAINTS.RECOMMENDED_SIZE}px`,
+          title: 'Crop donation image',
+          description: 'Square 1:1 image for your donation (Stripe product image and chapter views).',
+        };
     }
   };
 
@@ -129,13 +141,16 @@ export function ImageCropper({
   const validateCropArea = useCallback((area: Area): string | null => {
     const aspectRatio = area.width / area.height;
 
-    if (cropType === 'avatar') {
-      // Avatar must be square (allow small tolerance)
+    if (cropType === 'avatar' || cropType === 'donation_hero') {
       if (Math.abs(aspectRatio - 1) > 0.1) {
-        return 'Avatar must be square (1:1 aspect ratio)';
+        return cropType === 'donation_hero'
+          ? 'Donation image must be square (1:1 aspect ratio)'
+          : 'Avatar must be square (1:1 aspect ratio)';
       }
       if (area.width < constraints.minSize || area.height < constraints.minSize) {
-        return `Avatar size too small. Minimum: ${constraints.minSize}x${constraints.minSize}px`;
+        return cropType === 'donation_hero'
+          ? `Donation image size too small. Minimum: ${constraints.minSize}x${constraints.minSize}px`
+          : `Avatar size too small. Minimum: ${constraints.minSize}x${constraints.minSize}px`;
       }
     } else if (cropType === 'banner') {
       if (aspectRatio < constraints.minAspectRatio) {
@@ -214,8 +229,7 @@ export function ImageCropper({
         let finalWidth: number;
         let finalHeight: number;
 
-        if (cropType === 'avatar') {
-          // Square crop - use fixed size
+        if (cropType === 'avatar' || cropType === 'donation_hero') {
           finalWidth = constraints.targetWidth;
           finalHeight = constraints.targetHeight;
         } else if (cropType === 'banner') {

@@ -6,7 +6,7 @@ import {
 import { getBaseUrl } from '@/lib/utils/urlUtils';
 import type { DonationCampaignCreateKind } from '@/types/donationCampaigns';
 
-/** Minimum cents for Stripe `custom_unit_amount` open drives ($1.00). */
+/** Minimum cents for Stripe `custom_unit_amount` open donations ($1.00). */
 export const STRIPE_OPEN_DONATION_MIN_CENTS = 100;
 
 export type CreateStripeDonationCampaignOnConnectParams = {
@@ -56,7 +56,7 @@ export async function createStripeDonationCampaignOnConnect(
   if (params.kind === 'open' && goalCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
     return {
       ok: false,
-      error: `Open amount drives need a goal greater than $${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} so donors can choose an amount below the cap.`,
+      error: `Open amount donations need a goal greater than $${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} so donors can choose an amount below the cap.`,
       httpStatus: 400,
     };
   }

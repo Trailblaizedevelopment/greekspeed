@@ -110,17 +110,17 @@ export async function listMyDonationCampaignShares(params: {
     const campaign = campaignMap.get(capId);
     if (!campaign) continue;
 
-    const recipientCrowded = (raw.crowded_checkout_url as string | null | undefined)?.trim() || null;
     const recipientStripe = (raw.stripe_checkout_url as string | null | undefined)?.trim() || null;
     const campaignShare = campaign.crowded_share_url?.trim() || null;
     const stripeDrive = isDonationCampaignStripeDrive({
       stripe_price_id: campaign.stripe_price_id,
       crowded_collection_id: campaign.crowded_collection_id,
     });
-    const paymentProvider = stripeDrive ? ('stripe' as const) : ('crowded' as const);
-    const checkoutUrl = stripeDrive
-      ? recipientStripe || campaignShare || null
-      : recipientCrowded || campaignShare || null;
+    if (!stripeDrive) {
+      continue;
+    }
+    const paymentProvider = 'stripe' as const;
+    const checkoutUrl = recipientStripe || campaignShare || null;
 
     const myPaid = coerceCents(raw.amount_paid_cents);
     const myPaidAtRaw = (raw.paid_at as string | null | undefined)?.trim() || null;

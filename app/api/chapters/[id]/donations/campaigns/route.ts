@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateCrowdedApiRequest } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
-import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
-import { buildCrowdedDonationCollectionRequest } from '@/lib/services/donations/buildCrowdedDonationCollectionBody';
 import { createStripeDonationCampaignOnConnect } from '@/lib/services/donations/createStripeDonationCampaignOnConnect';
 import { donationCampaignPostBodySchema } from '@/lib/services/donations/donationCampaignSchemas';
 import { resolveDonationCampaignsApiContext } from '@/lib/services/donations/resolveDonationCampaignsApiContext';
 import { getStripeServer } from '@/lib/services/stripe/stripeServerClient';
 import type { DonationCampaign } from '@/types/donationCampaigns';
+import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
 
 export async function GET(
   request: NextRequest,
@@ -32,7 +31,10 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to list campaigns' }, { status: 500 });
     }
 
-    return NextResponse.json({ data: (rows ?? []) as DonationCampaign[] });
+    const list = (rows ?? []) as DonationCampaign[];
+    const filtered = list.filter(isDonationCampaignStripeDrive);
+
+    return NextResponse.json({ data: filtered });
   } catch (e) {
     console.error('GET donation campaigns:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -76,159 +78,51 @@ export async function POST(
     const descriptionStored = body.description?.trim() || null;
     const heroImageUrlStored = body.heroImageUrl?.trim() || null;
 
-    if (ctx.createBackend === 'stripe') {
-      const stripe = getStripeServer();
-      if (!stripe) {
-        return NextResponse.json({ error: 'Stripe is not configured on the server' }, { status: 503 });
-      }
-      const connectId = ctx.stripeConnectAccountId;
-      if (!connectId) {
-        return NextResponse.json(
-          { error: 'Chapter has no Stripe Connect account — complete Connect onboarding first.' },
-          { status: 400 }
-        );
-      }
-
-      const donationCampaignId = randomUUID();
-      const stripeRes = await createStripeDonationCampaignOnConnect({
-        stripe,
-        connectAccountId: connectId,
-        donationCampaignId,
-        trailblaizeChapterId,
-        title: body.title,
-        goalAmountCents: body.goalAmountCents,
-        kind: body.kind,
-        description: descriptionStored,
-        heroImageUrl: heroImageUrlStored,
-      });
-      if (!stripeRes.ok) {
-        return NextResponse.json({ error: stripeRes.error }, { status: stripeRes.httpStatus });
-      }
-
-      const insertRow = {
-        id: donationCampaignId,
-        chapter_id: trailblaizeChapterId,
-        title: body.title.trim(),
-        kind: body.kind,
-        crowded_collection_id: null,
-        goal_amount_cents: body.goalAmountCents,
-        requested_amount_cents: null,
-        description: descriptionStored,
-        hero_image_url: heroImageUrlStored,
-        crowded_share_url: stripeRes.paymentLinkUrl,
-        stripe_product_id: stripeRes.stripeProductId,
-        stripe_price_id: stripeRes.stripePriceId,
-        metadata: ({
-          ...(body.metadata ?? {}),
-          payment_provider: 'stripe',
-          stripe_payment_link_id: stripeRes.stripePaymentLinkId,
-          chapter_hub_visible: false,
-          ...(body.kind === 'fundraiser' && body.showOnPublicFundraisingChannels !== undefined
-            ? { showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels }
-            : {}),
-        }) as Record<string, unknown>,
-        created_by: creatorId,
-      };
-
-      const { data: row, error: insertErr } = await ctx.supabase
-        .from('donation_campaigns')
-        .insert(insertRow)
-        .select('*')
-        .single();
-
-      if (insertErr) {
-        console.error('donation_campaigns insert error (Stripe):', insertErr);
-        return NextResponse.json(
-          { error: 'Failed to save campaign after Stripe create', details: insertErr.message },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({ data: row as DonationCampaign }, { status: 201 });
+    const stripe = getStripeServer();
+    if (!stripe) {
+      return NextResponse.json({ error: 'Stripe is not configured on the server' }, { status: 503 });
     }
-
-    /* Crowded path */
-    const crowdedChapterId = ctx.crowdedChapterId;
-    if (!crowdedChapterId) {
+    const connectId = ctx.stripeConnectAccountId;
+    if (!connectId) {
       return NextResponse.json(
-        { error: 'Chapter is not linked to Crowded (missing crowded_chapter_id)' },
+        { error: 'Chapter has no Stripe Connect account — complete Connect onboarding first.' },
         { status: 400 }
       );
     }
 
-    let crowdedBody;
-    try {
-      crowdedBody = buildCrowdedDonationCollectionRequest({
-        kind: body.kind,
-        title: body.title,
-        goalAmountCents: body.goalAmountCents,
-        showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Invalid campaign parameters';
-      return NextResponse.json({ error: msg }, { status: 400 });
+    const donationCampaignId = randomUUID();
+    const stripeRes = await createStripeDonationCampaignOnConnect({
+      stripe,
+      connectAccountId: connectId,
+      donationCampaignId,
+      trailblaizeChapterId,
+      title: body.title,
+      goalAmountCents: body.goalAmountCents,
+      kind: body.kind,
+      description: descriptionStored,
+      heroImageUrl: heroImageUrlStored,
+    });
+    if (!stripeRes.ok) {
+      return NextResponse.json({ error: stripeRes.error }, { status: stripeRes.httpStatus });
     }
-
-    let crowdedClient;
-    try {
-      crowdedClient = createCrowdedClientFromEnv();
-    } catch (e) {
-      console.error('Crowded client config error:', e);
-      return NextResponse.json(
-        { error: 'Crowded API is not configured on the server' },
-        { status: 503 }
-      );
-    }
-
-    let crowdedResult;
-    try {
-      crowdedResult = await crowdedClient.createCollection(crowdedChapterId, crowdedBody);
-    } catch (err) {
-      if (err instanceof CrowdedApiError) {
-        console.error('Crowded createCollection failed:', {
-          statusCode: err.statusCode,
-          message: err.message,
-          body: err.body,
-        });
-        return NextResponse.json(
-          {
-            error: err.message,
-            code: err.type,
-            details: err.details,
-          },
-          {
-            status:
-              err.statusCode >= 400 && err.statusCode < 600 ? err.statusCode : 502,
-          }
-        );
-      }
-      throw err;
-    }
-
-    const crowdedCollectionId = crowdedResult.data?.id?.trim();
-    if (!crowdedCollectionId) {
-      return NextResponse.json(
-        { error: 'Crowded did not return a collection id' },
-        { status: 502 }
-      );
-    }
-
-    const shareFromCrowded = crowdedResult.data?.link?.trim();
-    const crowdedShareUrl = shareFromCrowded || body.crowdedShareUrl?.trim() || null;
 
     const insertRow = {
+      id: donationCampaignId,
       chapter_id: trailblaizeChapterId,
       title: body.title.trim(),
       kind: body.kind,
-      crowded_collection_id: crowdedCollectionId,
+      crowded_collection_id: null,
       goal_amount_cents: body.goalAmountCents,
       requested_amount_cents: null,
       description: descriptionStored,
       hero_image_url: heroImageUrlStored,
-      crowded_share_url: crowdedShareUrl,
+      crowded_share_url: stripeRes.paymentLinkUrl,
+      stripe_product_id: stripeRes.stripeProductId,
+      stripe_price_id: stripeRes.stripePriceId,
       metadata: ({
         ...(body.metadata ?? {}),
-        payment_provider: 'crowded',
+        payment_provider: 'stripe',
+        stripe_payment_link_id: stripeRes.stripePaymentLinkId,
         chapter_hub_visible: false,
         ...(body.kind === 'fundraiser' && body.showOnPublicFundraisingChannels !== undefined
           ? { showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels }
@@ -244,44 +138,15 @@ export async function POST(
       .single();
 
     if (insertErr) {
-      const code = (insertErr as { code?: string }).code;
-      if (code === '23505') {
-        return NextResponse.json(
-          { error: 'This Crowded collection is already linked to a campaign.', code: 'DUPLICATE_COLLECTION' },
-          { status: 409 }
-        );
-      }
-      if (code === '23514') {
-        return NextResponse.json(
-          {
-            error:
-              insertErr.message ??
-              'Database rejected row (check donation_campaigns constraints — run latest migration for open/fundraiser kinds).',
-            code: 'SCHEMA_CONSTRAINT',
-          },
-          { status: 400 }
-        );
-      }
-      console.error('donation_campaigns insert error:', insertErr);
+      console.error('donation_campaigns insert error (Stripe):', insertErr);
       return NextResponse.json(
-        { error: 'Failed to save campaign after Crowded create', details: insertErr.message },
+        { error: 'Failed to save campaign after Stripe create', details: insertErr.message },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ data: row as DonationCampaign }, { status: 201 });
   } catch (error) {
-    if (error instanceof CrowdedApiError) {
-      console.error('Crowded error (donation campaigns POST):', {
-        statusCode: error.statusCode,
-        message: error.message,
-        body: error.body,
-      });
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 502 }
-      );
-    }
     console.error('POST donation campaigns:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import { ChevronLeft, HeartHandshake, Loader2, Megaphone } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Camera, ChevronLeft, HeartHandshake, Loader2, Megaphone, Upload } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,6 +19,9 @@ import type { CreateDonationCampaignPayload } from '@/lib/hooks/useDonationCampa
 import type { DonationCampaign } from '@/types/donationCampaigns';
 import type { DonationCampaignCreateKind } from '@/types/donationCampaigns';
 import { STRIPE_OPEN_DONATION_MIN_CENTS } from '@/lib/services/donations/createStripeDonationCampaignOnConnect';
+import { ImageCropper } from '@/components/features/common/ImageCropper';
+import { DONATION_HERO_CONSTRAINTS } from '@/lib/constants/imageConstants';
+import { DONATION_HERO_UPLOAD_ALLOWED_TYPES } from '@/lib/constants/donationHeroImageConstants';
 
 const TOTAL_STEPS = 4;
 
@@ -30,15 +33,27 @@ const money = new Intl.NumberFormat('en-US', {
 export interface CreateDonationCampaignWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  stripeDonationsPrimary: boolean;
+  /** Chapter id for hero image upload API. */
+  chapterId: string;
   isPending: boolean;
   mutateAsync: (payload: CreateDonationCampaignPayload) => Promise<DonationCampaign>;
+}
+
+function validateHeroImageFile(file: File): string | null {
+  const allowed = DONATION_HERO_UPLOAD_ALLOWED_TYPES as readonly string[];
+  if (!allowed.includes(file.type)) {
+    return 'Please choose a JPEG, PNG, WebP, or GIF image.';
+  }
+  if (file.size > DONATION_HERO_CONSTRAINTS.MAX_SIZE) {
+    return `Image must be ${Math.floor(DONATION_HERO_CONSTRAINTS.MAX_SIZE / (1024 * 1024))} MB or smaller.`;
+  }
+  return null;
 }
 
 export function CreateDonationCampaignWizard({
   open,
   onOpenChange,
-  stripeDonationsPrimary,
+  chapterId,
   isPending,
   mutateAsync,
 }: CreateDonationCampaignWizardProps) {
@@ -49,6 +64,20 @@ export function CreateDonationCampaignWizard({
   const [publicFundraising, setPublicFundraising] = useState(true);
   const [description, setDescription] = useState('');
   const [heroImageUrl, setHeroImageUrl] = useState('');
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState('');
+  const [heroUploading, setHeroUploading] = useState(false);
+  const [isHeroDragging, setIsHeroDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const cropObjectUrlRef = useRef<string | null>(null);
+
+  const revokeCropObjectUrl = useCallback(() => {
+    if (cropObjectUrlRef.current) {
+      URL.revokeObjectURL(cropObjectUrlRef.current);
+      cropObjectUrlRef.current = null;
+    }
+  }, []);
 
   const reset = useCallback(() => {
     setStep(0);
@@ -58,7 +87,86 @@ export function CreateDonationCampaignWizard({
     setPublicFundraising(true);
     setDescription('');
     setHeroImageUrl('');
-  }, []);
+    setCropperOpen(false);
+    setCropImageSrc('');
+    setHeroUploading(false);
+    setIsHeroDragging(false);
+    revokeCropObjectUrl();
+  }, [revokeCropObjectUrl]);
+
+  useEffect(() => {
+    if (!open) {
+      revokeCropObjectUrl();
+      setCropImageSrc('');
+      setCropperOpen(false);
+    }
+  }, [open, revokeCropObjectUrl]);
+
+  const beginHeroCropFromFile = useCallback(
+    (file: File) => {
+      const err = validateHeroImageFile(file);
+      if (err) {
+        toast.error(err);
+        return;
+      }
+      revokeCropObjectUrl();
+      const url = URL.createObjectURL(file);
+      cropObjectUrlRef.current = url;
+      setCropImageSrc(url);
+      setCropperOpen(true);
+    },
+    [revokeCropObjectUrl]
+  );
+
+  const uploadCroppedHeroBlob = useCallback(
+    async (blob: Blob) => {
+      const cid = chapterId.trim();
+      if (!cid) {
+        toast.error('Missing chapter');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', blob, 'donation-hero.jpg');
+      const res = await fetch(`/api/chapters/${cid}/donations/upload-hero-image`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const json = (await res.json()) as { data?: { publicUrl: string }; error?: string };
+      if (!res.ok) {
+        throw new Error(typeof json.error === 'string' ? json.error : 'Upload failed');
+      }
+      const url = json.data?.publicUrl?.trim();
+      if (!url) {
+        throw new Error('Invalid upload response');
+      }
+      setHeroImageUrl(url);
+    },
+    [chapterId]
+  );
+
+  const handleHeroCropComplete = useCallback(
+    (blob: Blob) => {
+      void (async () => {
+        setHeroUploading(true);
+        try {
+          await uploadCroppedHeroBlob(blob);
+          toast.success('Image saved');
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Could not upload image');
+        } finally {
+          setHeroUploading(false);
+        }
+      })();
+    },
+    [uploadCroppedHeroBlob]
+  );
+
+  const handleCropperClose = useCallback(() => {
+    setCropperOpen(false);
+    setCropImageSrc('');
+    revokeCropObjectUrl();
+  }, [revokeCropObjectUrl]);
 
   const handleClose = useCallback(
     (next: boolean) => {
@@ -76,7 +184,7 @@ export function CreateDonationCampaignWizard({
   }, [goalUsd]);
 
   const stepTitle = () => {
-    if (step === 0) return 'Drive type';
+    if (step === 0) return 'Donation type';
     if (step === 1) return 'Title & goal';
     if (step === 2) return 'Story & image';
     return 'Review';
@@ -88,29 +196,23 @@ export function CreateDonationCampaignWizard({
       const t = title.trim();
       if (!t) return false;
       if (goalAmountCents == null) return false;
-      if (stripeDonationsPrimary && kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
+      if (kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
         return false;
       }
       return true;
     }
     if (step === 2) {
-      const heroTrim = heroImageUrl.trim();
-      if (!heroTrim) return true;
-      try {
-        return new URL(heroTrim).protocol === 'https:';
-      } catch {
-        return false;
-      }
+      return true;
     }
     return false;
-  }, [step, title, goalAmountCents, kind, stripeDonationsPrimary, heroImageUrl]);
+  }, [step, title, goalAmountCents, kind]);
 
   const nextDisabled = (step === 1 || step === 2) && !canGoNext;
 
   const canSubmit = useMemo(() => {
     const t = title.trim();
     if (!t || goalAmountCents == null) return false;
-    if (stripeDonationsPrimary && kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
+    if (kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
       return false;
     }
     const heroTrim = heroImageUrl.trim();
@@ -122,7 +224,7 @@ export function CreateDonationCampaignWizard({
       }
     }
     return true;
-  }, [title, goalAmountCents, kind, stripeDonationsPrimary, heroImageUrl]);
+  }, [title, goalAmountCents, kind, heroImageUrl]);
 
   const submit = async () => {
     const t = title.trim();
@@ -134,9 +236,9 @@ export function CreateDonationCampaignWizard({
       toast.error('Enter a valid goal greater than zero');
       return;
     }
-    if (stripeDonationsPrimary && kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
+    if (kind === 'open' && goalAmountCents <= STRIPE_OPEN_DONATION_MIN_CENTS) {
       toast.error(
-        `Open Stripe drives need a goal above $${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} (that goal is the maximum donors can pay).`
+        `Open Stripe donations need a goal above $${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} (that goal is the maximum donors can pay).`
       );
       return;
     }
@@ -149,7 +251,7 @@ export function CreateDonationCampaignWizard({
           return;
         }
       } catch {
-        toast.error('Enter a valid https URL for the hero image, or leave it blank');
+        toast.error('Hero image must be a valid https URL from upload, or leave it blank');
         return;
       }
     }
@@ -165,14 +267,15 @@ export function CreateDonationCampaignWizard({
 
     try {
       await mutateAsync(payload);
-      toast.success('Donation drive created');
+      toast.success('Donation created');
       handleClose(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not create drive');
+      toast.error(e instanceof Error ? e.message : 'Could not create donation');
     }
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-white border border-gray-200 shadow-xl">
         <DialogHeader className="space-y-1 border-b border-gray-100 pb-3">
@@ -190,7 +293,7 @@ export function CreateDonationCampaignWizard({
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             ) : null}
-            <DialogTitle className="text-lg text-primary-900">Create donation drive</DialogTitle>
+            <DialogTitle className="text-lg text-primary-900">Create donation</DialogTitle>
           </div>
           <p className="text-xs text-gray-500 font-normal">{stepTitle()}</p>
         </DialogHeader>
@@ -199,8 +302,8 @@ export function CreateDonationCampaignWizard({
           {step === 0 && (
             <div className="space-y-3">
               <p className="text-sm text-gray-600">
-                Open drives let donors choose an amount up to your goal. Fundraiser drives use one fixed amount
-                (your goal).
+                Open donations let donors choose an amount up to your goal. Fundraisers use one fixed amount (your
+                goal).
               </p>
               <button
                 type="button"
@@ -220,8 +323,7 @@ export function CreateDonationCampaignWizard({
                   <div>
                     <p className="font-semibold text-gray-900">Open amount</p>
                     <p className="text-sm text-gray-600 mt-0.5">
-                      Donors pick an amount within limits — goal is the cap (Stripe custom amount) or Crowded Payment
-                      style.
+                      Donors pick an amount within limits — goal is the cap (Stripe custom amount).
                     </p>
                   </div>
                 </div>
@@ -244,7 +346,7 @@ export function CreateDonationCampaignWizard({
                   <div>
                     <p className="font-semibold text-gray-900">Fundraiser</p>
                     <p className="text-sm text-gray-600 mt-0.5">
-                      Fixed donation amount equal to your goal; optional public fundraising visibility for Crowded.
+                      Fixed donation amount equal to your goal; optional public fundraising visibility (metadata).
                     </p>
                   </div>
                 </div>
@@ -260,7 +362,7 @@ export function CreateDonationCampaignWizard({
                   id="wizard-donation-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Spring philanthropy drive"
+                  placeholder="e.g. Spring philanthropy fundraiser"
                   maxLength={500}
                   disabled={isPending}
                 />
@@ -280,19 +382,13 @@ export function CreateDonationCampaignWizard({
                   className="tabular-nums"
                 />
                 <p className="text-xs text-gray-500">
-                  {stripeDonationsPrimary ? (
-                    kind === 'open' ? (
-                      <>
-                        Donors choose any amount from ${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} up to this
-                        goal (Stripe <span className="font-medium text-gray-700">custom amount</span> cap).
-                      </>
-                    ) : (
-                      'Becomes the fixed donation amount (Stripe Price).'
-                    )
-                  ) : (
+                  {kind === 'open' ? (
                     <>
-                      Sent to Crowded as <code className="text-xs">goalAmount</code> in cents.
+                      Donors choose any amount from ${(STRIPE_OPEN_DONATION_MIN_CENTS / 100).toFixed(2)} up to this
+                      goal (Stripe <span className="font-medium text-gray-700">custom amount</span> cap).
                     </>
+                  ) : (
+                    'Becomes the fixed donation amount (Stripe Price).'
                   )}
                 </p>
               </div>
@@ -304,11 +400,7 @@ export function CreateDonationCampaignWizard({
                     onCheckedChange={(c) => setPublicFundraising(Boolean(c))}
                     disabled={isPending}
                   />
-                  <span>
-                    {stripeDonationsPrimary
-                      ? 'Show on public fundraising channels (metadata for Stripe; Crowded uses its own type when applicable)'
-                      : 'Show on public fundraising channels (Crowded)'}
-                  </span>
+                  <span>Show on public fundraising channels (stored in campaign metadata)</span>
                 </label>
               ) : null}
             </div>
@@ -331,25 +423,137 @@ export function CreateDonationCampaignWizard({
                 <p className="text-xs text-gray-500">{description.length}/2000</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="wizard-donation-hero">Hero image URL (optional)</Label>
-                <Input
-                  id="wizard-donation-hero"
-                  type="url"
-                  inputMode="url"
-                  value={heroImageUrl}
-                  onChange={(e) => setHeroImageUrl(e.target.value)}
-                  placeholder="https://… (public image; Stripe uses https only)"
-                  maxLength={2048}
-                  disabled={isPending}
+                <Label>Hero image (optional)</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={DONATION_HERO_UPLOAD_ALLOWED_TYPES.join(',')}
+                  className="sr-only"
+                  aria-hidden
+                  tabIndex={-1}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) beginHeroCropFromFile(f);
+                  }}
                 />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  aria-hidden
+                  tabIndex={-1}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) beginHeroCropFromFile(f);
+                  }}
+                />
+                {heroUploading ? (
+                  <div
+                    className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-14 flex flex-col items-center justify-center gap-3 text-center"
+                    aria-busy
+                    aria-live="polite"
+                  >
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" aria-hidden />
+                    <p className="text-sm text-gray-700 font-medium">Uploading image…</p>
+                    <p className="text-xs text-gray-500">This may take a few seconds.</p>
+                  </div>
+                ) : heroImageUrl.trim() ? (
+                  <div className="rounded-xl border border-gray-200 bg-white p-6 flex flex-col items-center gap-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- treasurer-uploaded public URL */}
+                    <img
+                      src={heroImageUrl.trim()}
+                      alt=""
+                      className="h-44 w-44 rounded-xl object-cover border border-gray-200 shadow-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      disabled={isPending}
+                      onClick={() => setHeroImageUrl('')}
+                    >
+                      Remove image
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (!isPending && !heroUploading) fileInputRef.current?.click();
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (!isPending && !heroUploading) setIsHeroDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsHeroDragging(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsHeroDragging(false);
+                      if (isPending || heroUploading) return;
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) beginHeroCropFromFile(f);
+                    }}
+                    onClick={() => {
+                      if (!isPending && !heroUploading) fileInputRef.current?.click();
+                    }}
+                    className={cn(
+                      'rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors cursor-pointer',
+                      isHeroDragging ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-200 bg-gray-50/80',
+                      (isPending || heroUploading) && 'pointer-events-none opacity-60'
+                    )}
+                  >
+                    <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" aria-hidden />
+                    <p className="text-sm text-gray-700 font-medium">
+                      Drag and drop an image here, or click to choose from your device
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Square 1:1 crop · JPEG, PNG, WebP, or GIF · max 5 MB</p>
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full"
+                        disabled={isPending || heroUploading}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        Choose image
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full gap-1.5"
+                        disabled={isPending || heroUploading}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cameraInputRef.current?.click();
+                        }}
+                      >
+                        <Camera className="h-4 w-4 shrink-0" aria-hidden />
+                        Take photo
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <p className="text-xs text-gray-500">
-                  {stripeDonationsPrimary
-                    ? 'Used on the Stripe Product and in Trailblaize wherever we show this drive.'
-                    : 'Stored for chapter UI; Crowded does not receive this field from Trailblaize today.'}
+                  Used on the Stripe Product and in Trailblaize wherever we show this donation. Images are stored on
+                  Trailblaize and must be public https URLs for Stripe.
                 </p>
-                {heroImageUrl.trim() && !canGoNext ? (
-                  <p className="text-xs text-amber-700">Enter a valid https URL or clear the field.</p>
-                ) : null}
               </div>
             </div>
           )}
@@ -385,9 +589,16 @@ export function CreateDonationCampaignWizard({
                   </div>
                 ) : null}
                 {heroImageUrl.trim() ? (
-                  <div className="flex justify-between gap-4 items-start">
+                  <div className="flex justify-between gap-4 items-start pt-1 border-t border-gray-200/80">
                     <dt className="text-gray-500 shrink-0">Hero image</dt>
-                    <dd className="text-right break-all text-xs text-gray-800">{heroImageUrl.trim()}</dd>
+                    <dd className="text-right">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={heroImageUrl.trim()}
+                        alt=""
+                        className="ml-auto h-16 w-16 rounded-md object-cover border border-gray-200"
+                      />
+                    </dd>
                   </div>
                 ) : null}
               </dl>
@@ -419,7 +630,7 @@ export function CreateDonationCampaignWizard({
               <Button
                 type="button"
                 className="bg-brand-primary hover:bg-brand-primary-hover rounded-full"
-                disabled={nextDisabled || isPending}
+                disabled={nextDisabled || isPending || (step === 2 && heroUploading)}
                 onClick={() => setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1))}
               >
                 Next
@@ -437,7 +648,7 @@ export function CreateDonationCampaignWizard({
                     Creating…
                   </>
                 ) : (
-                  'Create drive'
+                  'Create donation'
                 )}
               </Button>
             )}
@@ -445,5 +656,14 @@ export function CreateDonationCampaignWizard({
         </div>
       </DialogContent>
     </Dialog>
+    <ImageCropper
+      imageSrc={cropImageSrc}
+      isOpen={cropperOpen}
+      onClose={handleCropperClose}
+      onCropComplete={handleHeroCropComplete}
+      cropType="donation_hero"
+      elevatedZIndex
+    />
+    </>
   );
 }

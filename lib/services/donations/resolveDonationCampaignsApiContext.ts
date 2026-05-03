@@ -5,8 +5,6 @@ import { canManageChapterForContext, type ProfileForPermission } from '@/lib/per
 import { getManagedChapterIds } from '@/lib/services/governanceService';
 import { isFeatureEnabled, type ChapterFeatureFlags } from '@/types/featureFlags';
 
-export type DonationCampaignsCreateBackend = 'stripe' | 'crowded';
-
 type ProfileRow = {
   role: string | null;
   chapter_id: string | null;
@@ -17,14 +15,13 @@ type ProfileRow = {
 type SpaceDonationRow = {
   id: string;
   feature_flags: ChapterFeatureFlags | null;
-  crowded_chapter_id: string | null;
   stripe_connect_account_id: string | null;
   stripe_charges_enabled: boolean | null;
 };
 
 /**
  * Auth + chapter manager (or admin / developer / governance) + chapter row from `spaces`.
- * Chooses **Stripe** when financial tools + Stripe donations + Connect are ready; otherwise **Crowded** when integration + link exist.
+ * Donation APIs require **Stripe Connect** with financial tools + Stripe donations enabled.
  */
 export async function resolveDonationCampaignsApiContext(
   request: NextRequest,
@@ -35,9 +32,6 @@ export async function resolveDonationCampaignsApiContext(
       supabase: SupabaseClient;
       userId: string;
       featureFlags: ChapterFeatureFlags;
-      /** Backend used for `POST …/donations/campaigns` (Stripe preferred when ready). */
-      createBackend: DonationCampaignsCreateBackend;
-      crowdedChapterId: string | null;
       stripeConnectAccountId: string | null;
     }
   | { ok: false; response: NextResponse }
@@ -76,7 +70,7 @@ export async function resolveDonationCampaignsApiContext(
 
   const { data: space, error: spaceError } = await supabase
     .from('spaces')
-    .select('id, feature_flags, crowded_chapter_id, stripe_connect_account_id, stripe_charges_enabled')
+    .select('id, feature_flags, stripe_connect_account_id, stripe_charges_enabled')
     .eq('id', trailblaizeChapterId)
     .maybeSingle();
 
@@ -93,32 +87,24 @@ export async function resolveDonationCampaignsApiContext(
     Boolean(row.stripe_connect_account_id?.trim()) &&
     Boolean(row.stripe_charges_enabled);
 
-  const crowdedReady =
-    isFeatureEnabled(featureFlags, 'crowded_integration_enabled') &&
-    Boolean((row.crowded_chapter_id as string | null)?.trim());
-
-  if (!stripeReady && !crowdedReady) {
+  if (!stripeReady) {
     return {
       ok: false,
       response: NextResponse.json(
         {
           error:
-            'Donation drives need either Stripe Connect (financial tools + Stripe donations + completed Connect onboarding) or Crowded integration with a linked Crowded chapter.',
+            'Donations require Stripe Connect with financial tools and Stripe donations enabled, and completed Connect onboarding.',
         },
         { status: 403 }
       ),
     };
   }
 
-  const createBackend: DonationCampaignsCreateBackend = stripeReady ? 'stripe' : 'crowded';
-
   return {
     ok: true,
     supabase,
     userId: user.id,
     featureFlags,
-    createBackend,
-    crowdedChapterId: (row.crowded_chapter_id as string | null)?.trim() || null,
     stripeConnectAccountId: (row.stripe_connect_account_id as string | null)?.trim() || null,
   };
 }

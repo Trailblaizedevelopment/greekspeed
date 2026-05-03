@@ -123,7 +123,10 @@ export async function listChapterDonationBrowse(params: {
       stripe_price_id: stripePriceId,
       crowded_collection_id: crowdedCollectionId,
     });
-    const paymentProvider = stripeDrive ? ('stripe' as const) : ('crowded' as const);
+    if (!stripeDrive) {
+      continue;
+    }
+    const paymentProvider = 'stripe' as const;
     const campaignPayUrl = (c.crowded_share_url as string | null | undefined)?.trim() || null;
 
     const synthetic: MyDonationCampaignShare = {

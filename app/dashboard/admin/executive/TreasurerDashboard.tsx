@@ -1121,15 +1121,11 @@ export function TreasurerDashboard() {
                 }}
               />
             ) : null}
-            {!crowdedFlagLoading &&
-            !financialToolsFlagLoading &&
+            {!financialToolsFlagLoading &&
             !stripeDonationsFlagLoading &&
-            (crowdedIntegrationEnabled || (financialToolsEnabled && stripeDonationsEnabled)) ? (
-              <DonationCampaignsPanel
-                chapterId={profile.chapter_id.trim()}
-                enabled
-                stripeDonationsPrimary={Boolean(financialToolsEnabled && stripeDonationsEnabled)}
-              />
+            financialToolsEnabled &&
+            stripeDonationsEnabled ? (
+              <DonationCampaignsPanel chapterId={profile.chapter_id.trim()} enabled />
             ) : null}
           </>
         ) : null}

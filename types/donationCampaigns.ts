@@ -1,8 +1,8 @@
 /**
- * Chapter donation / Crowded collect campaigns (`public.donation_campaigns`).
+ * Chapter donations (`public.donation_campaigns`), paid via Stripe Connect.
  * API: `GET` / `POST` `/api/chapters/[id]/donations/campaigns`.
  * **POST** only accepts {@link DonationCampaignCreateKind}; `fixed` may still appear on rows created before that policy.
- * When Stripe Connect is ready for the chapter, **POST** creates Product + Price + Payment Link on the connected account: **fundraiser** = fixed `unit_amount`; **open** = `custom_unit_amount` (donor min–goal cap). Otherwise Crowded collection creation is used when Crowded is enabled.
+ * **POST** creates Product + Price + Payment Link on the connected account: **fundraiser** = fixed `unit_amount`; **open** = `custom_unit_amount` (donor min–goal cap).
  */
 
 /** Stored row `kind` — may include legacy `fixed` from earlier releases. */
@@ -11,7 +11,7 @@ export type DonationCampaignKind = 'fixed' | 'open' | 'fundraiser';
 /** Allowed `kind` on `POST …/donations/campaigns` (treasurer UI). */
 export type DonationCampaignCreateKind = 'open' | 'fundraiser';
 
-/** True when the campaign is paid via Stripe Checkout on Connect (no Crowded collection). */
+/** True when the campaign is paid via Stripe Checkout on Connect (no legacy Crowded collection id). */
 export function isDonationCampaignStripeDrive(campaign: {
   stripe_price_id?: string | null;
   crowded_collection_id?: string | null;

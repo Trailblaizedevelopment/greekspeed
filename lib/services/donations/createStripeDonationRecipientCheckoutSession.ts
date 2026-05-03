@@ -70,7 +70,7 @@ export async function createStripeDonationRecipientCheckoutSession(params: {
   if (!isDonationCampaignStripeDrive(campaign) || !priceId) {
     return {
       ok: false,
-      error: 'This campaign is not a Stripe-backed drive or is missing stripe_price_id',
+      error: 'This donation is not Stripe-backed or is missing stripe_price_id',
       httpStatus: 400,
       code: 'NO_STRIPE_PRICE',
     };

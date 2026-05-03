@@ -202,7 +202,7 @@ export interface CrowdedCollection {
 /** Portal / extended API uses `Payment` (fixed or open) vs `Fundraising`. */
 export type CrowdedCollectionWireType = 'Payment' | 'Fundraising';
 
-/** Wire `data` for POST /api/v1/chapters/:chapterId/collections — fixed dues use title + requestedAmount; donations may add type/goalAmount (see buildCrowdedDonationCollectionRequest). */
+/** Wire `data` for POST /api/v1/chapters/:chapterId/collections — fixed dues use title + requestedAmount. */
 export interface CrowdedCreateCollectionData {
   title: string;
   currency?: string;

@@ -73,7 +73,6 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
 
   const payUrl = share.checkoutUrl?.trim() || share.crowdedShareUrl?.trim();
   const hasLink = Boolean(payUrl);
-  const isStripe = share.paymentProvider === 'stripe';
   const isChapterPublicBrowse = share.recipientId.startsWith('chapter-public:');
   const hero = share.heroImageUrl?.trim();
   const desc = share.description?.trim();
@@ -152,7 +151,7 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
           <p className="text-xs text-gray-500">
             {share.requestedAmountCents != null && Number(share.requestedAmountCents) > 0
               ? `Suggested amount: ${requested}`
-              : 'No goal set for this drive.'}
+              : 'No goal set for this donation.'}
           </p>
         )}
 
@@ -171,13 +170,13 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
         {desc ? (
           <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{desc}</p>
         ) : (
-          <p className="text-sm text-gray-500">No description for this campaign.</p>
+          <p className="text-sm text-gray-500">No description for this donation.</p>
         )}
 
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contributors</h3>
           {share.contributors.length === 0 ? (
-            <p className="text-sm text-gray-500">No recorded payments yet on this drive.</p>
+            <p className="text-sm text-gray-500">No recorded payments yet on this donation.</p>
           ) : (
             <ul className="space-y-2 max-h-40 overflow-y-auto pr-1">
               {share.contributors.map((c) => (
@@ -198,10 +197,8 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
         {!hasLink ? (
           <p className="text-xs text-gray-500">
             {isChapterPublicBrowse
-              ? 'No pay link is available for this listing yet. Ask your treasurer to confirm the drive has a Stripe Payment Link saved, or to share the drive with you for a personal checkout link.'
-              : isStripe
-                ? 'No checkout link yet — ask your treasurer to use Create link on your row in the donation drive.'
-                : 'No Crowded checkout link yet — your treasurer can add one, or check Crowded for a collect request.'}
+              ? 'No pay link is available for this listing yet. Ask your treasurer to confirm the donation has a Stripe Payment Link saved, or to share the donation with you for a personal checkout link.'
+              : 'No checkout link yet — ask your treasurer to share this donation with you from Exec Admin so Stripe Checkout can be created for your row.'}
           </p>
         ) : null}
       </div>
@@ -222,7 +219,7 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
               'w-full rounded-full inline-flex items-center justify-center gap-2 no-underline'
             )}
           >
-            {isStripe ? 'Open Stripe checkout' : 'Open in Crowded'}
+            Open checkout
             <ExternalLink className="h-4 w-4" />
           </a>
         ) : (

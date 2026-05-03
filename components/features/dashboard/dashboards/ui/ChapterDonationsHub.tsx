@@ -93,7 +93,7 @@ export function ChapterDonationsHub({ chapterId, onClose }: ChapterDonationsHubP
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900">Chapter donations</h2>
                 <p className="text-sm text-gray-500 mt-1 leading-snug">
-                  Drives shared with you and chapter-listed fundraisers.
+                  Donations shared with you and chapter-listed fundraisers.
                 </p>
               </div>
               <Button
@@ -120,7 +120,7 @@ export function ChapterDonationsHub({ chapterId, onClose }: ChapterDonationsHubP
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-11 rounded-xl border-gray-200 bg-white pl-10 pr-3 shadow-sm focus-visible:ring-brand-primary/20"
-            aria-label="Search donation drives"
+            aria-label="Search donations"
           />
         </div>
 
@@ -167,7 +167,7 @@ export function ChapterDonationsHub({ chapterId, onClose }: ChapterDonationsHubP
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-gray-500 text-sm">Loading drives…</p>
+                <p className="text-gray-500 text-sm">Loading donations…</p>
               </div>
             ) : isError ? (
               <div className="space-y-2 py-4">
@@ -180,8 +180,8 @@ export function ChapterDonationsHub({ chapterId, onClose }: ChapterDonationsHubP
               <div className="text-center py-10 sm:py-12 px-2">
                 <p className="text-gray-600 text-sm">
                   {data.length === 0
-                    ? 'No drives to show yet. Ask your treasurer to share a drive with you, or ask them to list a drive on the chapter donation hub (Public in Manage → Dues).'
-                    : 'No drives match your search or filters.'}
+                    ? 'No donations to show yet. Ask your treasurer to share a donation with you, or ask them to list a donation on the chapter donation hub (Public in Manage → Dues).'
+                    : 'No donations match your search or filters.'}
                 </p>
               </div>
             ) : (
@@ -226,7 +226,7 @@ export function ChapterDonationsHub({ chapterId, onClose }: ChapterDonationsHubP
                                   'bg-white text-gray-600'
                                 )}
                               >
-                                {row.paymentProvider === 'stripe' ? 'Stripe' : 'Crowded'}
+                                Stripe
                               </span>
                               <span
                                 className={cn(

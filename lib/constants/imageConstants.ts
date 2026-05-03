@@ -17,6 +17,14 @@ export const AVATAR_CONSTRAINTS = {
   CROP_AREA_MIN_SIZE: 100,
 };
 
+/** Square hero for donation campaigns (Stripe + UI); same output shape as avatar crop, rectangular mask in UI. */
+export const DONATION_HERO_CONSTRAINTS = {
+  ASPECT_RATIO: 1,
+  RECOMMENDED_SIZE: 400,
+  MAX_SIZE: 5 * 1024 * 1024,
+  CROP_AREA_MIN_SIZE: 100,
+} as const;
+
 export const BANNER_CONSTRAINTS = {
   // Display constraints
   DISPLAY_HEIGHT: 256, // h-64 = 16rem = 256px
