@@ -88,12 +88,14 @@ function formatPaidAt(iso: string | null | undefined): string {
 
 function donationProgressSummary(
   recipients: DonationCampaignRecipientRow[] | undefined,
-  goalAmountCents: number | null | undefined
+  goalAmountCents: number | null | undefined,
+  publicPaymentTotalCents?: number
 ): {
   raisedCents: number;
   goalCents: number | null;
   paidRecipientCount: number;
   totalRecipients: number;
+  guestPaidCents: number;
   percentTowardGoal: number;
 } {
   const list = recipients ?? [];
@@ -104,6 +106,11 @@ function donationProgressSummary(
     raisedCents += c;
     if (recipientIsPaid(r)) paidRecipientCount += 1;
   }
+  const guestPaidCents =
+    publicPaymentTotalCents != null && Number.isFinite(Number(publicPaymentTotalCents))
+      ? Math.max(0, Math.floor(Number(publicPaymentTotalCents)))
+      : 0;
+  raisedCents += guestPaidCents;
   const goalCents =
     goalAmountCents != null && Number.isFinite(Number(goalAmountCents)) && Number(goalAmountCents) > 0
       ? Math.floor(Number(goalAmountCents))
@@ -115,6 +122,7 @@ function donationProgressSummary(
     goalCents,
     paidRecipientCount,
     totalRecipients: list.length,
+    guestPaidCents,
     percentTowardGoal,
   };
 }
@@ -177,6 +185,8 @@ export function DonationCampaignsPanel({
     const v = new URLSearchParams(window.location.search).get('donationPaid');
     if (v === '1' || v === 'true') {
       void queryClient.invalidateQueries({ queryKey: ['donation-recipients'] });
+      void queryClient.invalidateQueries({ queryKey: ['chapter-donation-browse'] });
+      void queryClient.invalidateQueries({ queryKey: ['my-donation-campaign-shares'] });
     }
   }, [enabled, queryClient]);
 
@@ -356,7 +366,9 @@ export function DonationCampaignsPanel({
                                   <p className="text-sm text-gray-600">
                                     Shared with{' '}
                                     <span className="font-medium text-gray-900 tabular-nums">
-                                      {recipientsQuery.isLoading ? '…' : recipientsQuery.data?.length ?? 0}
+                                      {recipientsQuery.isLoading
+                                        ? '…'
+                                        : recipientsQuery.data?.recipients?.length ?? 0}
                                     </span>{' '}
                                     chapter members
                                   </p>
@@ -482,12 +494,14 @@ export function DonationCampaignsPanel({
 
                                 {!recipientsQuery.isLoading &&
                                 !recipientsQuery.isError &&
-                                (recipientsQuery.data?.length ?? 0) > 0 ? (
+                                ((recipientsQuery.data?.recipients?.length ?? 0) > 0 ||
+                                  (recipientsQuery.data?.publicPaymentTotalCents ?? 0) > 0) ? (
                                   <div className="mb-5 rounded-xl border border-gray-200/90 bg-white px-4 py-3 shadow-sm">
                                     {(() => {
                                       const prog = donationProgressSummary(
-                                        recipientsQuery.data,
-                                        row.goal_amount_cents
+                                        recipientsQuery.data?.recipients,
+                                        row.goal_amount_cents,
+                                        recipientsQuery.data?.publicPaymentTotalCents
                                       );
                                       return (
                                         <div className="space-y-2">
@@ -497,6 +511,18 @@ export function DonationCampaignsPanel({
                                             </p>
                                             <p className="text-xs text-gray-500 tabular-nums">
                                               {prog.paidRecipientCount} paid · {prog.totalRecipients} shared
+                                              {(() => {
+                                                const n =
+                                                  recipientsQuery.data?.publicPayments?.length ?? 0;
+                                                if (n < 1) return null;
+                                                return (
+                                                  <span>
+                                                    {' '}
+                                                    · {n} public checkout{n === 1 ? '' : 's'} (
+                                                    {formatCents(prog.guestPaidCents)})
+                                                  </span>
+                                                );
+                                              })()}
                                             </p>
                                           </div>
                                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm tabular-nums text-gray-700">
@@ -524,8 +550,8 @@ export function DonationCampaignsPanel({
                                             />
                                           ) : (
                                             <p className="text-xs text-gray-500">
-                                              Totals reflect payments recorded for shared members (Stripe or
-                                              Crowded).
+                                              Totals include shared members (Stripe Checkout or Crowded) plus
+                                              optional public Stripe Payment Link checkouts for this drive.
                                             </p>
                                           )}
                                         </div>
@@ -543,7 +569,7 @@ export function DonationCampaignsPanel({
                                   <p className="py-8 text-center text-sm text-red-600">
                                     {recipientsQuery.error.message}
                                   </p>
-                                ) : (recipientsQuery.data?.length ?? 0) > 0 ? (
+                                ) : (recipientsQuery.data?.recipients?.length ?? 0) > 0 ? (
                                   <div className="overflow-x-auto rounded-lg border border-gray-200/80 bg-white">
                                     <Table>
                                       <TableHeader>
@@ -563,7 +589,7 @@ export function DonationCampaignsPanel({
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {recipientsQuery.data!.map((rec) => (
+                                        {recipientsQuery.data!.recipients.map((rec) => (
                                           <TableRow key={rec.id}>
                                             <TableCell>
                                               <div className="flex items-center gap-2 min-w-0">

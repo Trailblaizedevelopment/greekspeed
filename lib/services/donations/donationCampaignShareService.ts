@@ -14,6 +14,7 @@ import type {
   DonationCampaignRecipientRow,
   DonationShareCandidate,
 } from '@/types/donationCampaignRecipients';
+import type { DonationCampaignPublicPaymentRow } from '@/types/donationCampaignPublicPayments';
 import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
 import { isProfileEligibleForAlumniCrowdedContact } from '@/lib/services/donations/alumniCrowdedContactEligibility';
 
@@ -395,11 +396,18 @@ export async function addDonationCampaignRecipientsForStripeCampaign(params: {
   return { ok: true, saved: savedRows?.length ?? 0 };
 }
 
+export type DonationCampaignRecipientsListPayload = {
+  recipients: DonationCampaignRecipientRow[];
+  /** Stripe Payment Link (public / chapter hub) guest checkouts for this campaign. */
+  publicPayments: DonationCampaignPublicPaymentRow[];
+  publicPaymentTotalCents: number;
+};
+
 export async function listDonationCampaignRecipients(params: {
   supabase: SupabaseClient;
   donationCampaignId: string;
   trailblaizeChapterId: string;
-}): Promise<{ ok: true; rows: DonationCampaignRecipientRow[] } | { ok: false; error: string }> {
+}): Promise<{ ok: true; data: DonationCampaignRecipientsListPayload } | { ok: false; error: string }> {
   const campaign = await getDonationCampaignForChapter(
     params.supabase,
     params.donationCampaignId,
@@ -450,7 +458,7 @@ export async function listDonationCampaignRecipients(params: {
     }
   }
 
-  const rows: DonationCampaignRecipientRow[] = list.map((raw) => {
+  const recipientRows: DonationCampaignRecipientRow[] = list.map((raw) => {
     const pid = raw.profile_id as string;
     const prof = profileMap.get(pid);
     return {
@@ -475,7 +483,30 @@ export async function listDonationCampaignRecipients(params: {
     };
   });
 
-  return { ok: true, rows };
+  const { data: publicRaw, error: pubErr } = await params.supabase
+    .from('donation_campaign_public_payments')
+    .select('id, donation_campaign_id, stripe_checkout_session_id, amount_paid_cents, paid_at, payer_email, created_at')
+    .eq('donation_campaign_id', params.donationCampaignId)
+    .order('paid_at', { ascending: false });
+
+  if (pubErr) {
+    return { ok: false, error: pubErr.message || 'Failed to load public payments' };
+  }
+
+  const publicPayments = (publicRaw ?? []) as DonationCampaignPublicPaymentRow[];
+  const publicPaymentTotalCents = publicPayments.reduce(
+    (s, p) => s + Math.max(0, Math.floor(Number(p.amount_paid_cents) || 0)),
+    0
+  );
+
+  return {
+    ok: true,
+    data: {
+      recipients: recipientRows,
+      publicPayments,
+      publicPaymentTotalCents,
+    },
+  };
 }
 
 export async function addDonationCampaignRecipients(params: {

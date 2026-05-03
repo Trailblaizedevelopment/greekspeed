@@ -1,4 +1,8 @@
 import type Stripe from 'stripe';
+import {
+  STRIPE_CHECKOUT_DONATION_PURPOSE,
+  STRIPE_DONATION_SETTLEMENT_PAYMENT_LINK_PUBLIC,
+} from '@/lib/services/donations/createStripeDonationRecipientCheckoutSession';
 import { getBaseUrl } from '@/lib/utils/urlUtils';
 import type { DonationCampaignCreateKind } from '@/types/donationCampaigns';
 
@@ -9,6 +13,8 @@ export type CreateStripeDonationCampaignOnConnectParams = {
   stripe: Stripe;
   /** Stripe Connect Express account id (`acct_…`). */
   connectAccountId: string;
+  /** Pre-generated PK for `donation_campaigns.id` so Payment Link metadata can reference the campaign before insert. */
+  donationCampaignId: string;
   trailblaizeChapterId: string;
   title: string;
   goalAmountCents: number;
@@ -116,11 +122,19 @@ export async function createStripeDonationCampaignOnConnect(
 
     const price = await stripe.prices.create(priceParams, accountOpts);
 
+    const trailMeta = {
+      purpose: STRIPE_CHECKOUT_DONATION_PURPOSE,
+      trailblaize_chapter_id: params.trailblaizeChapterId,
+      trailblaize_donation_campaign_id: params.donationCampaignId,
+      trailblaize_donation_settlement: STRIPE_DONATION_SETTLEMENT_PAYMENT_LINK_PUBLIC,
+    } as const;
+
     const paymentLink = await stripe.paymentLinks.create(
       {
         line_items: [{ price: price.id, quantity: 1 }],
-        metadata: {
-          trailblaize_chapter_id: params.trailblaizeChapterId,
+        metadata: { ...trailMeta },
+        payment_intent_data: {
+          metadata: { ...trailMeta },
         },
         after_completion: {
           type: 'redirect',

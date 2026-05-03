@@ -23,7 +23,7 @@ export async function GET(
       return NextResponse.json({ error: result.error }, { status: 404 });
     }
 
-    return NextResponse.json({ data: result.rows });
+    return NextResponse.json({ data: result.data });
   } catch (e) {
     console.error('GET donation recipients:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

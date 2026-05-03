@@ -182,7 +182,7 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
             <ul className="space-y-2 max-h-40 overflow-y-auto pr-1">
               {share.contributors.map((c) => (
                 <li
-                  key={c.profileId}
+                  key={`${c.profileId}-${c.contributorSource ?? 'member'}`}
                   className="flex justify-between gap-2 text-sm border-b border-gray-100 pb-2 last:border-0 last:pb-0"
                 >
                   <span className="text-gray-900 truncate">{c.displayName}</span>
@@ -198,7 +198,7 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
         {!hasLink ? (
           <p className="text-xs text-gray-500">
             {isChapterPublicBrowse
-              ? 'This drive is listed for the whole chapter. Ask your treasurer to share the drive with you to get a personal checkout link that counts toward your row.'
+              ? 'No pay link is available for this listing yet. Ask your treasurer to confirm the drive has a Stripe Payment Link saved, or to share the drive with you for a personal checkout link.'
               : isStripe
                 ? 'No checkout link yet — ask your treasurer to use Create link on your row in the donation drive.'
                 : 'No Crowded checkout link yet — your treasurer can add one, or check Crowded for a collect request.'}

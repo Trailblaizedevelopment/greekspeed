@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateCrowdedApiRequest } from '@/lib/services/crowded/resolveCrowdedChapterApiContext';
 import { CrowdedApiError, createCrowdedClientFromEnv } from '@/lib/services/crowded/crowded-client';
@@ -88,9 +89,11 @@ export async function POST(
         );
       }
 
+      const donationCampaignId = randomUUID();
       const stripeRes = await createStripeDonationCampaignOnConnect({
         stripe,
         connectAccountId: connectId,
+        donationCampaignId,
         trailblaizeChapterId,
         title: body.title,
         goalAmountCents: body.goalAmountCents,
@@ -103,6 +106,7 @@ export async function POST(
       }
 
       const insertRow = {
+        id: donationCampaignId,
         chapter_id: trailblaizeChapterId,
         title: body.title.trim(),
         kind: body.kind,

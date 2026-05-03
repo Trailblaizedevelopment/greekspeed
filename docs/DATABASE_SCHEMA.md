@@ -343,8 +343,15 @@ Treasurer-linked chapter members for a donation drive. Crowded flows require a C
 
 **API:** `GET` `/api/chapters/[id]/donations/campaigns/[campaignId]/recipients`, `GET` `…/share-candidates`, and `POST` `…/share` (see app routes).
 
+### `donation_campaign_public_payments`
+Guest checkouts from the campaign **Stripe Payment Link** (`donation_campaigns.crowded_share_url`), including chapter-hub “public” drives. One row per settled `checkout.session.completed` (unique on `stripe_checkout_session_id`).
+
+**Key Columns:** `id`, `donation_campaign_id` (FK → `donation_campaigns`), `stripe_checkout_session_id` (unique), `amount_paid_cents`, `paid_at`, optional `payer_email`, `created_at`.
+
+**RLS:** Chapter members may **SELECT** for campaigns in their chapter. **INSERT** via service role (Stripe webhook).
+
 ### `stripe_webhook_events`
-Idempotency ledger for Stripe webhook delivery (**TRA-683**). Insert a row (or rely on unique `stripe_event_id`) before applying donation/dues side effects so duplicate events are ignored. For **`checkout.session.completed`** with donation metadata (`purpose=trailblaize_chapter_donation`), **TRA-689** credits `donation_campaign_recipients.amount_paid_cents` / `paid_at` after a successful insert (Connect sessions must be delivered to the same webhook endpoint / signing secret you configure for the platform or Connect).
+Idempotency ledger for Stripe webhook delivery (**TRA-683**). Insert a row (or rely on unique `stripe_event_id`) before applying donation/dues side effects so duplicate events are ignored. For **`checkout.session.completed`** with donation metadata (`purpose=trailblaize_chapter_donation`), settlement either credits **`donation_campaign_recipients`** (per-recipient Checkout) or inserts **`donation_campaign_public_payments`** (Payment Link / public hub), after a successful insert (Connect sessions must be delivered to the same webhook endpoint / signing secret you configure for the platform or Connect).
 
 **Key Columns:**
 - `id` (UUID, Primary Key)

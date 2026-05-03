@@ -8,6 +8,8 @@ export interface MyDonationCampaignContributor {
   displayName: string;
   amountPaidCents: number;
   paidAt: string | null;
+  /** `public_guest` = Stripe Payment Link (chapter hub) checkout in `donation_campaign_public_payments`. */
+  contributorSource?: 'recipient' | 'public_guest';
 }
 
 /**

@@ -5,6 +5,9 @@ import { isDonationCampaignStripeDrive } from '@/types/donationCampaigns';
 /** Session + PaymentIntent metadata `purpose` value for chapter donation Checkout (webhook TRA-689). */
 export const STRIPE_CHECKOUT_DONATION_PURPOSE = 'trailblaize_chapter_donation';
 
+/** Checkout from campaign Stripe Payment Link (chapter hub / public); no recipient row. */
+export const STRIPE_DONATION_SETTLEMENT_PAYMENT_LINK_PUBLIC = 'payment_link_public';
+
 /**
  * Creates a Stripe Checkout Session on the **connected** account (same model as TRA-685 Payment Links:
  * charges settle on the chapter Express account). Persists `stripe_checkout_url` and `stripe_checkout_session_id`

@@ -1,98 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChapterDonationBrowseEntry } from '@/types/chapterDonationBrowse';
-import type { MyDonationCampaignContributor, MyDonationCampaignShare } from '@/types/myDonationCampaignShares';
+import type { MyDonationCampaignShare } from '@/types/myDonationCampaignShares';
 import { listMyDonationCampaignShares } from '@/lib/services/donations/myDonationCampaignSharesService';
+import { loadMergedDonationCampaignAggregates } from '@/lib/services/donations/mergedDonationCampaignAggregates';
 import { isDonationCampaignStripeDrive, type DonationCampaignKind } from '@/types/donationCampaigns';
-
-function coerceCents(value: unknown): number {
-  if (value == null) return 0;
-  const n = typeof value === 'string' ? Number(value) : Number(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.floor(n);
-}
-
-function profileDisplayName(p: {
-  first_name: string | null;
-  last_name: string | null;
-  full_name: string | null;
-}): string {
-  const fn = (p.first_name ?? '').trim();
-  const ln = (p.last_name ?? '').trim();
-  if (fn || ln) return [fn, ln].filter(Boolean).join(' ').trim() || 'Member';
-  const full = (p.full_name ?? '').trim();
-  return full || 'Member';
-}
-
-type CampaignAgg = {
-  totalRaisedCents: number;
-  sharedRecipientCount: number;
-  paidRecipientCount: number;
-  contributors: MyDonationCampaignContributor[];
-};
-
-function buildCampaignAggregates(
-  allRecs: Array<{
-    donation_campaign_id: string;
-    amount_paid_cents: unknown;
-    paid_at: string | null;
-    profile_id: string;
-  }>,
-  profileNameById: Map<string, string>
-): Map<string, CampaignAgg> {
-  const byCampaign = new Map<
-    string,
-    Array<{ profileId: string; amountPaidCents: number; paidAt: string | null }>
-  >();
-
-  for (const r of allRecs) {
-    const capId = r.donation_campaign_id;
-    if (!capId) continue;
-    const paid = coerceCents(r.amount_paid_cents);
-    const list = byCampaign.get(capId) ?? [];
-    list.push({
-      profileId: r.profile_id,
-      amountPaidCents: paid,
-      paidAt: r.paid_at,
-    });
-    byCampaign.set(capId, list);
-  }
-
-  const out = new Map<string, CampaignAgg>();
-
-  for (const [campaignId, recList] of byCampaign) {
-    let totalRaisedCents = 0;
-    let paidRecipientCount = 0;
-    for (const x of recList) {
-      totalRaisedCents += x.amountPaidCents;
-      if (x.amountPaidCents > 0 || (x.paidAt && String(x.paidAt).trim())) {
-        paidRecipientCount += 1;
-      }
-    }
-
-    const paidRows = recList.filter((x) => x.amountPaidCents > 0);
-    const contributors: MyDonationCampaignContributor[] = paidRows
-      .map((x) => ({
-        profileId: x.profileId,
-        displayName: profileNameById.get(x.profileId) ?? 'Member',
-        amountPaidCents: x.amountPaidCents,
-        paidAt: x.paidAt,
-      }))
-      .sort((a, b) => {
-        const ta = a.paidAt ? new Date(a.paidAt).getTime() : 0;
-        const tb = b.paidAt ? new Date(b.paidAt).getTime() : 0;
-        return tb - ta;
-      });
-
-    out.set(campaignId, {
-      totalRaisedCents,
-      sharedRecipientCount: recList.length,
-      paidRecipientCount,
-      contributors,
-    });
-  }
-
-  return out;
-}
 
 /**
  * Chapter donation hub (member browse): `metadata.chapter_hub_visible` from the treasurer toggle.
@@ -150,56 +61,24 @@ export async function listChapterDonationBrowse(params: {
   const campaignList = campaigns ?? [];
   const campaignIds = campaignList.map((c) => c.id as string).filter(Boolean);
 
-  let aggByCampaign = new Map<string, CampaignAgg>();
+  let aggByCampaign = new Map<
+    string,
+    {
+      totalRaisedCents: number;
+      sharedRecipientCount: number;
+      paidRecipientCount: number;
+      contributors: MyDonationCampaignShare['contributors'];
+    }
+  >();
   if (campaignIds.length > 0) {
-    const { data: allRecsRaw, error: aggError } = await params.supabase
-      .from('donation_campaign_recipients')
-      .select('donation_campaign_id, amount_paid_cents, paid_at, profile_id')
-      .in('donation_campaign_id', campaignIds);
-
-    if (aggError) {
-      return { ok: false, error: aggError.message || 'Failed to load donation totals' };
+    const merged = await loadMergedDonationCampaignAggregates({
+      supabase: params.supabase,
+      campaignIds,
+    });
+    if (!merged.ok) {
+      return { ok: false, error: merged.error };
     }
-
-    const allRecs = (allRecsRaw ?? []) as Array<{
-      donation_campaign_id: string;
-      amount_paid_cents: unknown;
-      paid_at: string | null;
-      profile_id: string;
-    }>;
-
-    const contributorProfileIds = [
-      ...new Set(
-        allRecs
-          .filter((r) => coerceCents(r.amount_paid_cents) > 0)
-          .map((r) => r.profile_id as string)
-          .filter(Boolean)
-      ),
-    ];
-
-    const profileNameById = new Map<string, string>();
-    if (contributorProfileIds.length > 0) {
-      const { data: profs, error: profErr } = await params.supabase
-        .from('profiles')
-        .select('id, first_name, last_name, full_name')
-        .in('id', contributorProfileIds);
-
-      if (profErr) {
-        return { ok: false, error: profErr.message || 'Failed to load contributor names' };
-      }
-
-      for (const p of profs ?? []) {
-        const row = p as {
-          id: string;
-          first_name: string | null;
-          last_name: string | null;
-          full_name: string | null;
-        };
-        profileNameById.set(row.id, profileDisplayName(row));
-      }
-    }
-
-    aggByCampaign = buildCampaignAggregates(allRecs, profileNameById);
+    aggByCampaign = merged.byCampaign;
   }
 
   const entries: ChapterDonationBrowseEntry[] = [];
@@ -231,7 +110,12 @@ export async function listChapterDonationBrowse(params: {
         sharedRecipientCount: 0,
         paidRecipientCount: 0,
         contributors: [],
-      } satisfies CampaignAgg);
+      } satisfies {
+        totalRaisedCents: number;
+        sharedRecipientCount: number;
+        paidRecipientCount: number;
+        contributors: MyDonationCampaignShare['contributors'];
+      });
 
     const crowdedCollectionId = (c.crowded_collection_id as string | null | undefined) ?? null;
     const stripePriceId = (c.stripe_price_id as string | null | undefined) ?? null;
@@ -240,6 +124,7 @@ export async function listChapterDonationBrowse(params: {
       crowded_collection_id: crowdedCollectionId,
     });
     const paymentProvider = stripeDrive ? ('stripe' as const) : ('crowded' as const);
+    const campaignPayUrl = (c.crowded_share_url as string | null | undefined)?.trim() || null;
 
     const synthetic: MyDonationCampaignShare = {
       recipientId: `chapter-public:${id}`,
@@ -251,9 +136,9 @@ export async function listChapterDonationBrowse(params: {
       heroImageUrl: (c.hero_image_url as string | null | undefined) ?? null,
       goalAmountCents: c.goal_amount_cents as number | null,
       requestedAmountCents: c.requested_amount_cents as number | null,
-      checkoutUrl: null,
+      checkoutUrl: campaignPayUrl,
       paymentProvider,
-      crowdedShareUrl: null,
+      crowdedShareUrl: campaignPayUrl,
       crowdedCollectionId,
       myAmountPaidCents: null,
       myPaidAt: null,

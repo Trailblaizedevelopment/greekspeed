@@ -2,9 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DonationCampaignRecipientRow, DonationShareCandidate } from '@/types/donationCampaignRecipients';
+import type { DonationCampaignRecipientsListPayload } from '@/lib/services/donations/donationCampaignShareService';
 
 type CandidatesResponse = { data: DonationShareCandidate[] };
-type RecipientsResponse = { data: DonationCampaignRecipientRow[] };
+type RecipientsResponse = { data: DonationCampaignRecipientsListPayload };
 type ShareResponse = { data: { saved: number }; error?: string; code?: string; issues?: unknown };
 
 export function useDonationShareCandidates(
@@ -56,7 +57,7 @@ export function useDonationRecipients(
 
   return useQuery({
     queryKey: ['donation-recipients', cid, cap],
-    queryFn: async (): Promise<DonationCampaignRecipientRow[]> => {
+    queryFn: async (): Promise<DonationCampaignRecipientsListPayload> => {
       const res = await fetch(`/api/chapters/${cid}/donations/campaigns/${cap}/recipients`, {
         credentials: 'include',
       });
@@ -68,7 +69,11 @@ export function useDonationRecipients(
             : `Request failed (${res.status})`;
         throw new Error(msg);
       }
-      return Array.isArray((json as RecipientsResponse).data) ? (json as RecipientsResponse).data : [];
+      const d = (json as RecipientsResponse).data;
+      if (d && typeof d === 'object' && Array.isArray(d.recipients)) {
+        return d;
+      }
+      return { recipients: [], publicPayments: [], publicPaymentTotalCents: 0 };
     },
     enabled: Boolean(cid) && Boolean(cap) && enabled,
     /** Keep low so `paid_at` / amounts update soon after webhooks when user returns from Checkout. */

@@ -30,9 +30,11 @@ Schema and column-level detail live in `[docs/DATABASE_SCHEMA.md](../../DATABASE
 
 - `**PATCH /api/chapters/[chapterId]/donations/campaigns/[campaignId]/share-link`** with `donationCampaignRecipientId` calls `**createStripeDonationRecipientCheckoutSession**`, which creates Checkout on the connected account and persists `**stripe_checkout_url**` and `**stripe_checkout_session_id**` on that recipient row. Those fields tie the completed session back to the correct recipient in the webhook.
 
-### Campaign-level Payment Link (Stripe)
+### Campaign-level Payment Link (Stripe) — public / chapter hub
 
-- When a Stripe-backed drive is created, a **Payment Link** may still exist on the campaign (historically stored in `donation_campaigns.crowded_share_url` for reuse). Payments completed **only** through that generic link **do not** carry per-recipient Trailblaize metadata, so they **do not** update `donation_campaign_recipients` or goal progress in-app. **Treasurer flows must use per-recipient Checkout** for attribution (see UI changes below).
+- When a Stripe-backed drive is created, a **Payment Link** is stored on `donation_campaigns.crowded_share_url`. New creates embed `payment_intent_data.metadata` (`purpose`, `trailblaize_donation_campaign_id`, `trailblaize_donation_settlement=payment_link_public`) so `checkout.session.completed` can record rows in **`donation_campaign_public_payments`** and roll totals into the chapter hub / treasurer progress (alongside per-recipient amounts).
+- **Legacy Payment Links** (created before that metadata): webhook settlement can still match the session’s `payment_link` id to `metadata.stripe_payment_link_id` on the campaign.
+- **Per-recipient Checkout** remains the path for crediting **`donation_campaign_recipients`** (named members / share table).
 
 ---
 
