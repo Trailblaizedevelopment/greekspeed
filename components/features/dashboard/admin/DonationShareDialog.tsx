@@ -126,12 +126,27 @@ export function DonationShareDialog({
     shareMutation.mutate(
       { campaignId, profileIds: Array.from(selected) },
       {
-        onSuccess: (saved) => {
-          toast.success(
-            saved === selectedCount
-              ? `Linked ${saved} member${saved === 1 ? '' : 's'} to this donation`
-              : `Saved ${saved} recipient row(s)`
-          );
+        onSuccess: (result) => {
+          const saved = result.saved;
+          const sc = result.stripeCheckout;
+          if (stripeShareFlow && sc?.failures?.length) {
+            const n = sc.failures.length;
+            toast.warning(
+              `Linked ${saved} member${saved === 1 ? '' : 's'}, but ${n} Stripe checkout link${n === 1 ? '' : 's'} failed (${sc.failures[0]?.error ?? 'unknown'}). Try again or contact support.`
+            );
+          } else if (stripeShareFlow && sc) {
+            toast.success(
+              saved === selectedCount
+                ? `Linked ${saved} member${saved === 1 ? '' : 's'} — personal Stripe checkout is ready on their dashboard.`
+                : `Saved ${saved} recipient row(s).`
+            );
+          } else {
+            toast.success(
+              saved === selectedCount
+                ? `Linked ${saved} member${saved === 1 ? '' : 's'} to this donation`
+                : `Saved ${saved} recipient row(s)`
+            );
+          }
           onOpenChange(false);
         },
         onError: (e: Error & { code?: string }) => {
@@ -152,9 +167,11 @@ export function DonationShareDialog({
             <DialogDescription className="text-sm text-gray-500">
               {step === 'pick'
                 ? stripeShareFlow
-                  ? `Choose chapter members to link to “${campaignTitle}”. They can receive the Stripe payment link from the drive row (no Crowded contact required).`
+                  ? `Choose chapter members to link to “${campaignTitle}”. A personal Stripe Checkout link is created for each member when you confirm (no Crowded contact required).`
                   : `Choose members to share “${campaignTitle}” with. Active members and admins need a Crowded contact; eligible alumni (email, E.164 phone, name on profile) appear here and get a Crowded contact when you confirm, if one does not exist yet.`
-                : `Send payment link to ${selectedCount} contact${selectedCount === 1 ? '' : 's'}?`}
+                : stripeShareFlow
+                  ? `Create personal checkout links for ${selectedCount} member${selectedCount === 1 ? '' : 's'}?`
+                  : `Send payment link to ${selectedCount} contact${selectedCount === 1 ? '' : 's'}?`}
             </DialogDescription>
           </DialogHeader>
         </div>

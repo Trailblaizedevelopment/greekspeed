@@ -3,10 +3,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DonationCampaignRecipientRow, DonationShareCandidate } from '@/types/donationCampaignRecipients';
 import type { DonationCampaignRecipientsListPayload } from '@/lib/services/donations/donationCampaignShareService';
+import type { EnsureStripeCheckoutSessionsResult } from '@/lib/services/donations/ensureStripeCheckoutSessionsForRecipientIds';
 
 type CandidatesResponse = { data: DonationShareCandidate[] };
 type RecipientsResponse = { data: DonationCampaignRecipientsListPayload };
-type ShareResponse = { data: { saved: number }; error?: string; code?: string; issues?: unknown };
+type ShareResponse = {
+  data?: {
+    saved: number;
+    stripeCheckout?: EnsureStripeCheckoutSessionsResult;
+  };
+  error?: string;
+  code?: string;
+  issues?: unknown;
+};
+
+export type ShareDonationResult = {
+  saved: number;
+  stripeCheckout?: EnsureStripeCheckoutSessionsResult;
+};
 
 export function useDonationShareCandidates(
   chapterId: string | undefined,
@@ -88,7 +102,7 @@ export function useShareDonationMutation(chapterId: string | undefined) {
   const cid = chapterId?.trim() ?? '';
 
   return useMutation({
-    mutationFn: async (vars: { campaignId: string; profileIds: string[] }): Promise<number> => {
+    mutationFn: async (vars: { campaignId: string; profileIds: string[] }): Promise<ShareDonationResult> => {
       const cap = vars.campaignId.trim();
       const res = await fetch(`/api/chapters/${cid}/donations/campaigns/${cap}/share`, {
         method: 'POST',
@@ -106,7 +120,10 @@ export function useShareDonationMutation(chapterId: string | undefined) {
         if (json.issues !== undefined) err.issues = json.issues;
         throw err;
       }
-      return json.data?.saved ?? 0;
+      return {
+        saved: json.data?.saved ?? 0,
+        stripeCheckout: json.data?.stripeCheckout,
+      };
     },
     onSuccess: (_saved, vars) => {
       void queryClient.invalidateQueries({ queryKey: ['donation-recipients', cid, vars.campaignId] });

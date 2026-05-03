@@ -46,10 +46,10 @@ When a chapter uses **Stripe-backed** donation drives (`stripe_price_id` set, no
 
 Treasurers can optionally set a **description** and **hero image URL** (https) when creating a drive; those values appear in the expanded drive panel and on the member **Donations for you** card, and populate the Stripe Product (`description`, `images`) on Connect-backed creates.
 
-1. **Create link (always available for Stripe rows)**
-  Treasurers can generate (or refresh) a **Stripe Checkout** session **per shared member**. This is required for payments to **count toward that member** and the **drive goal** in Trailblaize.
-2. **Open**
-  Opens only the **per-recipient** checkout URL (`stripe_checkout_url` / `crowded_checkout_url` on the recipient row). The UI **no longer** uses the campaign-wide Stripe Payment Link as the **Open** target for Stripe drives, so treasurers are not steered toward a link that would skip in-app settlement.
+1. **Share (Stripe drives)**
+  Confirming **Share** upserts recipients and **creates a Stripe Checkout session per member** automatically (same server logic as the legacy `PATCH …/share-link` action). Members open checkout from **Dashboard → Donations for you** (treasurer Exec Admin table no longer shows a separate Pay link column when Stripe donations are primary).
+2. **Manual `PATCH …/share-link`**
+  Still available for tooling or retries; Exec Admin UI may omit the button when `stripeDonationsPrimary` is on.
 3. **Progress toward goal**
   Shows total **amount received** from shared members (sum of settled `amount_paid_cents`) vs campaign **goal**, a **progress bar**, and a short summary (**paid count · shared count**).
 4. **Recipient table**
