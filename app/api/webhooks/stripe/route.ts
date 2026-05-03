@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { handleStripeWebhookEvent } from '@/lib/services/stripe/handleStripeWebhookEvent';
 import { getStripeServer } from '@/lib/services/stripe/stripeServerClient';
 
@@ -37,7 +38,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  const result = await handleStripeWebhookEvent(event);
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  const result = await handleStripeWebhookEvent(event, { supabase });
   if (!result.ok) {
     console.error('Stripe webhook handler error:', result.error);
     return NextResponse.json({ error: result.error }, { status: 500 });

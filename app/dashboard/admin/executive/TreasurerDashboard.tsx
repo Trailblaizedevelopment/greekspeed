@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { DollarSign, Users, Download, Mail, Plus, Calendar, Edit, Eye, UserPlus, X, Lock, ChevronLeft, ChevronRight, Loader2, Landmark, RefreshCw } from "lucide-react";
 import { toast } from 'react-toastify';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import { QuickActions, QuickAction } from '@/components/features/dashboard/dashb
 import { CreateDuesCycleWizard } from '@/components/features/dashboard/admin/CreateDuesCycleWizard';
 import { CrowdedCollectionsAdminPanel } from '@/components/features/dashboard/admin/CrowdedCollectionsAdminPanel';
 import { DonationCampaignsPanel } from '@/components/features/dashboard/admin/DonationCampaignsPanel';
+import { StripeChapterDonationsConnectCard } from '@/components/features/dashboard/admin/StripeChapterDonationsConnectCard';
 import { CrowdedRecentActivityCard } from '@/components/features/dashboard/admin/CrowdedRecentActivityCard';
 import type { CrowdedContactSyncSummary } from '@/types/crowded';
 
@@ -181,6 +182,10 @@ export function TreasurerDashboard() {
     useFeatureFlag('crowded_integration_enabled');
   const { enabled: crowdedContactSyncEnabled, loading: crowdedContactSyncFlagLoading } =
     useFeatureFlag('crowded_contact_sync_enabled');
+  const { enabled: financialToolsEnabled, loading: financialToolsFlagLoading } =
+    useFeatureFlag('financial_tools_enabled');
+  const { enabled: stripeDonationsEnabled, loading: stripeDonationsFlagLoading } =
+    useFeatureFlag('stripe_donations_enabled');
   const crowdedBalanceFetchEnabled =
     !crowdedFlagLoading && crowdedIntegrationEnabled && Boolean(profile?.chapter_id);
   const crowdedBalanceQuery = useCrowdedChapterBalance(
@@ -904,6 +909,24 @@ export function TreasurerDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-0 sm:py-8">
+      {!financialToolsFlagLoading &&
+        !stripeDonationsFlagLoading &&
+        financialToolsEnabled &&
+        stripeDonationsEnabled &&
+        profile?.chapter_id && (
+          <Suspense
+            fallback={
+              <Card className="mb-4 sm:mb-6 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
+                <CardContent className="pt-6 text-sm text-gray-600 flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+                  Loading Stripe Connect…
+                </CardContent>
+              </Card>
+            }
+          >
+            <StripeChapterDonationsConnectCard chapterId={profile.chapter_id} />
+          </Suspense>
+        )}
       {!crowdedFlagLoading && crowdedIntegrationEnabled && profile?.chapter_id && (
         <Card className="mb-4 sm:mb-6 bg-white/80 backdrop-blur-md border border-primary-100/50 shadow-lg shadow-navy-100/20">
           <CardHeader className="flex flex-col gap-2 border-b border-primary-100/30 sm:flex-row sm:items-center sm:justify-between">
