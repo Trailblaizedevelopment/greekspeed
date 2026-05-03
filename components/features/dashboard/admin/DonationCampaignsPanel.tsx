@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -9,9 +9,11 @@ import {
   FileSearch,
   Loader2,
   MoreVertical,
+  RefreshCw,
   Search,
   Share2,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -35,6 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
 import { useDonationRecipients } from '@/lib/hooks/useDonationCampaignShare';
@@ -57,14 +60,73 @@ function formatCents(cents: number | null | undefined): string {
   return money.format(Number(cents) / 100);
 }
 
+/** Supabase / JSON may return BIGINT as string; treat any finite number > 0 as paid amount. */
+function coerceCents(value: unknown): number {
+  if (value == null) return 0;
+  const n = typeof value === 'string' ? Number(value) : Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.floor(n);
+}
+
+function recipientPaidCents(rec: DonationCampaignRecipientRow): number {
+  return coerceCents(rec.amount_paid_cents);
+}
+
+function recipientIsPaid(rec: DonationCampaignRecipientRow): boolean {
+  if (rec.paid_at && String(rec.paid_at).trim()) return true;
+  return recipientPaidCents(rec) > 0;
+}
+
+function formatPaidAt(iso: string | null | undefined): string {
+  if (!iso || !String(iso).trim()) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function donationProgressSummary(
+  recipients: DonationCampaignRecipientRow[] | undefined,
+  goalAmountCents: number | null | undefined
+): {
+  raisedCents: number;
+  goalCents: number | null;
+  paidRecipientCount: number;
+  totalRecipients: number;
+  percentTowardGoal: number;
+} {
+  const list = recipients ?? [];
+  let raisedCents = 0;
+  let paidRecipientCount = 0;
+  for (const r of list) {
+    const c = recipientPaidCents(r);
+    raisedCents += c;
+    if (recipientIsPaid(r)) paidRecipientCount += 1;
+  }
+  const goalCents =
+    goalAmountCents != null && Number.isFinite(Number(goalAmountCents)) && Number(goalAmountCents) > 0
+      ? Math.floor(Number(goalAmountCents))
+      : null;
+  const percentTowardGoal =
+    goalCents != null && goalCents > 0 ? Math.min(100, Math.round((raisedCents / goalCents) * 1000) / 10) : 0;
+  return {
+    raisedCents,
+    goalCents,
+    paidRecipientCount,
+    totalRecipients: list.length,
+    percentTowardGoal,
+  };
+}
+
 const KIND_OPTIONS: { value: DonationCampaignCreateKind; label: string }[] = [
   { value: 'open', label: 'Open amount (goal only)' },
   { value: 'fundraiser', label: 'Fundraiser' },
 ];
-
-function kindLabel(kind: DonationCampaignCreateKind): string {
-  return KIND_OPTIONS.find((o) => o.value === kind)?.label ?? kind;
-}
 
 function recipientDisplayName(r: DonationCampaignRecipientRow['profile']): string {
   const fn = (r.first_name ?? '').trim();
@@ -99,6 +161,7 @@ export function DonationCampaignsPanel({
   enabled,
   stripeDonationsPrimary = false,
 }: DonationCampaignsPanelProps) {
+  const queryClient = useQueryClient();
   const { listQuery, createMutation, syncShareLinkMutation } = useDonationCampaigns(chapterId, enabled);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<DonationCampaignCreateKind>('open');
@@ -110,8 +173,23 @@ export function DonationCampaignsPanel({
   const recipientsQuery = useDonationRecipients(
     chapterId,
     expandedCampaignId,
-    enabled && Boolean(expandedCampaignId)
+    enabled && Boolean(expandedCampaignId),
+    { refetchIntervalMs: 12_000 }
   );
+
+  const refetchRecipients = useCallback(() => {
+    const cap = expandedCampaignId?.trim();
+    if (!chapterId.trim() || !cap) return;
+    void queryClient.invalidateQueries({ queryKey: ['donation-recipients', chapterId.trim(), cap] });
+  }, [chapterId, expandedCampaignId, queryClient]);
+
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+    const v = new URLSearchParams(window.location.search).get('donationPaid');
+    if (v === '1' || v === 'true') {
+      void queryClient.invalidateQueries({ queryKey: ['donation-recipients'] });
+    }
+  }, [enabled, queryClient]);
 
   const copyText = useCallback(async (text: string, successMsg: string) => {
     try {
@@ -391,7 +469,7 @@ export function DonationCampaignsPanel({
                           <TableRow className="border-0 hover:bg-transparent">
                             <TableCell colSpan={tableColSpan} className="p-0 border-t border-gray-200">
                               <div className="bg-gray-50/95 px-4 sm:px-6 py-4">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-6">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-4">
                                   <p className="text-sm text-gray-600">
                                     Shared with{' '}
                                     <span className="font-medium text-gray-900 tabular-nums">
@@ -410,6 +488,28 @@ export function DonationCampaignsPanel({
                                       aria-label="Search members (coming soon)"
                                     >
                                       <Search className="h-4 w-4" aria-hidden />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-9 gap-1.5 rounded-full text-gray-600 border-gray-200"
+                                      title="Refresh payment totals and status"
+                                      aria-label="Refresh recipient payment data"
+                                      disabled={recipientsQuery.isFetching}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        refetchRecipients();
+                                      }}
+                                    >
+                                      <RefreshCw
+                                        className={cn(
+                                          'h-4 w-4 shrink-0',
+                                          recipientsQuery.isFetching && 'animate-spin'
+                                        )}
+                                        aria-hidden
+                                      />
+                                      <span className="hidden sm:inline text-xs">Refresh</span>
                                     </Button>
                                     <Button
                                       type="button"
@@ -455,6 +555,60 @@ export function DonationCampaignsPanel({
                                   </div>
                                 </div>
 
+                                {!recipientsQuery.isLoading &&
+                                !recipientsQuery.isError &&
+                                (recipientsQuery.data?.length ?? 0) > 0 ? (
+                                  <div className="mb-5 rounded-xl border border-gray-200/90 bg-white px-4 py-3 shadow-sm">
+                                    {(() => {
+                                      const prog = donationProgressSummary(
+                                        recipientsQuery.data,
+                                        row.goal_amount_cents
+                                      );
+                                      return (
+                                        <div className="space-y-2">
+                                          <div className="flex flex-wrap items-baseline justify-between gap-2 gap-y-1">
+                                            <p className="text-sm font-medium text-gray-900">
+                                              Progress toward goal
+                                            </p>
+                                            <p className="text-xs text-gray-500 tabular-nums">
+                                              {prog.paidRecipientCount} paid · {prog.totalRecipients} shared
+                                            </p>
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm tabular-nums text-gray-700">
+                                            <span className="font-semibold text-gray-900">
+                                              {formatCents(prog.raisedCents)}
+                                            </span>
+                                            <span className="text-gray-400">of</span>
+                                            <span>
+                                              {prog.goalCents != null
+                                                ? formatCents(prog.goalCents)
+                                                : '—'}{' '}
+                                              goal
+                                            </span>
+                                            {prog.goalCents != null && prog.goalCents > 0 ? (
+                                              <span className="text-gray-500">
+                                                ({prog.percentTowardGoal.toFixed(0)}%)
+                                              </span>
+                                            ) : null}
+                                          </div>
+                                          {prog.goalCents != null && prog.goalCents > 0 ? (
+                                            <Progress
+                                              value={prog.percentTowardGoal}
+                                              className="h-2.5 bg-gray-100"
+                                              aria-label={`${prog.percentTowardGoal}% of goal raised from recorded payments`}
+                                            />
+                                          ) : (
+                                            <p className="text-xs text-gray-500">
+                                              Totals reflect payments recorded for shared members (Stripe or
+                                              Crowded).
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : null}
+
                                 {recipientsQuery.isLoading ? (
                                   <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
                                     <Loader2 className="h-5 w-5 animate-spin shrink-0" aria-hidden />
@@ -471,7 +625,12 @@ export function DonationCampaignsPanel({
                                         <TableRow className="bg-gray-50/90">
                                           <TableHead>Name</TableHead>
                                           <TableHead className="hidden sm:table-cell">Role</TableHead>
-                                          <TableHead className="tabular-nums">Paid</TableHead>
+                                          <TableHead className="tabular-nums whitespace-nowrap">
+                                            Amount received
+                                          </TableHead>
+                                          <TableHead className="hidden md:table-cell whitespace-nowrap">
+                                            Paid on
+                                          </TableHead>
                                           <TableHead>Status</TableHead>
                                           <TableHead className="whitespace-nowrap w-[1%]">
                                             {stripeDonationsPrimary ? 'Pay link' : 'Crowded link'}
@@ -501,13 +660,16 @@ export function DonationCampaignsPanel({
                                             <TableCell className="hidden sm:table-cell text-sm text-gray-600">
                                               Member
                                             </TableCell>
-                                            <TableCell className="tabular-nums text-sm text-gray-600">
-                                              {rec.paid_at && rec.amount_paid_cents != null
-                                                ? formatCents(rec.amount_paid_cents)
+                                            <TableCell className="tabular-nums text-sm text-gray-700">
+                                              {recipientIsPaid(rec)
+                                                ? formatCents(recipientPaidCents(rec))
                                                 : '—'}
                                             </TableCell>
+                                            <TableCell className="hidden md:table-cell text-sm text-gray-600 whitespace-nowrap">
+                                              {recipientIsPaid(rec) ? formatPaidAt(rec.paid_at) : '—'}
+                                            </TableCell>
                                             <TableCell>
-                                              {rec.paid_at ? (
+                                              {recipientIsPaid(rec) ? (
                                                 <Badge
                                                   variant="secondary"
                                                   className="bg-emerald-50 text-emerald-900 border-emerald-200 font-normal text-xs"
@@ -529,10 +691,16 @@ export function DonationCampaignsPanel({
                                             >
                                               {(() => {
                                                 const rowIsStripeDrive = isDonationCampaignStripeDrive(row);
-                                                const shareUrl =
+                                                /**
+                                                 * Stripe drives: never use campaign `crowded_share_url` (Payment Link)
+                                                 * for this cell — only per-recipient checkout URLs attribute payments in webhooks.
+                                                 * Crowded drives: keep campaign share URL as fallback for Open.
+                                                 */
+                                                const perRecipientOpenUrl =
                                                   rec.stripe_checkout_url?.trim() ||
                                                   rec.crowded_checkout_url?.trim() ||
-                                                  row.crowded_share_url?.trim();
+                                                  (rowIsStripeDrive ? '' : row.crowded_share_url?.trim()) ||
+                                                  '';
                                                 const canSync =
                                                   rowIsStripeDrive ||
                                                   Boolean(row.crowded_collection_id?.trim());
@@ -545,10 +713,107 @@ export function DonationCampaignsPanel({
                                                   syncShareLinkMutation.variables?.campaignId === row.id &&
                                                   !syncing;
 
-                                                if (shareUrl) {
+                                                const createLinkTitle = canSync
+                                                  ? rowIsStripeDrive
+                                                    ? 'Create or refresh Stripe Checkout for this member (required for goal tracking)'
+                                                    : 'Fetch share URL from Crowded and save it for members'
+                                                  : rowIsStripeDrive
+                                                    ? 'Missing Stripe price on this drive'
+                                                    : 'Missing Crowded collection on this drive';
+
+                                                const createLinkButton = (
+                                                  <Button
+                                                    key="create-link"
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 gap-1.5 rounded-full text-xs shrink-0"
+                                                    disabled={!canSync || syncing || siblingSyncing}
+                                                    title={createLinkTitle}
+                                                    onClick={() => {
+                                                      syncShareLinkMutation.mutate(
+                                                        { campaignId: row.id, recipientId: rec.id },
+                                                        {
+                                                          onSuccess: (d) => {
+                                                            if (d.source === 'stripe_checkout') {
+                                                              toast.success(
+                                                                d.alreadySet
+                                                                  ? 'Checkout link was already saved for this member'
+                                                                  : 'Stripe Checkout link created for this member — they can pay from the link.'
+                                                              );
+                                                            } else if (d.source === 'intent') {
+                                                              toast.success(
+                                                                d.alreadySet
+                                                                  ? 'Checkout link was already saved for this member'
+                                                                  : stripeDonationsPrimary
+                                                                    ? 'Stripe payment link saved for this member.'
+                                                                    : 'Crowded Collect checkout link created — member can pay from Trailblaize or the link; a Collect request should appear in Crowded for this contact.'
+                                                              );
+                                                            } else {
+                                                              toast.success(
+                                                                d.alreadySet
+                                                                  ? 'Checkout link was already saved'
+                                                                  : stripeDonationsPrimary
+                                                                    ? 'Payment link saved — member can open it to pay with Stripe.'
+                                                                    : 'Checkout link saved — members can open it from their dashboard'
+                                                              );
+                                                            }
+                                                          },
+                                                          onError: (err) => {
+                                                            toast.error(
+                                                              err instanceof Error
+                                                                ? err.message
+                                                                : stripeDonationsPrimary
+                                                                  ? 'Could not save Stripe payment link'
+                                                                  : 'Could not fetch link from Crowded'
+                                                            );
+                                                          },
+                                                        }
+                                                      );
+                                                    }}
+                                                  >
+                                                    {syncing ? (
+                                                      <Loader2
+                                                        className="h-3.5 w-3.5 animate-spin shrink-0"
+                                                        aria-hidden
+                                                      />
+                                                    ) : null}
+                                                    Create link
+                                                  </Button>
+                                                );
+
+                                                if (rowIsStripeDrive && canSync) {
+                                                  return (
+                                                    <div className="flex flex-wrap items-center justify-end gap-2">
+                                                      {perRecipientOpenUrl ? (
+                                                        <a
+                                                          href={perRecipientOpenUrl}
+                                                          target="_blank"
+                                                          rel="noopener noreferrer"
+                                                          className={cn(
+                                                            buttonVariants({
+                                                              variant: 'outline',
+                                                              size: 'sm',
+                                                            }),
+                                                            'h-8 gap-1.5 inline-flex items-center justify-center no-underline whitespace-nowrap'
+                                                          )}
+                                                        >
+                                                          <ExternalLink
+                                                            className="h-3.5 w-3.5 shrink-0"
+                                                            aria-hidden
+                                                          />
+                                                          Open
+                                                        </a>
+                                                      ) : null}
+                                                      {createLinkButton}
+                                                    </div>
+                                                  );
+                                                }
+
+                                                if (perRecipientOpenUrl) {
                                                   return (
                                                     <a
-                                                      href={shareUrl}
+                                                      href={perRecipientOpenUrl}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                       className={cn(
@@ -565,73 +830,7 @@ export function DonationCampaignsPanel({
                                                   );
                                                 }
 
-                                                return (
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-8 gap-1.5 rounded-full text-xs"
-                                                    disabled={!canSync || syncing || siblingSyncing}
-                                                    title={
-                                                      canSync
-                                                        ? rowIsStripeDrive
-                                                          ? 'Create Stripe Checkout link for this member'
-                                                          : 'Fetch share URL from Crowded and save it for members'
-                                                        : rowIsStripeDrive
-                                                          ? 'Missing Stripe price on this drive'
-                                                          : 'Missing Crowded collection on this drive'
-                                                    }
-                                                    onClick={() => {
-                                                      syncShareLinkMutation.mutate(
-                                                        { campaignId: row.id, recipientId: rec.id },
-                                                        {
-                                                        onSuccess: (d) => {
-                                                          if (d.source === 'stripe_checkout') {
-                                                            toast.success(
-                                                              d.alreadySet
-                                                                ? 'Checkout link was already saved for this member'
-                                                                : 'Stripe Checkout link created for this member — they can pay from the link.'
-                                                            );
-                                                          } else if (d.source === 'intent') {
-                                                            toast.success(
-                                                              d.alreadySet
-                                                                ? 'Checkout link was already saved for this member'
-                                                                : stripeDonationsPrimary
-                                                                  ? 'Stripe payment link saved for this member.'
-                                                                  : 'Crowded Collect checkout link created — member can pay from Trailblaize or the link; a Collect request should appear in Crowded for this contact.'
-                                                            );
-                                                          } else {
-                                                            toast.success(
-                                                              d.alreadySet
-                                                                ? 'Checkout link was already saved'
-                                                                : stripeDonationsPrimary
-                                                                  ? 'Payment link saved — member can open it to pay with Stripe.'
-                                                                  : 'Checkout link saved — members can open it from their dashboard'
-                                                            );
-                                                          }
-                                                        },
-                                                        onError: (err) => {
-                                                          toast.error(
-                                                            err instanceof Error
-                                                              ? err.message
-                                                              : stripeDonationsPrimary
-                                                                ? 'Could not save Stripe payment link'
-                                                                : 'Could not fetch link from Crowded'
-                                                          );
-                                                        },
-                                                      }
-                                                      );
-                                                    }}
-                                                  >
-                                                    {syncing ? (
-                                                      <Loader2
-                                                        className="h-3.5 w-3.5 animate-spin shrink-0"
-                                                        aria-hidden
-                                                      />
-                                                    ) : null}
-                                                    Create link
-                                                  </Button>
-                                                );
+                                                return createLinkButton;
                                               })()}
                                             </TableCell>
                                           </TableRow>

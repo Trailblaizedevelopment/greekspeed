@@ -37,10 +37,19 @@ export function useDonationShareCandidates(
   });
 }
 
+export type UseDonationRecipientsOptions = {
+  /**
+   * When the treasurer expands a drive, light polling helps show Stripe webhook updates
+   * without waiting for cache expiry (returning from Checkout keeps the tab focused).
+   */
+  refetchIntervalMs?: number | false;
+};
+
 export function useDonationRecipients(
   chapterId: string | undefined,
   campaignId: string | null,
-  enabled: boolean
+  enabled: boolean,
+  options?: UseDonationRecipientsOptions
 ) {
   const cid = chapterId?.trim() ?? '';
   const cap = campaignId?.trim() ?? '';
@@ -62,7 +71,10 @@ export function useDonationRecipients(
       return Array.isArray((json as RecipientsResponse).data) ? (json as RecipientsResponse).data : [];
     },
     enabled: Boolean(cid) && Boolean(cap) && enabled,
-    staleTime: 15_000,
+    /** Keep low so `paid_at` / amounts update soon after webhooks when user returns from Checkout. */
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: options?.refetchIntervalMs ?? false,
   });
 }
 
