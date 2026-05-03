@@ -15,7 +15,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { CreateDonationCampaignPayload } from '@/lib/hooks/useDonationCampaigns';
+import type {
+  CreateDonationCampaignPayload,
+  UpdateDonationCampaignDetailsPayload,
+} from '@/lib/hooks/useDonationCampaigns';
 import type { DonationCampaign } from '@/types/donationCampaigns';
 import type { DonationCampaignCreateKind } from '@/types/donationCampaigns';
 import { STRIPE_OPEN_DONATION_MIN_CENTS } from '@/lib/services/donations/createStripeDonationCampaignOnConnect';
@@ -35,8 +38,15 @@ export interface CreateDonationCampaignWizardProps {
   onOpenChange: (open: boolean) => void;
   /** Chapter id for hero image upload API. */
   chapterId: string;
-  isPending: boolean;
-  mutateAsync: (payload: CreateDonationCampaignPayload) => Promise<DonationCampaign>;
+  /** When set, wizard edits this campaign (type and goal are read-only). */
+  editingCampaign?: DonationCampaign | null;
+  createMutateAsync: (payload: CreateDonationCampaignPayload) => Promise<DonationCampaign>;
+  updateMutateAsync: (vars: {
+    campaignId: string;
+    payload: UpdateDonationCampaignDetailsPayload;
+  }) => Promise<DonationCampaign>;
+  isCreatePending: boolean;
+  isUpdatePending: boolean;
 }
 
 function validateHeroImageFile(file: File): string | null {
@@ -50,13 +60,23 @@ function validateHeroImageFile(file: File): string | null {
   return null;
 }
 
+function wizardKindFromCampaign(c: DonationCampaign): DonationCampaignCreateKind {
+  if (c.kind === 'open') return 'open';
+  return 'fundraiser';
+}
+
 export function CreateDonationCampaignWizard({
   open,
   onOpenChange,
   chapterId,
-  isPending,
-  mutateAsync,
+  editingCampaign = null,
+  createMutateAsync,
+  updateMutateAsync,
+  isCreatePending,
+  isUpdatePending,
 }: CreateDonationCampaignWizardProps) {
+  const isEditMode = Boolean(editingCampaign);
+  const isPending = isCreatePending || isUpdatePending;
   const [step, setStep] = useState(0);
   const [kind, setKind] = useState<DonationCampaignCreateKind>('open');
   const [title, setTitle] = useState('');
@@ -101,6 +121,44 @@ export function CreateDonationCampaignWizard({
       setCropperOpen(false);
     }
   }, [open, revokeCropObjectUrl]);
+
+  const wizardSessionKeyRef = useRef<string | null>(null);
+  const editingCampaignRef = useRef(editingCampaign);
+  editingCampaignRef.current = editingCampaign;
+
+  useEffect(() => {
+    if (!open) {
+      wizardSessionKeyRef.current = null;
+      return;
+    }
+    const sessionKey = editingCampaign?.id ?? '__create__';
+    if (wizardSessionKeyRef.current === sessionKey) {
+      return;
+    }
+    wizardSessionKeyRef.current = sessionKey;
+
+    const c = editingCampaignRef.current;
+    if (c) {
+      revokeCropObjectUrl();
+      setCropImageSrc('');
+      setCropperOpen(false);
+      setHeroUploading(false);
+      setIsHeroDragging(false);
+      setKind(wizardKindFromCampaign(c));
+      const cents = c.goal_amount_cents;
+      setGoalUsd(cents != null && Number.isFinite(Number(cents)) ? (Number(cents) / 100).toFixed(2) : '');
+      setTitle(c.title ?? '');
+      setDescription((c.description ?? '').toString());
+      setHeroImageUrl((c.hero_image_url ?? '').toString());
+      const meta = c.metadata as Record<string, unknown> | undefined;
+      const pub = meta?.showOnPublicFundraisingChannels;
+      const isFund = c.kind === 'fundraiser' || c.kind === 'fixed';
+      setPublicFundraising(pub === true || pub === 'true' || (pub === undefined && isFund));
+      setStep(1);
+    } else {
+      reset();
+    }
+  }, [open, editingCampaign?.id, reset, revokeCropObjectUrl]);
 
   const beginHeroCropFromFile = useCallback(
     (file: File) => {
@@ -256,6 +314,25 @@ export function CreateDonationCampaignWizard({
       }
     }
 
+    if (isEditMode && editingCampaign) {
+      const payload: UpdateDonationCampaignDetailsPayload = {
+        title: t,
+        description: description.trim() ? description.trim() : null,
+        heroImageUrl: heroTrim || null,
+        ...(kind === 'fundraiser'
+          ? { showOnPublicFundraisingChannels: publicFundraising }
+          : {}),
+      };
+      try {
+        await updateMutateAsync({ campaignId: editingCampaign.id, payload });
+        toast.success('Changes saved');
+        handleClose(false);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Could not save changes');
+      }
+      return;
+    }
+
     const payload: CreateDonationCampaignPayload = {
       title: t,
       kind,
@@ -266,7 +343,7 @@ export function CreateDonationCampaignWizard({
     };
 
     try {
-      await mutateAsync(payload);
+      await createMutateAsync(payload);
       toast.success('Donation created');
       handleClose(false);
     } catch (e) {
@@ -293,7 +370,9 @@ export function CreateDonationCampaignWizard({
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             ) : null}
-            <DialogTitle className="text-lg text-primary-900">Create donation</DialogTitle>
+            <DialogTitle className="text-lg text-primary-900">
+              {isEditMode ? 'Edit donation' : 'Create donation'}
+            </DialogTitle>
           </div>
           <p className="text-xs text-gray-500 font-normal">{stepTitle()}</p>
         </DialogHeader>
@@ -301,56 +380,69 @@ export function CreateDonationCampaignWizard({
         <div className="space-y-4 pt-1">
           {step === 0 && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                Open donations let donors choose an amount up to your goal. Fundraisers use one fixed amount (your
-                goal).
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setKind('open');
-                  setStep(1);
-                }}
-                disabled={isPending}
-                className={cn(
-                  'w-full rounded-xl border-2 border-brand-primary/40 bg-brand-primary/5 p-4 text-left transition hover:bg-brand-primary/10'
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="rounded-lg bg-brand-primary/15 p-2 text-brand-primary">
-                    <HeartHandshake className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">Open amount</p>
-                    <p className="text-sm text-gray-600 mt-0.5">
-                      Donors pick an amount within limits — goal is the cap (Stripe custom amount).
-                    </p>
-                  </div>
+              {isEditMode ? (
+                <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-sm text-gray-700">
+                  <p className="font-medium text-gray-900">Donation type</p>
+                  <p className="mt-2 capitalize">{kind}</p>
+                  <p className="mt-3 text-xs text-gray-500">
+                    Type and goal cannot be changed after creation because they are tied to your Stripe Price and
+                    Payment Link.
+                  </p>
                 </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setKind('fundraiser');
-                  setStep(1);
-                }}
-                disabled={isPending}
-                className={cn(
-                  'w-full rounded-xl border-2 border-brand-primary/40 bg-brand-primary/5 p-4 text-left transition hover:bg-brand-primary/10'
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="rounded-lg bg-brand-primary/15 p-2 text-brand-primary">
-                    <Megaphone className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">Fundraiser</p>
-                    <p className="text-sm text-gray-600 mt-0.5">
-                      Fixed donation amount equal to your goal; optional public fundraising visibility (metadata).
-                    </p>
-                  </div>
-                </div>
-              </button>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600">
+                    Open donations let donors choose an amount up to your goal. Fundraisers use one fixed amount (your
+                    goal).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKind('open');
+                      setStep(1);
+                    }}
+                    disabled={isPending}
+                    className={cn(
+                      'w-full rounded-xl border-2 border-brand-primary/40 bg-brand-primary/5 p-4 text-left transition hover:bg-brand-primary/10'
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-lg bg-brand-primary/15 p-2 text-brand-primary">
+                        <HeartHandshake className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">Open amount</p>
+                        <p className="text-sm text-gray-600 mt-0.5">
+                          Donors pick an amount within limits — goal is the cap (Stripe custom amount).
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKind('fundraiser');
+                      setStep(1);
+                    }}
+                    disabled={isPending}
+                    className={cn(
+                      'w-full rounded-xl border-2 border-brand-primary/40 bg-brand-primary/5 p-4 text-left transition hover:bg-brand-primary/10'
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-lg bg-brand-primary/15 p-2 text-brand-primary">
+                        <Megaphone className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">Fundraiser</p>
+                        <p className="text-sm text-gray-600 mt-0.5">
+                          Fixed donation amount equal to your goal; optional public fundraising visibility (metadata).
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -378,7 +470,7 @@ export function CreateDonationCampaignWizard({
                   value={goalUsd}
                   onChange={(e) => setGoalUsd(e.target.value)}
                   placeholder="0.00"
-                  disabled={isPending}
+                  disabled={isPending || isEditMode}
                   className="tabular-nums"
                 />
                 <p className="text-xs text-gray-500">
@@ -626,7 +718,7 @@ export function CreateDonationCampaignWizard({
             >
               Cancel
             </Button>
-            {step === 0 ? null : step < TOTAL_STEPS - 1 ? (
+            {step === 0 && !isEditMode ? null : step < TOTAL_STEPS - 1 ? (
               <Button
                 type="button"
                 className="bg-brand-primary hover:bg-brand-primary-hover rounded-full"
@@ -645,8 +737,10 @@ export function CreateDonationCampaignWizard({
                 {isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
-                    Creating…
+                    {isEditMode ? 'Saving…' : 'Creating…'}
                   </>
+                ) : isEditMode ? (
+                  'Save changes'
                 ) : (
                   'Create donation'
                 )}

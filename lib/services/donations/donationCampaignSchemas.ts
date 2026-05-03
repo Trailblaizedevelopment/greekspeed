@@ -47,3 +47,51 @@ export const donationCampaignPostBodySchema = z
   });
 
 export type DonationCampaignPostBody = z.infer<typeof donationCampaignPostBodySchema>;
+
+/** PATCH `/api/chapters/[id]/donations/campaigns/[campaignId]` — treasurer updates (hub, copy, hero, fundraiser metadata). */
+export const donationCampaignPatchBodySchema = z
+  .object({
+    chapterHubVisible: z.boolean().optional(),
+    title: z.string().min(1).max(500).optional(),
+    description: z.union([z.string().max(2000), z.null()]).optional(),
+    heroImageUrl: z.union([z.string().max(2048), z.null()]).optional(),
+    showOnPublicFundraisingChannels: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const any =
+      data.chapterHubVisible !== undefined ||
+      data.title !== undefined ||
+      data.description !== undefined ||
+      data.heroImageUrl !== undefined ||
+      data.showOnPublicFundraisingChannels !== undefined;
+    if (!any) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one field is required',
+      });
+    }
+    const hero = data.heroImageUrl;
+    if (hero !== undefined && hero !== null) {
+      const t = hero.trim();
+      if (t) {
+        try {
+          const u = new URL(t);
+          if (u.protocol !== 'https:') {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'Hero image URL must use https',
+              path: ['heroImageUrl'],
+            });
+          }
+        } catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Invalid hero image URL',
+            path: ['heroImageUrl'],
+          });
+        }
+      }
+    }
+  });
+
+export type DonationCampaignPatchBody = z.infer<typeof donationCampaignPatchBodySchema>;

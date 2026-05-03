@@ -85,6 +85,19 @@ function formatPaidAt(iso: string | null | undefined): string {
   });
 }
 
+/** Stripe-backed rows store the Connect Payment Link URL in `crowded_share_url` (shared naming with legacy Crowded). */
+function campaignPublicPayUrl(campaign: DonationCampaign): string | null {
+  const raw = campaign.crowded_share_url?.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 function donationProgressSummary(
   recipients: DonationCampaignRecipientRow[] | undefined,
   goalAmountCents: number | null | undefined,
@@ -151,11 +164,15 @@ export interface DonationCampaignsPanelProps {
 
 export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaignsPanelProps) {
   const queryClient = useQueryClient();
-  const { listQuery, createMutation, updateChapterHubVisibleMutation } = useDonationCampaigns(
-    chapterId,
-    enabled
-  );
-  const [createWizardOpen, setCreateWizardOpen] = useState(false);
+  const {
+    listQuery,
+    createMutation,
+    updateChapterHubVisibleMutation,
+    updateCampaignMutation,
+    deleteCampaignMutation,
+  } = useDonationCampaigns(chapterId, enabled);
+  const [donationWizardOpen, setDonationWizardOpen] = useState(false);
+  const [donationWizardEdit, setDonationWizardEdit] = useState<DonationCampaign | null>(null);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [shareForCampaign, setShareForCampaign] = useState<DonationCampaign | null>(null);
 
@@ -210,7 +227,10 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
             size="sm"
             className="h-9 shrink-0 gap-1.5 rounded-full border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5 sm:self-start"
             disabled={listQuery.isLoading}
-            onClick={() => setCreateWizardOpen(true)}
+            onClick={() => {
+              setDonationWizardEdit(null);
+              setDonationWizardOpen(true);
+            }}
           >
             <Plus className="h-4 w-4 shrink-0" aria-hidden />
             Create donation
@@ -219,11 +239,17 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
         <CreateDonationCampaignWizard
-          open={createWizardOpen}
-          onOpenChange={setCreateWizardOpen}
+          open={donationWizardOpen}
+          onOpenChange={(next) => {
+            setDonationWizardOpen(next);
+            if (!next) setDonationWizardEdit(null);
+          }}
           chapterId={chapterId}
-          isPending={createMutation.isPending}
-          mutateAsync={createMutation.mutateAsync}
+          editingCampaign={donationWizardEdit}
+          createMutateAsync={createMutation.mutateAsync}
+          updateMutateAsync={updateCampaignMutation.mutateAsync}
+          isCreatePending={createMutation.isPending}
+          isUpdatePending={updateCampaignMutation.isPending}
         />
 
         <div>
@@ -249,7 +275,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                     <TableHead className="whitespace-nowrap">Type</TableHead>
                     <TableHead className="tabular-nums whitespace-nowrap">Goal</TableHead>
                     <TableHead className="hidden sm:table-cell">Created</TableHead>
-                    <TableHead className="w-[120px] text-right">Copy price</TableHead>
+                    <TableHead className="w-[120px] text-right">Pay URL</TableHead>
                     <TableHead className="w-12 px-2" aria-label="Expand row" />
                   </TableRow>
                 </TableHeader>
@@ -297,15 +323,20 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                               variant="outline"
                               size="sm"
                               className="h-8 gap-1 px-2 rounded-full"
-                              disabled={!row.stripe_price_id?.trim()}
+                              disabled={!campaignPublicPayUrl(row)}
+                              title={
+                                campaignPublicPayUrl(row)
+                                  ? 'Copy the public Stripe checkout link for this donation'
+                                  : 'Payment link is not available yet for this donation'
+                              }
                               onClick={() => {
-                                const id = row.stripe_price_id?.trim() || '';
-                                copyText(id, 'Stripe price ID copied');
+                                const url = campaignPublicPayUrl(row);
+                                if (url) void copyText(url, 'Checkout link copied');
                               }}
-                              aria-label="Copy Stripe price ID"
+                              aria-label="Copy public checkout link"
                             >
                               <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="hidden sm:inline text-xs">Copy price</span>
+                              <span className="hidden sm:inline text-xs">Copy link</span>
                             </Button>
                           </TableCell>
                           <TableCell className="w-12 px-2 text-gray-500" aria-hidden>
@@ -412,7 +443,14 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                         <MoreVertical className="h-4 w-4" aria-hidden />
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end" className="min-w-[14rem]">
-                                        <DropdownMenuItem disabled>Edit collection</DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setDonationWizardEdit(row);
+                                            setDonationWizardOpen(true);
+                                          }}
+                                        >
+                                          Edit collection
+                                        </DropdownMenuItem>
                                         <div
                                           className="flex cursor-default items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm outline-none"
                                           onClick={(e) => e.stopPropagation()}
@@ -457,8 +495,39 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                         </div>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
-                                          disabled
                                           className="text-red-600 focus:text-red-600"
+                                          disabled={
+                                            deleteCampaignMutation.isPending &&
+                                            deleteCampaignMutation.variables === row.id
+                                          }
+                                          onClick={() => {
+                                            const title = row.title?.trim() || 'this donation';
+                                            if (
+                                              !window.confirm(
+                                                `Delete “${title}”? This removes the campaign, all shared member links, public hub checkouts tied to it, and any linked ledger rows. Stripe checkout links will stop accepting new payments. This cannot be undone.`
+                                              )
+                                            ) {
+                                              return;
+                                            }
+                                            deleteCampaignMutation.mutate(row.id, {
+                                              onSuccess: () => {
+                                                toast.success('Donation deleted');
+                                                setExpandedCampaignId((cur) =>
+                                                  cur === row.id ? null : cur
+                                                );
+                                                setShareForCampaign((cur) =>
+                                                  cur?.id === row.id ? null : cur
+                                                );
+                                                setDonationWizardEdit((cur) =>
+                                                  cur?.id === row.id ? null : cur
+                                                );
+                                              },
+                                              onError: (err) =>
+                                                toast.error(
+                                                  err instanceof Error ? err.message : 'Could not delete'
+                                                ),
+                                            });
+                                          }}
                                         >
                                           Delete collection
                                         </DropdownMenuItem>

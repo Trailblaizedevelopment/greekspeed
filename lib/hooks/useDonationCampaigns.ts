@@ -25,6 +25,14 @@ export type UpdateDonationChapterHubVisibleVariables = {
   chapterHubVisible: boolean;
 };
 
+/** PATCH body for editing campaign copy, hero, and fundraiser visibility (not goal/type). */
+export type UpdateDonationCampaignDetailsPayload = {
+  title: string;
+  description: string | null;
+  heroImageUrl: string | null;
+  showOnPublicFundraisingChannels?: boolean;
+};
+
 export function useDonationCampaigns(chapterId: string | null | undefined, enabled: boolean) {
   const queryClient = useQueryClient();
   const cid = chapterId?.trim() ?? '';
@@ -116,5 +124,71 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
     },
   });
 
-  return { listQuery, createMutation, updateChapterHubVisibleMutation };
+  const updateCampaignMutation = useMutation({
+    mutationFn: async (vars: {
+      campaignId: string;
+      payload: UpdateDonationCampaignDetailsPayload;
+    }): Promise<DonationCampaign> => {
+      const body: Record<string, unknown> = {
+        title: vars.payload.title.trim(),
+        description: vars.payload.description,
+        heroImageUrl: vars.payload.heroImageUrl,
+      };
+      if (vars.payload.showOnPublicFundraisingChannels !== undefined) {
+        body.showOnPublicFundraisingChannels = vars.payload.showOnPublicFundraisingChannels;
+      }
+
+      const res = await fetch(`/api/chapters/${cid}/donations/campaigns/${vars.campaignId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json()) as { data?: DonationCampaign; error?: string };
+
+      if (!res.ok) {
+        const msg =
+          typeof json.error === 'string' ? json.error : `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+      if (!json.data) {
+        throw new Error('Invalid response');
+      }
+      return json.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['donation-campaigns', cid] });
+      void queryClient.invalidateQueries({ queryKey: ['chapter-donation-browse', cid] });
+    },
+  });
+
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string): Promise<void> => {
+      const res = await fetch(`/api/chapters/${cid}/donations/campaigns/${campaignId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const json = (await res.json()) as { error?: string };
+
+      if (!res.ok) {
+        const msg =
+          typeof json.error === 'string' ? json.error : `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['donation-campaigns', cid] });
+      void queryClient.invalidateQueries({ queryKey: ['chapter-donation-browse', cid] });
+      void queryClient.invalidateQueries({ queryKey: ['donation-recipients'] });
+      void queryClient.invalidateQueries({ queryKey: ['my-donation-campaign-shares'] });
+    },
+  });
+
+  return {
+    listQuery,
+    createMutation,
+    updateChapterHubVisibleMutation,
+    updateCampaignMutation,
+    deleteCampaignMutation,
+  };
 }
