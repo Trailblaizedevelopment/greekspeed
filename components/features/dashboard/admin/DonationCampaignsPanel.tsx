@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -13,11 +13,13 @@ import {
   Search,
   Share2,
   CircleHelp,
+  X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
@@ -156,6 +158,23 @@ function recipientInitials(r: DonationCampaignRecipientRow['profile']): string {
   return name.slice(0, 2).toUpperCase() || '?';
 }
 
+/** Case-insensitive match on display name, name parts, and email. */
+function recipientMatchesSearch(rec: DonationCampaignRecipientRow, queryLower: string): boolean {
+  if (!queryLower) return true;
+  const p = rec.profile;
+  const email = (p.email ?? '').toLowerCase();
+  const chunks = [
+    recipientDisplayName(p),
+    p.first_name,
+    p.last_name,
+    p.full_name,
+    email,
+  ]
+    .filter((s): s is string => Boolean(s && String(s).trim()))
+    .map((s) => s.toLowerCase());
+  return chunks.some((c) => c.includes(queryLower));
+}
+
 export interface DonationCampaignsPanelProps {
   chapterId: string;
   /** Panel is mounted; parent controls visibility via flags. */
@@ -173,6 +192,9 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
   } = useDonationCampaigns(chapterId, enabled);
   const [donationWizardOpen, setDonationWizardOpen] = useState(false);
   const [donationWizardEdit, setDonationWizardEdit] = useState<DonationCampaign | null>(null);
+  const [recipientSearchOpen, setRecipientSearchOpen] = useState(false);
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
+  const recipientSearchInputRef = useRef<HTMLInputElement>(null);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [shareForCampaign, setShareForCampaign] = useState<DonationCampaign | null>(null);
 
@@ -198,6 +220,24 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
       void queryClient.invalidateQueries({ queryKey: ['my-donation-campaign-shares'] });
     }
   }, [enabled, queryClient]);
+
+  useEffect(() => {
+    setRecipientSearchOpen(false);
+    setRecipientSearchQuery('');
+  }, [expandedCampaignId]);
+
+  useLayoutEffect(() => {
+    if (recipientSearchOpen) {
+      recipientSearchInputRef.current?.focus();
+    }
+  }, [recipientSearchOpen]);
+
+  const filteredRecipients = useMemo(() => {
+    const list = recipientsQuery.data?.recipients ?? [];
+    const q = recipientSearchQuery.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((rec) => recipientMatchesSearch(rec, q));
+  }, [recipientsQuery.data?.recipients, recipientSearchQuery]);
 
   const copyText = useCallback(async (text: string, successMsg: string) => {
     try {
@@ -368,8 +408,8 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                     ) : null}
                                   </div>
                                 )}
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-4">
-                                  <p className="text-sm text-gray-600">
+                                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-4 border-b border-gray-200/90 pb-3 mb-4">
+                                  <p className="shrink-0 text-sm text-gray-600 sm:whitespace-nowrap">
                                     Shared with{' '}
                                     <span className="font-medium text-gray-900 tabular-nums">
                                       {recipientsQuery.isLoading
@@ -377,24 +417,80 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                         : recipientsQuery.data?.recipients?.length ?? 0}
                                     </span>{' '}
                                     chapter members
+                                    {recipientSearchQuery.trim() &&
+                                    (recipientsQuery.data?.recipients?.length ?? 0) > 0 ? (
+                                      <span className="ml-1 text-xs text-gray-500 tabular-nums">
+                                        ({filteredRecipients.length} shown)
+                                      </span>
+                                    ) : null}
                                   </p>
-                                  <div className="flex flex-wrap items-center justify-end gap-2">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-9 w-9 shrink-0 p-0 text-gray-500 rounded-full"
-                                      disabled
-                                      title="Search (coming soon)"
-                                      aria-label="Search members (coming soon)"
-                                    >
-                                      <Search className="h-4 w-4" aria-hidden />
-                                    </Button>
+                                  <div className="flex min-w-0 flex-nowrap items-center justify-end gap-2 overflow-x-auto sm:min-w-0 sm:flex-1 sm:justify-end [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                    {recipientSearchOpen ? (
+                                      <div className="flex min-w-0 max-w-[min(100%,14rem)] shrink items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-0.5 shadow-sm sm:max-w-[16rem] md:max-w-[18rem]">
+                                        <Search
+                                          className="h-4 w-4 shrink-0 text-gray-400"
+                                          aria-hidden
+                                        />
+                                        <Input
+                                          ref={recipientSearchInputRef}
+                                          type="search"
+                                          value={recipientSearchQuery}
+                                          onChange={(e) => setRecipientSearchQuery(e.target.value)}
+                                          placeholder="Search by name or email"
+                                          className="h-8 flex-1 min-w-0 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                          aria-label="Filter shared members by name or email"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') {
+                                              setRecipientSearchQuery('');
+                                              setRecipientSearchOpen(false);
+                                            }
+                                          }}
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 shrink-0 p-0 text-gray-500 rounded-full"
+                                          title="Close search"
+                                          aria-label="Close search"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setRecipientSearchQuery('');
+                                            setRecipientSearchOpen(false);
+                                          }}
+                                        >
+                                          <X className="h-4 w-4" aria-hidden />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 w-9 shrink-0 p-0 text-gray-600 rounded-full border-gray-200"
+                                        disabled={
+                                          recipientsQuery.isLoading ||
+                                          (recipientsQuery.data?.recipients?.length ?? 0) === 0
+                                        }
+                                        title={
+                                          (recipientsQuery.data?.recipients?.length ?? 0) === 0
+                                            ? 'Share members first to search this list'
+                                            : 'Search shared members by name or email'
+                                        }
+                                        aria-label="Open search for shared members"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setRecipientSearchOpen(true);
+                                        }}
+                                      >
+                                        <Search className="h-4 w-4" aria-hidden />
+                                      </Button>
+                                    )}
                                     <Button
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      className="h-9 gap-1.5 rounded-full text-gray-600 border-gray-200"
+                                      className="h-9 shrink-0 gap-1.5 rounded-full text-gray-600 border-gray-200"
                                       title="Refresh payment totals and status"
                                       aria-label="Refresh recipient payment data"
                                       disabled={recipientsQuery.isFetching}
@@ -416,7 +512,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      className="h-9 gap-1.5 rounded-full border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5"
+                                      className="h-9 shrink-0 gap-1.5 rounded-full border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setShareForCampaign(row);
@@ -429,7 +525,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      className="h-9 text-gray-400 rounded-full"
+                                      className="h-9 shrink-0 whitespace-nowrap text-gray-400 rounded-full"
                                       disabled
                                       title="Coming soon"
                                     >
@@ -437,7 +533,7 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                     </Button>
                                     <DropdownMenu>
                                       <DropdownMenuTrigger
-                                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                                         aria-label="More actions"
                                       >
                                         <MoreVertical className="h-4 w-4" aria-hidden />
@@ -614,73 +710,87 @@ export function DonationCampaignsPanel({ chapterId, enabled }: DonationCampaigns
                                     {recipientsQuery.error.message}
                                   </p>
                                 ) : (recipientsQuery.data?.recipients?.length ?? 0) > 0 ? (
-                                  <div className="overflow-x-auto rounded-lg border border-gray-200/80 bg-white">
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow className="bg-gray-50/90">
-                                          <TableHead>Name</TableHead>
-                                          <TableHead className="hidden sm:table-cell">Role</TableHead>
-                                          <TableHead className="tabular-nums whitespace-nowrap">
-                                            Amount received
-                                          </TableHead>
-                                          <TableHead className="hidden md:table-cell whitespace-nowrap">
-                                            Paid on
-                                          </TableHead>
-                                          <TableHead>Status</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {recipientsQuery.data!.recipients.map((rec) => (
-                                          <TableRow key={rec.id}>
-                                            <TableCell>
-                                              <div className="flex items-center gap-2 min-w-0">
-                                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700">
-                                                  {recipientInitials(rec.profile)}
-                                                </span>
-                                                <span className="min-w-0">
-                                                  <span className="block truncate text-sm font-medium text-gray-900">
-                                                    {recipientDisplayName(rec.profile)}
-                                                  </span>
-                                                  {rec.profile.email ? (
-                                                    <span className="block truncate text-xs text-gray-500">
-                                                      {rec.profile.email}
-                                                    </span>
-                                                  ) : null}
-                                                </span>
-                                              </div>
-                                            </TableCell>
-                                            <TableCell className="hidden sm:table-cell text-sm text-gray-600">
-                                              Member
-                                            </TableCell>
-                                            <TableCell className="tabular-nums text-sm text-gray-700">
-                                              {recipientIsPaid(rec)
-                                                ? formatCents(recipientPaidCents(rec))
-                                                : '—'}
-                                            </TableCell>
-                                            <TableCell className="hidden md:table-cell text-sm text-gray-600 whitespace-nowrap">
-                                              {recipientIsPaid(rec) ? formatPaidAt(rec.paid_at) : '—'}
-                                            </TableCell>
-                                            <TableCell>
-                                              {recipientIsPaid(rec) ? (
-                                                <Badge
-                                                  variant="secondary"
-                                                  className="bg-emerald-50 text-emerald-900 border-emerald-200 font-normal text-xs"
-                                                >
-                                                  Paid
-                                                </Badge>
-                                              ) : (
-                                                <Badge
-                                                  variant="secondary"
-                                                  className="bg-amber-50 text-amber-900 border-amber-200 font-normal text-xs"
-                                                >
-                                                  Not paid
-                                                </Badge>
-                                              )}
-                                            </TableCell>
+                                  <div
+                                    className="max-h-[min(21rem,50vh)] overflow-auto overscroll-contain rounded-lg border border-gray-200/80 bg-white"
+                                    role="region"
+                                    aria-label="Shared members for this donation"
+                                  >
+                                    {filteredRecipients.length === 0 ? (
+                                      <p className="py-10 px-4 text-center text-sm text-gray-600">
+                                        No members match{' '}
+                                        <span className="font-medium text-gray-900">
+                                          &quot;{recipientSearchQuery.trim()}&quot;
+                                        </span>
+                                        . Try another name or email.
+                                      </p>
+                                    ) : (
+                                      <Table>
+                                        <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:border-b [&_th]:border-gray-200 [&_th]:bg-gray-50/95">
+                                          <TableRow className="border-0 bg-transparent hover:bg-transparent">
+                                            <TableHead>Name</TableHead>
+                                            <TableHead className="hidden sm:table-cell">Role</TableHead>
+                                            <TableHead className="tabular-nums whitespace-nowrap">
+                                              Amount received
+                                            </TableHead>
+                                            <TableHead className="hidden md:table-cell whitespace-nowrap">
+                                              Paid on
+                                            </TableHead>
+                                            <TableHead>Status</TableHead>
                                           </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {filteredRecipients.map((rec) => (
+                                            <TableRow key={rec.id}>
+                                              <TableCell>
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700">
+                                                    {recipientInitials(rec.profile)}
+                                                  </span>
+                                                  <span className="min-w-0">
+                                                    <span className="block truncate text-sm font-medium text-gray-900">
+                                                      {recipientDisplayName(rec.profile)}
+                                                    </span>
+                                                    {rec.profile.email ? (
+                                                      <span className="block truncate text-xs text-gray-500">
+                                                        {rec.profile.email}
+                                                      </span>
+                                                    ) : null}
+                                                  </span>
+                                                </div>
+                                              </TableCell>
+                                              <TableCell className="hidden sm:table-cell text-sm text-gray-600">
+                                                Member
+                                              </TableCell>
+                                              <TableCell className="tabular-nums text-sm text-gray-700">
+                                                {recipientIsPaid(rec)
+                                                  ? formatCents(recipientPaidCents(rec))
+                                                  : '—'}
+                                              </TableCell>
+                                              <TableCell className="hidden md:table-cell text-sm text-gray-600 whitespace-nowrap">
+                                                {recipientIsPaid(rec) ? formatPaidAt(rec.paid_at) : '—'}
+                                              </TableCell>
+                                              <TableCell>
+                                                {recipientIsPaid(rec) ? (
+                                                  <Badge
+                                                    variant="secondary"
+                                                    className="bg-emerald-50 text-emerald-900 border-emerald-200 font-normal text-xs"
+                                                  >
+                                                    Paid
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge
+                                                    variant="secondary"
+                                                    className="bg-amber-50 text-amber-900 border-amber-200 font-normal text-xs"
+                                                  >
+                                                    Not paid
+                                                  </Badge>
+                                                )}
+                                              </TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    )}
                                   </div>
                                 ) : (
                                   <div className="flex flex-col items-center justify-center px-4 pb-10 pt-2 text-center">
