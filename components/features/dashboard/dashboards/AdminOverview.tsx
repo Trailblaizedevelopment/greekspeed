@@ -15,6 +15,7 @@ import { useProfile } from '@/lib/contexts/ProfileContext';
 import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
 import { DuesStatusCard } from './ui/DuesStatusCard';
 import { MyDonationSharesCard } from './ui/MyDonationSharesCard';
+import { ChapterDonationsHub } from './ui/ChapterDonationsHub';
 import { FeatureGuard } from '@/components/shared/FeatureGuard';
 import { MobileBottomNavigation } from './ui/MobileBottomNavigation'; // Changed import
 import { MobileAdminTasksPage } from './ui/MobileAdminTasksPage';
@@ -33,6 +34,7 @@ import { SendAnnouncementButton } from './ui/SendAnnouncementButton';
 import { EXECUTIVE_ROLES } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
+import { useDonationsBrowseEnabled } from '@/lib/hooks/useDonationsBrowseEnabled';
 import { AddRecruitForm } from '@/components/features/recruitment/AddRecruitForm';
 import type { Recruit } from '@/types/recruitment';
 
@@ -57,6 +59,24 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
   const searchParams = useSearchParams();
   const { enabled: eventsManagementEnabled } = useFeatureFlag('events_management_enabled');
   const { enabled: recruitmentCrmEnabled } = useFeatureFlag('recruitment_crm_enabled');
+  const donationsBrowseEnabled = useDonationsBrowseEnabled();
+  const isDonationsView = searchParams.get('view') === 'donations';
+
+  const closeDonationsView = () => {
+    router.replace('/dashboard', { scroll: false });
+  };
+
+  const mainFeed =
+    isDonationsView && donationsBrowseEnabled && chapterId ? (
+      <ChapterDonationsHub chapterId={chapterId} onClose={closeDonationsView} />
+    ) : (
+      <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+    );
+
+  const donationSharesCard =
+    donationsBrowseEnabled && chapterId ? (
+      <MyDonationSharesCard chapterId={chapterId} showBrowseButton />
+    ) : null;
 
   // Add mobile detection useEffect (add this after line 46, before feedData)
   useEffect(() => {
@@ -226,12 +246,8 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
                 </FeatureGuard>
               )}
             </div>
-            <FeatureGuard flagName="crowded_integration_enabled">
-              <MyDonationSharesCard />
-            </FeatureGuard>
-            <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-            </div>
+            {donationSharesCard}
+            <div className="w-full">{mainFeed}</div>
           </div>
         );
       case 'tasks':
@@ -249,9 +265,7 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
       default:
         return (
           <div className="space-y-4">
-            <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-            </div>
+            <div className="w-full">{mainFeed}</div>
           </div>
         );
     }
@@ -274,9 +288,7 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
         {/* Tablet Layout (sm to lg): Two Column - Feed + Right Sidebar */}
         <div className="hidden sm:grid lg:hidden grid-cols-12 gap-4">
           {/* Main Content - Social Feed (takes ~70%) */}
-          <div className="col-span-8">
-            <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-          </div>
+          <div className="col-span-8">{mainFeed}</div>
 
           {/* Right Sidebar - Events & Key Info (~30%) */}
           <div className="col-span-4">
@@ -295,9 +307,7 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
               <FeatureGuard flagName="financial_tools_enabled">
                 <DuesStatusCard />
               </FeatureGuard>
-              <FeatureGuard flagName="crowded_integration_enabled">
-                <MyDonationSharesCard />
-              </FeatureGuard>
+              {donationSharesCard}
               {/* Add DocsCompliancePanel for tablet view */}
               <DocsCompliancePanel />
             </div>
@@ -307,18 +317,14 @@ export function AdminOverview({ initialFeed, fallbackChapterId }: AdminOverviewP
         {/* Desktop Layout (lg+): Three Column Grid */}
         <div className="hidden lg:grid lg:grid-cols-12 lg:gap-6">
           {/* Center Column - 6 columns wide (RENDER FIRST for faster paint) */}
-          <div className="col-span-6 col-start-4 space-y-6">
-            <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-          </div>
+          <div className="col-span-6 col-start-4 space-y-6">{mainFeed}</div>
 
           {/* Left Column - 3 columns wide */}
           <div className="col-span-3 col-start-1 row-start-1 space-y-6">
             <FeatureGuard flagName="financial_tools_enabled">
               <DuesStatusCard />
             </FeatureGuard>
-            <FeatureGuard flagName="crowded_integration_enabled">
-              <MyDonationSharesCard />
-            </FeatureGuard>
+            {donationSharesCard}
             <OperationsFeed />
           </div>
 

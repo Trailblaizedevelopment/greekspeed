@@ -23,6 +23,11 @@ type CreateResponse = { data: DonationCampaign; error?: string; code?: string; i
 /** `recipientId` is only for per-row loading UI; the API uses `campaignId` from the URL. */
 export type SyncDonationShareLinkVariables = { campaignId: string; recipientId: string };
 
+export type UpdateDonationChapterHubVisibleVariables = {
+  campaignId: string;
+  chapterHubVisible: boolean;
+};
+
 export function useDonationCampaigns(chapterId: string | null | undefined, enabled: boolean) {
   const queryClient = useQueryClient();
   const cid = chapterId?.trim() ?? '';
@@ -88,6 +93,7 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['donation-campaigns', cid] });
+      void queryClient.invalidateQueries({ queryKey: ['chapter-donation-browse', cid] });
     },
   });
 
@@ -142,8 +148,31 @@ export function useDonationCampaigns(chapterId: string | null | undefined, enabl
       void queryClient.invalidateQueries({ queryKey: ['donation-campaigns', cid] });
       void queryClient.invalidateQueries({ queryKey: ['my-donation-campaign-shares'] });
       void queryClient.invalidateQueries({ queryKey: ['donation-recipients', cid, vars.campaignId] });
+      void queryClient.invalidateQueries({ queryKey: ['chapter-donation-browse', cid] });
     },
   });
 
-  return { listQuery, createMutation, syncShareLinkMutation };
+  const updateChapterHubVisibleMutation = useMutation({
+    mutationFn: async (vars: UpdateDonationChapterHubVisibleVariables): Promise<void> => {
+      const res = await fetch(`/api/chapters/${cid}/donations/campaigns/${vars.campaignId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ chapterHubVisible: vars.chapterHubVisible }),
+      });
+      const json = (await res.json()) as { error?: string };
+
+      if (!res.ok) {
+        const msg =
+          typeof json.error === 'string' ? json.error : `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['donation-campaigns', cid] });
+      void queryClient.invalidateQueries({ queryKey: ['chapter-donation-browse', cid] });
+    },
+  });
+
+  return { listQuery, createMutation, syncShareLinkMutation, updateChapterHubVisibleMutation };
 }

@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Search,
   Share2,
+  CircleHelp,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
@@ -35,7 +36,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { isDonationChapterHubPublic } from '@/lib/services/donations/chapterDonationBrowseService';
 import { useDonationCampaigns } from '@/lib/hooks/useDonationCampaigns';
 import { useDonationRecipients } from '@/lib/hooks/useDonationCampaignShare';
 import { isDonationCampaignStripeDrive, type DonationCampaign } from '@/types/donationCampaigns';
@@ -150,7 +153,8 @@ export function DonationCampaignsPanel({
   stripeDonationsPrimary = false,
 }: DonationCampaignsPanelProps) {
   const queryClient = useQueryClient();
-  const { listQuery, createMutation, syncShareLinkMutation } = useDonationCampaigns(chapterId, enabled);
+  const { listQuery, createMutation, syncShareLinkMutation, updateChapterHubVisibleMutation } =
+    useDonationCampaigns(chapterId, enabled);
   const [createWizardOpen, setCreateWizardOpen] = useState(false);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [shareForCampaign, setShareForCampaign] = useState<DonationCampaign | null>(null);
@@ -420,8 +424,50 @@ export function DonationCampaignsPanel({
                                       >
                                         <MoreVertical className="h-4 w-4" aria-hidden />
                                       </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="min-w-[11rem]">
+                                      <DropdownMenuContent align="end" className="min-w-[14rem]">
                                         <DropdownMenuItem disabled>Edit collection</DropdownMenuItem>
+                                        <div
+                                          className="flex cursor-default items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm outline-none"
+                                          onClick={(e) => e.stopPropagation()}
+                                          onPointerDown={(e) => e.stopPropagation()}
+                                        >
+                                          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                                            <span className="font-medium text-gray-900">Public</span>
+                                            <span
+                                              className="inline-flex shrink-0 text-gray-400 hover:text-gray-600"
+                                              title="Public: listed on the chapter donation hub for every chapter member. Private: only people you share with (this table) see the drive with their personal link."
+                                              aria-label="Public vs private chapter listing"
+                                            >
+                                              <CircleHelp className="h-4 w-4" aria-hidden />
+                                            </span>
+                                          </span>
+                                          <span className="inline-flex shrink-0">
+                                            <Switch
+                                              checked={isDonationChapterHubPublic(row.metadata, row.kind)}
+                                              disabled={
+                                                updateChapterHubVisibleMutation.isPending &&
+                                                updateChapterHubVisibleMutation.variables?.campaignId === row.id
+                                              }
+                                              onCheckedChange={(next) => {
+                                                updateChapterHubVisibleMutation.mutate(
+                                                  { campaignId: row.id, chapterHubVisible: next },
+                                                  {
+                                                    onSuccess: () =>
+                                                      toast.success(
+                                                        next
+                                                          ? 'Drive is public on the chapter donation hub.'
+                                                          : 'Drive is private — only shared members see it on the hub.'
+                                                      ),
+                                                    onError: (err) =>
+                                                      toast.error(
+                                                        err instanceof Error ? err.message : 'Could not update'
+                                                      ),
+                                                  }
+                                                );
+                                              }}
+                                            />
+                                          </span>
+                                        </div>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                           disabled

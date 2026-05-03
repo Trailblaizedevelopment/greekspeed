@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { HeartHandshake, ChevronRight } from 'lucide-react';
+import { HeartHandshake, ChevronRight, LayoutGrid } from 'lucide-react';
 import { useMyDonationCampaignShares } from '@/lib/hooks/useMyDonationCampaignShares';
 import type { MyDonationCampaignShare } from '@/types/myDonationCampaignShares';
 import type { DonationCampaignKind } from '@/types/donationCampaigns';
@@ -38,18 +39,43 @@ function goalProgressPercent(raisedCents: number, goalCents: number | null | und
   return Math.min(100, Math.round((raisedCents / goal) * 1000) / 10);
 }
 
-export function MyDonationSharesCard() {
+export interface MyDonationSharesCardProps {
+  chapterId?: string | null;
+  /** Opens full chapter donation hub (`?view=donations`) when combined with `chapterId`. */
+  showBrowseButton?: boolean;
+}
+
+export function MyDonationSharesCard({ chapterId, showBrowseButton = false }: MyDonationSharesCardProps) {
+  const router = useRouter();
   const { data = [], isLoading, isError, error, refetch, isFetching } = useMyDonationCampaignShares(true);
   const [selected, setSelected] = useState<MyDonationCampaignShare | null>(null);
+
+  const cid = chapterId?.trim() ?? '';
+  const canBrowse = Boolean(showBrowseButton && cid);
 
   return (
     <>
       <Card className="rounded-xl border border-gray-200 bg-white shadow">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <HeartHandshake className="h-5 w-5 text-brand-primary shrink-0" />
-            Donations for you
-          </CardTitle>
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <HeartHandshake className="h-5 w-5 text-brand-primary shrink-0" />
+              Donations for you
+            </CardTitle>
+            {canBrowse ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 h-8 px-2 text-gray-600 hover:text-gray-900"
+                onClick={() => router.push('/dashboard?view=donations')}
+                aria-label="View all chapter donations"
+              >
+                <LayoutGrid className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline text-xs font-medium">View all</span>
+              </Button>
+            ) : null}
+          </div>
           <p className="text-sm text-gray-500 font-normal">
             Campaigns your chapter shared with you. Tap a row for details and checkout.
           </p>

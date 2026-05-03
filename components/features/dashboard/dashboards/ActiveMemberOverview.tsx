@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { SocialFeed, type SocialFeedInitialData } from './ui/SocialFeed';
 import { DuesStatusCard } from './ui/DuesStatusCard';
 import { MyDonationSharesCard } from './ui/MyDonationSharesCard';
+import { ChapterDonationsHub } from './ui/ChapterDonationsHub';
 import { Event } from '@/types/events';
 import { MyTasksCard } from './ui/MyTasksCard';
 import { AnnouncementsCard } from './ui/AnnouncementsCard';
@@ -23,6 +24,7 @@ import { AddRecruitForm } from '@/components/features/recruitment/AddRecruitForm
 import { useProfile } from '@/lib/contexts/ProfileContext';
 import { FeatureGuard } from '@/components/shared/FeatureGuard';
 import { useFeatureFlag } from '@/lib/hooks/useFeatureFlag';
+import { useDonationsBrowseEnabled } from '@/lib/hooks/useDonationsBrowseEnabled';
 import { toast } from 'react-toastify';
 import type { Recruit } from '@/types/recruitment';
 import { cn } from '@/lib/utils';
@@ -44,6 +46,8 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
   const { enabled: financialToolsEnabled } = useFeatureFlag('financial_tools_enabled');
   const { enabled: eventsManagementEnabled } = useFeatureFlag('events_management_enabled');
   const { enabled: recruitmentCrmEnabled } = useFeatureFlag('recruitment_crm_enabled');
+  const donationsBrowseEnabled = useDonationsBrowseEnabled();
+  const isDonationsView = searchParams.get('view') === 'donations';
   const [showAddRecruitModal, setShowAddRecruitModal] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -121,6 +125,22 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
     }
   }, [searchParams, router, financialToolsEnabled, eventsManagementEnabled, recruitmentCrmEnabled]);
 
+  const closeDonationsView = () => {
+    router.replace('/dashboard', { scroll: false });
+  };
+
+  const mainFeed =
+    isDonationsView && donationsBrowseEnabled && chapterId ? (
+      <ChapterDonationsHub chapterId={chapterId} onClose={closeDonationsView} />
+    ) : (
+      <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
+    );
+
+  const donationSharesCard =
+    donationsBrowseEnabled && chapterId ? (
+      <MyDonationSharesCard chapterId={chapterId} showBrowseButton />
+    ) : null;
+
   // Redirect if user tries to access calendar/events tabs when flag is disabled
   useEffect(() => {
     if ((activeMobileTab === 'calendar' || activeMobileTab === 'events') && !eventsManagementEnabled) {
@@ -135,13 +155,9 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
       case 'home':
         return (
           <div className="space-y-4">
-            <FeatureGuard flagName="crowded_integration_enabled">
-              <MyDonationSharesCard />
-            </FeatureGuard>
+            {donationSharesCard}
             {/* Primary Feature: Social Feed */}
-            <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-            </div>
+            <div className="w-full">{mainFeed}</div>
           </div>
         );
       case 'tasks':
@@ -163,13 +179,9 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
       default:
         return (
           <div className="space-y-4">
-            <FeatureGuard flagName="crowded_integration_enabled">
-              <MyDonationSharesCard />
-            </FeatureGuard>
+            {donationSharesCard}
             {/* Primary Feature: Social Feed */}
-            <div className="w-full">
-              <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-            </div>
+            <div className="w-full">{mainFeed}</div>
           </div>
         );
     }
@@ -211,9 +223,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
         {/* Tablet Layout (sm to lg): Two Column - Feed + Right Sidebar */}
         <div className="hidden sm:grid lg:hidden grid-cols-12 gap-4">
           {/* Main Content - Social Feed (takes ~70%) */}
-          <div className="col-span-8">
-            <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-          </div>
+          <div className="col-span-8">{mainFeed}</div>
 
           {/* Right Sidebar - Events & Key Info (~30%) */}
           <div className="col-span-4">
@@ -230,9 +240,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
               <FeatureGuard flagName="financial_tools_enabled">
                 <DuesStatusCard />
               </FeatureGuard>
-              <FeatureGuard flagName="crowded_integration_enabled">
-                <MyDonationSharesCard />
-              </FeatureGuard>
+              {donationSharesCard}
               {/* Important: Announcements visible on tablet since left sidebar is hidden */}
               <AnnouncementsCard />
             </div>
@@ -242,9 +250,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
         {/* Desktop Layout: Three Column Grid (Preserved) */}
         <div className="hidden lg:grid lg:grid-cols-12 lg:gap-6">
           {/* Center Column - Social Feed (RENDER FIRST for faster paint) */}
-          <div className="col-span-6 col-start-4">
-            <SocialFeed chapterId={chapterId || ''} initialData={initialFeed} />
-          </div>
+          <div className="col-span-6 col-start-4">{mainFeed}</div>
 
           {/* Left Sidebar - Dues, Tasks, Calendar & Documents */}
           <div className="col-span-3 col-start-1 row-start-1">
@@ -252,9 +258,7 @@ function ActiveMemberOverviewContent({ initialFeed, fallbackChapterId }: ActiveM
               <FeatureGuard flagName="financial_tools_enabled">
                 <DuesStatusCard />
               </FeatureGuard>
-              <FeatureGuard flagName="crowded_integration_enabled">
-                <MyDonationSharesCard />
-              </FeatureGuard>
+              {donationSharesCard}
               <AnnouncementsCard />
               <MyTasksCard />
             </div>

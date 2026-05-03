@@ -118,6 +118,7 @@ export async function POST(
           ...(body.metadata ?? {}),
           payment_provider: 'stripe',
           stripe_payment_link_id: stripeRes.stripePaymentLinkId,
+          chapter_hub_visible: false,
           ...(body.kind === 'fundraiser' && body.showOnPublicFundraisingChannels !== undefined
             ? { showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels }
             : {}),
@@ -224,6 +225,7 @@ export async function POST(
       metadata: ({
         ...(body.metadata ?? {}),
         payment_provider: 'crowded',
+        chapter_hub_visible: false,
         ...(body.kind === 'fundraiser' && body.showOnPublicFundraisingChannels !== undefined
           ? { showOnPublicFundraisingChannels: body.showOnPublicFundraisingChannels }
           : {}),

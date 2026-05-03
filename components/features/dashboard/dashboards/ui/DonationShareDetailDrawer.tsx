@@ -74,6 +74,7 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
   const payUrl = share.checkoutUrl?.trim() || share.crowdedShareUrl?.trim();
   const hasLink = Boolean(payUrl);
   const isStripe = share.paymentProvider === 'stripe';
+  const isChapterPublicBrowse = share.recipientId.startsWith('chapter-public:');
   const hero = share.heroImageUrl?.trim();
   const desc = share.description?.trim();
   const goalCents = share.goalAmountCents;
@@ -196,9 +197,11 @@ export function DonationShareDetailDrawer({ share, isOpen, onClose }: DonationSh
 
         {!hasLink ? (
           <p className="text-xs text-gray-500">
-            {isStripe
-              ? 'No checkout link yet — ask your treasurer to use Create link on your row in the donation drive.'
-              : 'No Crowded checkout link yet — your treasurer can add one, or check Crowded for a collect request.'}
+            {isChapterPublicBrowse
+              ? 'This drive is listed for the whole chapter. Ask your treasurer to share the drive with you to get a personal checkout link that counts toward your row.'
+              : isStripe
+                ? 'No checkout link yet — ask your treasurer to use Create link on your row in the donation drive.'
+                : 'No Crowded checkout link yet — your treasurer can add one, or check Crowded for a collect request.'}
           </p>
         ) : null}
       </div>

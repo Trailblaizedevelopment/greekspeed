@@ -100,6 +100,11 @@ function buildCampaignAggregates(
 export async function listMyDonationCampaignShares(params: {
   supabase: SupabaseClient;
   userId: string;
+  /**
+   * When set, only campaigns in this chapter are included (chapter donation hub / view-as).
+   * When omitted, uses `profiles.chapter_id` for the member dashboard card.
+   */
+  scopeChapterId?: string;
 }): Promise<{ ok: true; rows: MyDonationCampaignShare[] } | { ok: false; error: string }> {
   const { data: profile, error: profileError } = await params.supabase
     .from('profiles')
@@ -111,7 +116,11 @@ export async function listMyDonationCampaignShares(params: {
     return { ok: false, error: profileError.message || 'Failed to load profile' };
   }
 
-  const chapterId = profile?.chapter_id as string | null | undefined;
+  const scoped = typeof params.scopeChapterId === 'string' ? params.scopeChapterId.trim() : '';
+  const chapterId =
+    scoped ||
+    ((profile?.chapter_id as string | null | undefined) ?? '').trim() ||
+    null;
   if (!chapterId) {
     return { ok: true, rows: [] };
   }
