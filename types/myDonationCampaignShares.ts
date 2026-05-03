@@ -2,6 +2,14 @@ import type { DonationCampaignKind } from '@/types/donationCampaigns';
 
 export type DonationSharePaymentProvider = 'crowded' | 'stripe';
 
+/** Chapter member who has a settled payment on this drive (from `donation_campaign_recipients`). */
+export interface MyDonationCampaignContributor {
+  profileId: string;
+  displayName: string;
+  amountPaidCents: number;
+  paidAt: string | null;
+}
+
 /**
  * Donation campaign shared with the current user (from `donation_campaign_recipients` + campaign row).
  */
@@ -25,4 +33,13 @@ export interface MyDonationCampaignShare {
    */
   crowdedShareUrl: string | null;
   crowdedCollectionId: string | null;
+  /** This user's row: settled amount from webhooks (Stripe) or Crowded flows. */
+  myAmountPaidCents: number | null;
+  myPaidAt: string | null;
+  /** Sum of `amount_paid_cents` across all recipients on this campaign (chapter-scoped). */
+  campaignTotalRaisedCents: number;
+  campaignSharedRecipientCount: number;
+  campaignPaidRecipientCount: number;
+  /** Members with recorded payments on this campaign, newest first. */
+  contributors: MyDonationCampaignContributor[];
 }
